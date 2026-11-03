@@ -1,3 +1,4 @@
+import { PAPERS, toothAt, type PaperId } from "./paper";
 import type { Stroke } from "./stroke";
 
 /* The brushes. Each one turns a stroke record into marks on a canvas and nothing else, so a
@@ -11,13 +12,6 @@ function rng(seed: number) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-/* the paper's tooth: a fixed pattern in sheet units, so charcoal skips the same pits at any size */
-function tooth(x: number, y: number) {
-  let h = Math.imul(Math.floor(x / 2.4), 374761393) + Math.imul(Math.floor(y / 2.4), 668265263);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
 /** Lightens (d > 0) or darkens (d < 0) a #rrggbb colour. */
@@ -47,13 +41,16 @@ function walk(X: (i: number) => number, Y: (i: number) => number, P: (i: number)
 let smudgeTmp: HTMLCanvasElement | null = null;
 let fillTmp: HTMLCanvasElement | null = null;
 
-export function drawBrush(ctx: CanvasRenderingContext2D, s: Stroke, k: number, n: number) {
+export function drawBrush(ctx: CanvasRenderingContext2D, s: Stroke, k: number, n: number, paper: PaperId = "smooth") {
   const p = s.p;
   const X = (i: number) => p[i * 3] * k;
   const Y = (i: number) => p[i * 3 + 1] * k;
   const P = (i: number) => p[i * 3 + 2] / 99;
   const A = s.a ?? 1;
   const w = s.w * k;
+  // pen tilt: azimuth in radians and how far the pen leans over, 0 upright to 1 flat
+  const az = (i: number) => ((s.tl?.[i * 2] ?? 0) * Math.PI) / 180;
+  const lean = (i: number) => 1 - (s.tl?.[i * 2 + 1] ?? 90) / 90;
   const path = () => {
     ctx.beginPath();
     ctx.moveTo(X(0), Y(0));
@@ -111,35 +108,44 @@ export function drawBrush(ctx: CanvasRenderingContext2D, s: Stroke, k: number, n
   ctx.fillStyle = s.c;
   const R = rng(s.r ?? 7);
   switch (s.tool) {
-    case "pencil":
-      ctx.globalAlpha = 0.85 * A;
-      ctx.lineWidth = Math.max(0.7, w * 0.5);
+    case "pencil": {
+      // laid over on its side a pencil shades: a wider, lighter mark
+      let side = 0;
+      if (s.tl) {
+        for (let i = 0; i < n; i++) side += lean(i);
+        side /= n;
+      }
+      ctx.globalAlpha = 0.85 * A * (1 - 0.55 * side);
+      ctx.lineWidth = Math.max(0.7, w * 0.5 * (1 + 3 * side));
       path();
       ctx.stroke();
       ctx.globalAlpha = 0.28 * A;
-      ctx.lineWidth = Math.max(0.5, w * 0.3);
+      ctx.lineWidth = Math.max(0.5, w * 0.3 * (1 + 2 * side));
       ctx.translate(0.9 * k, -0.7 * k);
       path();
       ctx.stroke();
       break;
+    }
     case "ink":
       ctx.globalAlpha = A;
       pressed((i) => Math.max(0.7, w * (0.3 + 0.95 * P(i))));
       break;
     case "brushpen": {
-      // a flat nib held at a fixed angle: thick across it, thin along it
-      const nx = Math.cos(-0.62), ny = Math.sin(-0.62);
+      // a flat nib: thick across it, thin along it. Held at a fixed angle, or square to
+      // the way a tilted pen leans
+      const ang = (i: number) => (s.tl ? az(i) + Math.PI / 2 : -0.62);
       const half = (i: number) => Math.max(0.5, w * (0.15 + 0.85 * P(i)) * 0.8);
       ctx.globalAlpha = 0.96 * A;
       ctx.beginPath();
-      if (n === 1) ctx.ellipse(X(0), Y(0), half(0), half(0) * 0.35, -0.62, 0, Math.PI * 2);
+      if (n === 1) ctx.ellipse(X(0), Y(0), half(0), half(0) * 0.35, ang(0), 0, Math.PI * 2);
       for (let i = 0; i < n - 1; i++) {
         const h0 = half(i), h1 = half(i + 1);
+        const a0 = ang(i), a1 = ang(i + 1);
         const q: [number, number][] = [
-          [X(i) + nx * h0, Y(i) + ny * h0],
-          [X(i + 1) + nx * h1, Y(i + 1) + ny * h1],
-          [X(i + 1) - nx * h1, Y(i + 1) - ny * h1],
-          [X(i) - nx * h0, Y(i) - ny * h0],
+          [X(i) + Math.cos(a0) * h0, Y(i) + Math.sin(a0) * h0],
+          [X(i + 1) + Math.cos(a1) * h1, Y(i + 1) + Math.sin(a1) * h1],
+          [X(i + 1) - Math.cos(a1) * h1, Y(i + 1) - Math.sin(a1) * h1],
+          [X(i) - Math.cos(a0) * h0, Y(i) - Math.sin(a0) * h0],
         ];
         // same winding for every quad, so overlaps join instead of cancelling
         const cross = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]);
@@ -154,20 +160,22 @@ export function drawBrush(ctx: CanvasRenderingContext2D, s: Stroke, k: number, n
       ctx.stroke();
       break;
     }
-    case "charcoal":
+    case "charcoal": {
+      const pits = PAPERS[paper].pits;
       walk(X, Y, P, n, Math.max(0.8, w * 0.16), (x, y, pr) => {
         const rad = w * (0.32 + 0.3 * pr);
         const count = 2 + Math.round(4 * pr);
         for (let c = 0; c < count; c++) {
           const a = R() * Math.PI * 2, d = Math.sqrt(R()) * rad, f = R(), z = R();
           const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
-          if (tooth(px / k, py / k) < 0.32) continue;
+          if (toothAt(paper, px / k, py / k) < pits) continue;
           ctx.globalAlpha = A * (0.12 + 0.42 * pr) * (0.45 + f * 0.55);
           const sz = Math.max(0.6, w * 0.09) * (0.6 + z);
           ctx.fillRect(px, py, sz, sz);
         }
       });
       break;
+    }
     case "marker":
       ctx.globalAlpha = 0.55 * A;
       ctx.lineWidth = w * 1.8;

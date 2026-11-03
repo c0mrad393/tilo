@@ -33,6 +33,8 @@ notes), not as video. The browser renders replays, previews and exports.
 
 Progress, part 1 (v0.4): all thirteen tools, layers with blend and opacity, fill and lasso, mirror and radial symmetry, zoom and pan with pinch, pen pressure, Alt-click colour pick. Replays draw through the same layered painter. Still to do: perspective guides, paper textures, tilt, recorder v2, IndexedDB library, PNG and timelapse export.
 
+Progress, part 2 (v0.5): recorder v2 (a versioned binary log with delta and varint coding, about a third the size of JSON), a library of sheets in IndexedDB with autosave and pictures, six papers whose grain catches charcoal, pen tilt for the brush pen and pencil, one- and two-point perspective guides with snapping, Shift for straight lines, PNG export at 1× or 2× (with or without paper) and timelapse video export (MP4 or WebM) in the browser. Stage 1 is done.
+
 ## Stage 2 — Accounts, publishing, closed beta
 
 - Auth and Postgres (Supabase), files in Cloudflare R2 through a Worker, Cloudflare Pages hosting.

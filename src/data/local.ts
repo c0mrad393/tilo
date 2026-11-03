@@ -1,9 +1,11 @@
 import { useSyncExternalStore } from "react";
-import type { LayerDef, Piece, Stroke } from "../engine/stroke";
+import { decode, encode, fromBase64, toBase64 } from "../engine/codec";
+import type { Piece, Stroke } from "../engine/stroke";
 import { SAMPLES } from "./samples";
 
-/* Per-device state until accounts arrive in Stage 2: pinned pieces, stamps, the studio draft
-   and your marks on the wall. Storage can be missing or full, so every access is guarded. */
+/* Per-device state until accounts arrive in Stage 2: pinned pieces, stamps and your marks on
+   the wall. Storage can be missing or full, so every access is guarded. Sheets you are still
+   drawing live in the library (library.ts). */
 const KEY = "tilo.";
 function read<T>(k: string, d: T): T {
   try {
@@ -26,8 +28,23 @@ interface State {
   mine: Piece[];
   stamps: Record<string, Record<string, 1>>;
 }
+/* pinned pieces are stored with their strokes as a base64 v2 recording, under half the size of JSON */
+type Stored = Omit<Piece, "strokes"> & { strokes?: Stroke[]; rec?: string };
+const unpack = (list: Stored[]): Piece[] =>
+  list.flatMap((p) => {
+    try {
+      const strokes = p.rec ? decode(fromBase64(p.rec)) : p.strokes;
+      if (!p || !Array.isArray(strokes)) return [];
+      const { rec: _rec, ...rest } = p;
+      return [{ ...rest, strokes }];
+    } catch {
+      return [];
+    }
+  });
+const pack = (list: Piece[]): Stored[] => list.map(({ strokes, ...p }) => ({ ...p, rec: toBase64(encode(strokes)) }));
+
 let state: State = {
-  mine: read<Piece[]>("pinned", []).filter((p) => p && Array.isArray(p.strokes)),
+  mine: unpack(read<Stored[]>("pinned", [])),
   stamps: read("stamps", {}),
 };
 const subs = new Set<() => void>();
@@ -44,9 +61,13 @@ export const pieceById = (id: string, s: State = state) => allPieces(s).find((p)
 
 export function pinPiece(p: Piece) {
   const mine = [p, ...state.mine];
-  while (mine.length > 1 && JSON.stringify(mine).length > 3e6) mine.pop();
+  let stored = pack(mine);
+  while (mine.length > 1 && JSON.stringify(stored).length > 3e6) {
+    mine.pop();
+    stored = stored.slice(0, mine.length);
+  }
   state = { ...state, mine };
-  const ok = write("pinned", mine);
+  const ok = write("pinned", stored);
   emit();
   return ok;
 }
@@ -65,15 +86,6 @@ export function stampCount(p: Piece, stamp: string, s: State = state) {
 }
 export const stampTotal = (p: Piece, s: State = state) =>
   Object.values(p.stamps || {}).reduce((a, b) => a + b, 0) + Object.keys(s.stamps[p.id] || {}).length;
-
-export const draft = {
-  load: () => ({ strokes: read<Stroke[]>("draft", []), ms: read<number>("draftTime", 0), layers: read<LayerDef[]>("draftLayers", []) }),
-  save: (strokes: Stroke[], ms: number, layers: LayerDef[] = []) => {
-    write("draft", strokes);
-    write("draftTime", ms);
-    write("draftLayers", layers);
-  },
-};
 
 export const wallMarks = {
   load: () => read<Stroke[]>("wall", []),

@@ -1,5 +1,6 @@
 import { Painter } from "./painter";
-import { BASE_LAYER, PAPER_COLOR, pointsOf, type LayerDef, type Stroke } from "./stroke";
+import type { PaperId } from "./paper";
+import { BASE_LAYER, pointsOf, type LayerDef, type Stroke } from "./stroke";
 
 /** How much of a replay's running time a stroke takes. Background washes go by faster
     than line work, so replays reach the drawing sooner. */
@@ -15,7 +16,7 @@ export class Replayer {
   constructor(
     private canvas: HTMLCanvasElement,
     private strokes: Stroke[],
-    private paper: string | null = PAPER_COLOR,
+    paper: PaperId | null = "smooth",
     sheetWidth = 1600,
     layers: LayerDef[] = [BASE_LAYER],
   ) {
@@ -25,7 +26,7 @@ export class Replayer {
       this.cum.push(t);
     });
     this.total = t || 1;
-    this.painter = new Painter(canvas.width, canvas.height, canvas.width / sheetWidth, layers.length ? layers : [BASE_LAYER]);
+    this.painter = new Painter(canvas.width, canvas.height, canvas.width / sheetWidth, layers.length ? layers : [BASE_LAYER], paper);
   }
   get strokeCount() {
     return this.strokes.length;
@@ -51,7 +52,7 @@ export class Replayer {
       const upto = Math.floor(((target - prev) / (this.cum[idx] - prev)) * pointsOf(s));
       if (upto > 0 && s.tool !== "fill") live = { stroke: s, upto };
     }
-    this.painter.render(ctx, this.paper, live);
+    this.painter.render(ctx, live);
     return Math.min(idx, this.strokes.length - 1);
   }
 }

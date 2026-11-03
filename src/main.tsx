@@ -14,7 +14,8 @@ import { Layout } from "./components/Layout";
 import { Home } from "./pages/Home";
 import { Gallery } from "./pages/Gallery";
 import { PiecePage } from "./pages/PiecePage";
-import { Studio } from "./pages/Studio";
+import { Library } from "./pages/Library";
+import { StudioRoute, studioLoader, studioShouldRevalidate } from "./pages/Studio";
 
 const router = createBrowserRouter([
   {
@@ -23,7 +24,8 @@ const router = createBrowserRouter([
       { path: "/", element: <Home /> },
       { path: "/gallery", element: <Gallery /> },
       { path: "/piece/:id", element: <PiecePage /> },
-      { path: "/studio", element: <Studio /> },
+      { path: "/studio", element: <StudioRoute />, loader: studioLoader, shouldRevalidate: studioShouldRevalidate, HydrateFallback: () => null },
+      { path: "/library", element: <Library /> },
       { path: "*", element: <main className="wrap piece-missing"><h1>Nothing printed here</h1><p className="serif"><a href="/">Back to Tilo</a></p></main> },
     ],
   },

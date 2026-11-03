@@ -1,4 +1,5 @@
 import { drawBrush } from "./brushes";
+import type { PaperId } from "./paper";
 import { mirrored } from "./symmetry";
 
 /* The stroke model shared by every tool.
@@ -25,6 +26,8 @@ export interface Stroke {
   m?: string;
   /** seed for tools with grain or spray, so a replay lays down the same marks */
   r?: number;
+  /** pen tilt per point, pairs of [azimuth 0-359, altitude 0-90] in degrees; only from a pen */
+  tl?: number[];
 }
 
 export type Blend = "source-over" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "soft-light" | "color-burn";
@@ -45,6 +48,8 @@ export interface Piece {
   strokes: Stroke[];
   /** bottom to top; missing means one plain layer with id 0 */
   layers?: LayerDef[];
+  /** missing means smooth cartridge */
+  paper?: PaperId;
   prompt?: number;
   remixOf?: string;
   stamps?: Record<string, number>;
@@ -81,10 +86,10 @@ export const pointsOf = (s: Stroke) => (s.p.length / 3) | 0;
 
 /** Draws one stroke, optionally only its first `upto` points (for replays). `k` scales
     sheet units to pixels. Symmetry is drawn as mirrored copies of the same stroke. */
-export function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke, k = 1, upto?: number) {
+export function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke, k = 1, upto?: number, paper: PaperId = "smooth") {
   const n = Math.min(upto ?? Infinity, pointsOf(s));
   if (n < 1) return;
-  for (const copy of mirrored(s, SHEET.w, SHEET.h)) drawBrush(ctx, copy, k, n);
+  for (const copy of mirrored(s, SHEET.w, SHEET.h)) drawBrush(ctx, copy, k, n, paper);
 }
 
 export const PAPER_COLOR = "#FBFAF5";

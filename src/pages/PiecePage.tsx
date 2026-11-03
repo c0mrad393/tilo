@@ -21,7 +21,7 @@ function Player({ piece }: { piece: Piece }) {
     const c = cv.current!;
     c.width = 1600;
     c.height = 1200;
-    rep.current = new Replayer(c, piece.strokes, undefined, 1600, piece.layers);
+    rep.current = new Replayer(c, piece.strokes, piece.paper ?? "smooth", 1600, piece.layers);
     setIdx(rep.current.draw(posRef.current));
   }, [piece]);
 

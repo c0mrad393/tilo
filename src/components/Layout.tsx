@@ -47,6 +47,7 @@ export function Layout() {
             </NavLink>
             <nav className="nav" aria-label="Main">
               <NavLink to="/gallery" viewTransition>Gallery</NavLink>
+              <NavLink to="/library" viewTransition>Your sheets</NavLink>
               <a href="/#wall" className="opt">The wall</a>
               <a href="/#benches" className="opt">Benches</a>
               <NavLink to="/studio" viewTransition className="btn btn-ink">Open the studio</NavLink>

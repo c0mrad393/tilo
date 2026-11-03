@@ -5,6 +5,7 @@ import { PinCard } from "../components/PinCard";
 import { ReplayCanvas } from "../components/ReplayCanvas";
 import { allPieces, stampTotal, useLocal } from "../data/local";
 import { PROMPT } from "../data/samples";
+import { PAPERS, paperOf } from "../engine/paper";
 import { fmtMin, toolsUsed, type Piece } from "../engine/stroke";
 
 const FILTERS = [["stamped", "Most stamped"], ["new", "Newest"], ["prompt", `Subject No. ${PROMPT.no}`], ["remix", "Remixes"]] as const;
@@ -27,13 +28,13 @@ function Exhibition({ list }: { list: Piece[] }) {
     <section className="expo" aria-roledescription="carousel" aria-label="Exhibition view">
       <div className="expo-wall">
         <div className="expo-frame plate reg">
-          <ReplayCanvas key={p.id} strokes={p.strokes} layers={p.layers} mode="loop" label={`${p.title} by ${p.by}, replaying`} />
+          <ReplayCanvas key={p.id} strokes={p.strokes} layers={p.layers} paper={p.paper} mode="loop" label={`${p.title} by ${p.by}, replaying`} />
         </div>
         <aside className="expo-label" aria-live="polite">
           <span className="kicker num">Plate {String(i + 1).padStart(2, "0")} of {String(list.length).padStart(2, "0")}</span>
           <h2>{p.title}</h2>
           <p className="serif expo-by">@{p.by}{p.mine ? " (you)" : ""}</p>
-          <p className="serif">{toolsUsed(p.strokes).join(", ")} on Tilo paper.<br />{p.strokes.length} strokes, {fmtMin(p.minutes)} min.</p>
+          <p className="serif">{toolsUsed(p.strokes).join(", ")} on {PAPERS[paperOf(p.paper)].name.toLowerCase()}.<br />{p.strokes.length} strokes, {fmtMin(p.minutes)} min.</p>
           <Link to={`/piece/${p.id}`} viewTransition className="expo-open">Open the piece<Icon name="arrow" size={16} /></Link>
         </aside>
       </div>
