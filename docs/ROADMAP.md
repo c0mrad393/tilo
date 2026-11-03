@@ -31,6 +31,8 @@ notes), not as video. The browser renders replays, previews and exports.
 - Recorder v2: compact binary action log (delta + varint), versioned format.
 - Local library in IndexedDB, autosave, export PNG and timelapse video in the browser.
 
+Progress, part 1 (v0.4): all thirteen tools, layers with blend and opacity, fill and lasso, mirror and radial symmetry, zoom and pan with pinch, pen pressure, Alt-click colour pick. Replays draw through the same layered painter. Still to do: perspective guides, paper textures, tilt, recorder v2, IndexedDB library, PNG and timelapse export.
+
 ## Stage 2 — Accounts, publishing, closed beta
 
 - Auth and Postgres (Supabase), files in Cloudflare R2 through a Worker, Cloudflare Pages hosting.

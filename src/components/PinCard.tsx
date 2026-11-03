@@ -26,7 +26,7 @@ export function PinCard({ piece, index = 0, no, mode = "hover" as const }: { pie
       aria-label={`${piece.title} by ${piece.by}. Open the piece.`}
     >
       <span className="plate">
-        <ReplayCanvas strokes={piece.strokes} mode={mode} label={`${piece.title}, drawn by ${piece.by}`} />
+        <ReplayCanvas strokes={piece.strokes} layers={piece.layers} mode={mode} label={`${piece.title}, drawn by ${piece.by}`} />
         {piece.mine && <span className="card-flag kicker">Yours</span>}
       </span>
       <span className="card-cap">

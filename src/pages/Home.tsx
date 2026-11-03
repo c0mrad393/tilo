@@ -36,6 +36,7 @@ function LivePlate({ piece, no, className = "", children }: { piece: Piece; no: 
       <span className="plate">
         <ReplayCanvas
           strokes={piece.strokes}
+          layers={piece.layers}
           mode="loop"
           label={`${piece.title} being drawn, stroke by stroke`}
           onProgress={(pos, idx) => {

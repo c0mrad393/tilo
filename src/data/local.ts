@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { Piece, Stroke } from "../engine/stroke";
+import type { LayerDef, Piece, Stroke } from "../engine/stroke";
 import { SAMPLES } from "./samples";
 
 /* Per-device state until accounts arrive in Stage 2: pinned pieces, stamps, the studio draft
@@ -67,10 +67,11 @@ export const stampTotal = (p: Piece, s: State = state) =>
   Object.values(p.stamps || {}).reduce((a, b) => a + b, 0) + Object.keys(s.stamps[p.id] || {}).length;
 
 export const draft = {
-  load: () => ({ strokes: read<Stroke[]>("draft", []), ms: read<number>("draftTime", 0) }),
-  save: (strokes: Stroke[], ms: number) => {
+  load: () => ({ strokes: read<Stroke[]>("draft", []), ms: read<number>("draftTime", 0), layers: read<LayerDef[]>("draftLayers", []) }),
+  save: (strokes: Stroke[], ms: number, layers: LayerDef[] = []) => {
     write("draft", strokes);
     write("draftTime", ms);
+    write("draftLayers", layers);
   },
 };
 

@@ -27,7 +27,7 @@ function Exhibition({ list }: { list: Piece[] }) {
     <section className="expo" aria-roledescription="carousel" aria-label="Exhibition view">
       <div className="expo-wall">
         <div className="expo-frame plate reg">
-          <ReplayCanvas key={p.id} strokes={p.strokes} mode="loop" label={`${p.title} by ${p.by}, replaying`} />
+          <ReplayCanvas key={p.id} strokes={p.strokes} layers={p.layers} mode="loop" label={`${p.title} by ${p.by}, replaying`} />
         </div>
         <aside className="expo-label" aria-live="polite">
           <span className="kicker num">Plate {String(i + 1).padStart(2, "0")} of {String(list.length).padStart(2, "0")}</span>

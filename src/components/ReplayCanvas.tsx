@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
 import { Replayer, prefersReducedMotion } from "../engine/replay";
-import { PAPER_COLOR, type Stroke } from "../engine/stroke";
+import { PAPER_COLOR, type LayerDef, type Stroke } from "../engine/stroke";
 
 export type ReplayMode = "static" | "loop" | "once" | "hover";
 
 interface Props {
   strokes: Stroke[];
+  layers?: LayerDef[];
   mode?: ReplayMode;
   /** Paper colour, or null to let the material underneath show through. */
   paper?: string | null;
@@ -19,7 +20,7 @@ interface Props {
 
 /* A canvas that shows a recording. It sizes itself to its box, plays only while it is on
    screen, and falls back to the finished picture when the viewer prefers less motion. */
-export function ReplayCanvas({ strokes, mode = "static", paper = PAPER_COLOR, sheetWidth = 1600, aspect = 4 / 3, label, className, onProgress }: Props) {
+export function ReplayCanvas({ strokes, layers, mode = "static", paper = PAPER_COLOR, sheetWidth = 1600, aspect = 4 / 3, label, className, onProgress }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const progress = useRef(onProgress);
   progress.current = onProgress;
@@ -43,7 +44,7 @@ export function ReplayCanvas({ strokes, mode = "static", paper = PAPER_COLOR, sh
       if (rep && cv.width === W) return;
       cv.width = W;
       cv.height = Math.round(W / aspect);
-      rep = new Replayer(cv, strokes, paper, sheetWidth);
+      rep = new Replayer(cv, strokes, paper, sheetWidth, layers);
       rep.draw(reduced || mode === "static" || mode === "hover" ? 1 : pos);
     };
     const frame = (last: number) => (now: number) => {
@@ -105,7 +106,7 @@ export function ReplayCanvas({ strokes, mode = "static", paper = PAPER_COLOR, sh
       host.removeEventListener("focusin", enter);
       host.removeEventListener("focusout", leave);
     };
-  }, [strokes, mode, paper, sheetWidth, aspect]);
+  }, [strokes, layers, mode, paper, sheetWidth, aspect]);
 
   return <canvas ref={ref} className={className} role="img" aria-label={label} style={{ display: "block", width: "100%", aspectRatio: String(aspect) }} />;
 }
