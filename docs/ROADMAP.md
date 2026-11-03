@@ -10,9 +10,13 @@ notes), not as video. The browser renders replays, previews and exports.
 ## Stage 0 — Foundation and design system (now)
 
 - Vite + React + TypeScript app, self-hosted fonts.
-- Design system v0.2: tokens, the cutting-mat page, one **material per discipline**
-  (paper, graph paper, light table, linen, kraft, staff paper, leaded glass, slate),
-  physical motion (sheets settle, tape lifts, routes slide like sheets on a mat).
+- Design system v0.3, "print shop": warm newsprint with grain, printed in two riso inks
+  (blue and fluorescent pink) that overprint; work shown as catalogue plates with crop
+  marks; Archivo (condensed to wide) and Newsreader. One **material per discipline**
+  (paper, graph paper, light table, linen, kraft, staff paper, leaded glass, slate).
+  Motion is a press pass: blocks and routes print in top to bottom, the second ink
+  comes in out of register. Each replay shows its trace (pressure and speed over time).
+  v0.2 used a green cutting mat; replaced because it read as generic.
 - Shared engine: stroke model, renderer, pointer capture, replayer, sample generator.
 - Home v0.2: hand-drawn logo and annotations played from stroke data, local wall,
   "being made" replay feed, workbench overview, daily prompt, gallery with

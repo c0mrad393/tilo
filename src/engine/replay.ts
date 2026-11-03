@@ -1,5 +1,9 @@
 import { drawStroke, PAPER_COLOR, pointsOf, type Stroke } from "./stroke";
 
+/** How much of a replay's running time a stroke takes. Background washes go by faster
+    than line work, so replays reach the drawing sooner. */
+export const strokeWeight = (s: Stroke) => Math.max(4, pointsOf(s)) * (s.tool === "wash" ? 0.4 : 1);
+
 /* Draws a piece at any point of its recording. Finished strokes are cached on a layer,
    so playing forward only draws what is new; seeking backwards rebuilds the layer. */
 export class Replayer {
@@ -15,9 +19,8 @@ export class Replayer {
     sheetWidth = 1600,
   ) {
     let t = 0;
-    // background washes go by faster than line work, so replays reach the drawing sooner
     strokes.forEach((s) => {
-      t += Math.max(4, pointsOf(s)) * (s.tool === "wash" ? 0.4 : 1);
+      t += strokeWeight(s);
       this.cum.push(t);
     });
     this.total = t || 1;

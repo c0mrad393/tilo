@@ -1,11 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
-import "@fontsource-variable/bricolage-grotesque/opsz.css";
+// width and weight axes: Archivo runs from poster-condensed to wide in one file
+import "@fontsource-variable/archivo/wdth.css";
+import "@fontsource-variable/newsreader/opsz.css";
+import "@fontsource-variable/newsreader/opsz-italic.css";
 import "@fontsource/martian-mono/latin-400.css";
-import "@fontsource/martian-mono/latin-500.css";
-// the handwriting face ships thousands of Korean glyphs; Tilo only needs its Latin set
-import "@fontsource/nanum-pen-script/latin-400.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/materials.css";
@@ -24,7 +24,7 @@ const router = createBrowserRouter([
       { path: "/gallery", element: <Gallery /> },
       { path: "/piece/:id", element: <PiecePage /> },
       { path: "/studio", element: <Studio /> },
-      { path: "*", element: <main className="wrap piece-missing"><h1>Nothing pinned here</h1><p><a href="/">Back to Tilo</a></p></main> },
+      { path: "*", element: <main className="wrap piece-missing"><h1>Nothing printed here</h1><p className="serif"><a href="/">Back to Tilo</a></p></main> },
     ],
   },
 ]);

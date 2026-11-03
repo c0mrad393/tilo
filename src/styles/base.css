@@ -5,24 +5,29 @@
 }
 html {
   -webkit-text-size-adjust: 100%;
+  background: var(--ground);
+  /* newsprint grain, baked into tiles so it costs nothing to scroll */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .12 0 0 0 0 .1 0 0 0 0 .08 1.1 0 0 0 -.55'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.32'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .92 0 0 0 0 .85 1.25 0 0 0 -.6'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.2'/%3E%3C/svg%3E");
+  }
+}
+:root[data-theme="dark"] {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .92 0 0 0 0 .85 1.25 0 0 0 -.6'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.2'/%3E%3C/svg%3E");
 }
 body {
   margin: 0;
   min-height: 100dvh;
-  background-color: var(--mat);
-  color: var(--mat-ink);
-  /* cutting mat: 1 cm squares with a heavier 5 cm grid */
-  background-image:
-    linear-gradient(var(--mat-line-2) 1px, transparent 1px),
-    linear-gradient(90deg, var(--mat-line-2) 1px, transparent 1px),
-    linear-gradient(var(--mat-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--mat-line) 1px, transparent 1px);
-  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
-  font-family: var(--f-display);
+  background-color: var(--ground);
+  background-image: var(--grain);
+  color: var(--ground-ink);
+  font-family: var(--f-sans);
   font-size: var(--t-md);
   line-height: 1.5;
-  font-variation-settings: "opsz" 14;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 body::before {
   content: "";
@@ -30,7 +35,11 @@ body::before {
   inset: 0 0 auto;
   height: env(safe-area-inset-top, 0px);
   z-index: 30;
-  background: var(--mat);
+  background: var(--ground);
+}
+::selection {
+  background: var(--yellow);
+  color: #1d1b19;
 }
 img,
 canvas,
@@ -49,21 +58,37 @@ button {
 }
 a {
   color: inherit;
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: var(--f-sans);
+  font-stretch: 62%;
+  font-weight: 820;
+  line-height: 0.88;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+p {
+  margin: 0;
 }
 :focus-visible {
-  outline: 2px solid var(--mat-accent);
+  outline: 2px solid var(--blue);
   outline-offset: 3px;
-  border-radius: 3px;
 }
-.on-paper :focus-visible,
-.sheet :focus-visible {
-  outline-color: var(--accent);
+.plate :focus-visible,
+.on-paper :focus-visible {
+  outline-color: #2d4bb3;
 }
 [hidden] {
   display: none !important;
 }
 .wrap {
-  max-width: 1320px;
+  max-width: 1400px;
   margin-inline: auto;
   padding-left: var(--gutter-l);
   padding-right: var(--gutter-r);
@@ -76,19 +101,26 @@ a {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+.serif {
+  font-family: var(--f-serif);
+  font-optical-sizing: auto;
+}
 .mono {
   font-family: var(--f-mono);
   font-size: var(--t-xs);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
 }
-.caps {
+/* small set labels: semi-condensed caps, never mono */
+.kicker {
+  font-family: var(--f-sans);
+  font-stretch: 85%;
+  font-weight: 700;
+  font-size: var(--t-xs);
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
-.hand {
-  font-family: var(--f-hand);
-  font-weight: 400;
-  line-height: 1.05;
+.num {
+  font-variant-numeric: tabular-nums;
 }
 svg.i {
   width: 20px;
@@ -101,25 +133,30 @@ svg.i {
   flex: none;
 }
 
-/* page transitions: the new sheet slides onto the mat, the old one lifts away */
+/* Motion. Pages and blocks arrive the way paper leaves a press: one firm pass, top to
+   bottom. Blocks marked .press start hidden only once the script has marked them. */
 @media (prefers-reduced-motion: no-preference) {
   ::view-transition-old(root) {
-    animation: sheet-out 220ms var(--ease-out) both;
+    animation: none;
   }
   ::view-transition-new(root) {
-    animation: sheet-in 420ms var(--ease-settle) both;
+    animation: press-in 620ms var(--ease-press) both;
+  }
+  .press.is-waiting {
+    clip-path: inset(0 0 100% 0);
+  }
+  .press.is-in {
+    /* backwards, not both: once printed the block keeps no clip, so hover overlays can leave it */
+    animation: press-in var(--d-slow) var(--ease-press) backwards;
+    animation-delay: var(--press-delay, 0ms);
   }
 }
-@keyframes sheet-out {
-  to {
-    opacity: 0;
-    transform: translateY(10px) scale(0.985);
-  }
-}
-@keyframes sheet-in {
+@keyframes press-in {
   from {
-    opacity: 0;
-    transform: translateY(-18px) rotate(-0.5deg);
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 @media (prefers-reduced-motion: reduce) {

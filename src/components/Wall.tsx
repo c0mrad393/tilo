@@ -14,7 +14,6 @@ export function Wall() {
   const box = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
   const ring = useRef<HTMLDivElement>(null);
-  const ruler = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<WallTool>("ink");
   const [color, setColor] = useState(WALL_COLORS[0]);
   const [size, setSize] = useState(6);
@@ -57,13 +56,6 @@ export function Wall() {
       view.s = Math.max(r.width / WALL.w, r.height / WALL.h);
       view.ox = Math.max(0, Math.min(WALL.w - r.width / view.s, (WALL.w - r.width / view.s) / 2));
       view.oy = Math.max(0, (WALL.h - r.height / view.s) / 2);
-      const ru = ruler.current!;
-      ru.replaceChildren(...Array.from({ length: Math.ceil(r.width / 60) }, (_, n) => {
-        const sp = document.createElement("span");
-        sp.style.left = n * 60 + "px";
-        sp.textContent = String(n);
-        return sp;
-      }));
       ringSize.current();
       paint();
     };
@@ -135,14 +127,13 @@ export function Wall() {
   useEffect(() => ringSize.current(), [tool, size]);
 
   return (
-    <div className="wall-shell settle" style={{ ["--settle-r" as string]: "0.4deg" }}>
-      <div className="ruler" ref={ruler} aria-hidden="true" />
-      <div className={`wall${tool === "hand" ? " panning" : ""}`} ref={box}>
-        <canvas ref={cv} role="img" aria-label="The wall: a large sheet of paper with marks from many people" />
-        <div className="wall-note note tape" style={{ ["--tr" as string]: "4deg" }}>
-          <p className="hand">This sheet belongs to everyone. Leave a mark.</p>
+    <div className="wall-shell">
+      <div className="wall-frame plate reg">
+        <div className={`wall${tool === "hand" ? " panning" : ""}`} ref={box}>
+          <canvas ref={cv} role="img" aria-label="The wall: a large sheet of paper with marks from many people" />
+          <p className="wall-note serif">This sheet belongs to everyone. <b>Leave a mark.</b></p>
+          <div className="ring" ref={ring} />
         </div>
-        <div className="ring" ref={ring} />
       </div>
       <div className="tray" role="toolbar" aria-label="Wall tools">
         <div className="tray-grp">
@@ -166,12 +157,12 @@ export function Wall() {
             </button>
           ))}
         </div>
-        <div className="tray-status mono">
+        <div className="tray-status kicker">
           <span className="live is-off">Preview wall</span>
           <span>{count.toLocaleString()} marks</span>
         </div>
       </div>
-      <p className="wall-msg mono">Your marks stay on this device until the shared wall opens in Stage 4. The doodles already here are examples.</p>
+      <p className="wall-msg serif">For now your marks stay on this device; the shared wall opens in Stage 4. The doodles already here are examples.</p>
     </div>
   );
 }

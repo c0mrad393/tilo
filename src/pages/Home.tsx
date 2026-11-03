@@ -4,50 +4,53 @@ import { Annotate, type Measure } from "../components/Annotate";
 import { Icon } from "../components/Icon";
 import { PinCard } from "../components/PinCard";
 import { ReplayCanvas } from "../components/ReplayCanvas";
+import { Trace } from "../components/Trace";
 import { Wall } from "../components/Wall";
 import { DISCIPLINES } from "../data/disciplines";
 import { allPieces, stampTotal, useLocal } from "../data/local";
 import { PROMPT, SAMPLES } from "../data/samples";
 import { Sketch } from "../engine/sketch";
-import { fmtMin, type Piece } from "../engine/stroke";
+import { fmtMin, toolsUsed, type Piece } from "../engine/stroke";
 
-/* Pen marks over the hero: a loop around "here", and an arrow down to the wall. */
-function heroMarks(w: number, h: number, measure: Measure, ink: string) {
-  const S = new Sketch(9);
-  const word = measure(".hl-mark");
+const HIGHLIGHTER = "#FFD23F";
+
+/* A highlighter pass behind "hands", drawn on load by the same engine as everything else. */
+function heroMarks(_w: number, _h: number, measure: Measure) {
+  const S = new Sketch(5);
+  const word = measure(".hl");
   if (word) {
-    const rx = word.width * 0.55 + 6, ry = word.height * 0.5;
-    S.circle(word.x + word.width * 0.53, word.y + word.height * 0.56, rx, "ink", ink, 2.6, 1.4, 1.12, ry / rx);
-  }
-  const ctas = measure(".hero-ctas");
-  if (ctas && w > 860) {
-    const x0 = ctas.x + ctas.width + 28, y0 = ctas.y + 8;
-    S.poly([[x0, y0], [x0 + 34, y0 + 40], [x0 + 30, h - 14]], "ink", ink, 2.2, 0.6, 6);
-    S.poly([[x0 + 18, h - 34], [x0 + 30, h - 10], [x0 + 44, h - 32]], "ink", ink, 2.2, 0.3, 4);
+    // an opaque ink pass so the word stays readable on it in both themes
+    const y = word.y + word.height * 0.52, x0 = word.x + word.height * 0.05, x1 = word.x + word.width * 0.95;
+    const w = word.height * 1.02; // ink lays down about 0.8 of w at mid pressure
+    S.poly([[x0, y + w * 0.1], [x0 + (x1 - x0) * 0.5, y - w * 0.06], [x1, y + w * 0.04]], "ink", HIGHLIGHTER, w, 0.8, 18);
   }
   return S.strokes;
 }
 
-function FeedCard({ piece }: { piece: Piece }) {
-  const bar = useRef<HTMLSpanElement>(null);
+/* A piece replaying in a loop, with its trace moving underneath. */
+function LivePlate({ piece, no, className = "", children }: { piece: Piece; no: number; className?: string; children?: React.ReactNode }) {
+  const trace = useRef<HTMLDivElement>(null);
   const counter = useRef<HTMLSpanElement>(null);
   return (
-    <Link to={`/piece/${piece.id}`} viewTransition className="feed-card sheet settle" style={{ ["--settle-r" as string]: `${(piece.tilt ?? 0) * 0.8}deg` }}>
-      <ReplayCanvas
-        strokes={piece.strokes}
-        mode="loop"
-        label={`${piece.title} being drawn, stroke by stroke`}
-        onProgress={(pos, idx) => {
-          if (bar.current) bar.current.style.transform = `scaleX(${pos})`;
-          if (counter.current) counter.current.textContent = `STROKE ${idx + 1} / ${piece.strokes.length}`;
-        }}
-      />
-      <span className="feed-time"><span ref={bar} /></span>
-      <span className="feed-meta">
-        <span className="pin-title">{piece.title}</span>
-        <span className="mono feed-count" ref={counter}>{piece.strokes.length} STROKES</span>
+    <Link to={`/piece/${piece.id}`} viewTransition className={`card lift press ${className}`} style={{ ["--press-delay" as string]: `${(no % 4) * 90}ms` }}>
+      <span className="plate">
+        <ReplayCanvas
+          strokes={piece.strokes}
+          mode="loop"
+          label={`${piece.title} being drawn, stroke by stroke`}
+          onProgress={(pos, idx) => {
+            trace.current?.style.setProperty("--pos", String(pos));
+            if (counter.current) counter.current.textContent = `stroke ${idx + 1} of ${piece.strokes.length}`;
+          }}
+        />
       </span>
-      <span className="pin-by">@{piece.by} · {fmtMin(piece.minutes)} min</span>
+      <Trace strokes={piece.strokes} ref={trace} />
+      <span className="card-cap">
+        <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>
+        <span className="card-title">{piece.title}</span>
+        <span className="card-by serif">@{piece.by} · <span ref={counter}>{piece.strokes.length} strokes</span></span>
+        {children}
+      </span>
     </Link>
   );
 }
@@ -68,135 +71,158 @@ function useCountdown() {
   return s;
 }
 
-const isLight = (c: string) => {
-  const n = parseInt(c.slice(1), 16);
-  return (n >> 16) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114 > 150;
-};
+/* The benches index: one row per discipline. On a pointer device the hovered row's demo
+   follows the cursor; on touch it sits at the end of the row. */
+function Benches() {
+  const list = useRef<HTMLOListElement>(null);
+  const follow = (e: React.PointerEvent) => {
+    const r = list.current!.getBoundingClientRect();
+    list.current!.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    list.current!.style.setProperty("--my", `${e.clientY - r.top}px`);
+  };
+  return (
+    <ol className="index" ref={list} onPointerMove={follow}>
+      {DISCIPLINES.map((d, i) => {
+        const open = d.stage === 0;
+        return (
+          <li key={d.id} data-replay-host className={`index-row press${open ? " is-open" : ""}`} style={{ ["--press-delay" as string]: `${i * 40}ms` }}>
+            <span className="index-no num">{String(i + 1).padStart(2, "0")}</span>
+            {open ? (
+              <Link to="/studio" viewTransition className="index-name">{d.name}</Link>
+            ) : (
+              <span className="index-name">{d.name}</span>
+            )}
+            <span className="index-blurb serif">{d.blurb}</span>
+            <span className="index-stage kicker">{open ? "Open now" : `Stage ${d.stage}`}</span>
+            <span className={`index-peek ${d.material}`} aria-hidden="true">
+              <ReplayCanvas strokes={d.demo} paper={null} mode="hover" label={`Example of ${d.name.toLowerCase()}`} />
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export function Home() {
   const local = useLocal();
   const countdown = useCountdown();
-  const promptEntries = allPieces(local).filter((p) => p.prompt === PROMPT.no).slice(0, 4);
-  const top = [...SAMPLES].sort((a, b) => stampTotal(b, local) - stampTotal(a, local)).slice(0, 4);
-  const feed = ["window", "kazbegi", "oneline", "pomegranate", "tram", "waves"].map((id) => SAMPLES.find((p) => p.id === id)!);
+  const entries = allPieces(local).filter((p) => p.prompt === PROMPT.no).slice(0, 4);
+  const top = [...SAMPLES].sort((a, b) => stampTotal(b, local) - stampTotal(a, local)).slice(0, 6);
+  const feed = ["kazbegi", "oneline", "pomegranate", "tram", "waves"].map((id) => SAMPLES.find((p) => p.id === id)!);
+  const hero = SAMPLES.find((p) => p.id === "window")!;
+  const proof = SAMPLES.find((p) => p.id === "balcony")!;
 
   return (
     <main>
       <section className="hero wrap" aria-labelledby="hero-h">
-        <Annotate build={heroMarks} />
-        <h1 id="hero-h">
-          Make it here.
-          <br />
-          Hang it <span className="hl-mark">here.</span>
+        <Annotate build={heroMarks} delay={700} ms={900} />
+        <h1 id="hero-h" className="hero-h">
+          <span className="ink-blue">Drawn by <span className="hl">hands,</span></span>
+          <span className="ink-pink">not prompts.</span>
         </h1>
-        <div className="hero-side">
-          <p>Tilo is a free studio in your browser for art made by hand. Every piece keeps its full recording, so anyone can watch how it was made, stroke by stroke.</p>
-          <div className="hero-ctas">
-            <Link to="/studio" viewTransition className="btn btn-ink"><Icon name="pencil" />Start a blank sheet</Link>
-            <a href="#today" className="btn btn-mat">Today's prompt</a>
+        <div className="hero-foot">
+          <div className="hero-copy">
+            <p className="lede serif">Tilo is a free studio and gallery for art made stroke by stroke, in the browser. Every piece keeps its recording, so anyone can watch exactly how a person made it.</p>
+            <div className="hero-ctas">
+              <Link to="/studio" viewTransition className="btn btn-ink"><Icon name="pencil" />Start a blank sheet</Link>
+              <a href="#today" className="btn btn-line">Today's subject</a>
+            </div>
+            <dl className="hero-facts">
+              <div><dt className="num">0</dt><dd>uploads in the hand-made gallery</dd></div>
+              <div><dt className="num">{hero.strokes.length}</dt><dd>strokes in Plate 01, all replayable</dd></div>
+              <div><dt>Free</dt><dd>to draw, show and stamp</dd></div>
+            </dl>
           </div>
+          <LivePlate piece={hero} no={1} className="hero-plate">
+            <span className="card-note serif">{toolsUsed(hero.strokes).join(", ")} · {fmtMin(hero.minutes)} min · playing from its recording</span>
+          </LivePlate>
         </div>
       </section>
 
-      <div className="wrap"><Wall /></div>
+      <section className="sec wrap" id="wall" aria-labelledby="wall-h">
+        <header className="sec-head">
+          <h2 id="wall-h">The wall</h2>
+          <p className="serif">One big sheet that everyone draws on. Pick a pen and add to it; drag with the hand to look around.</p>
+        </header>
+        <Wall />
+      </section>
 
       <section className="sec wrap" aria-labelledby="feed-h">
-        <div className="sec-head">
-          <span className="label">Process feed</span>
-          <h2 id="feed-h">Watch the work happen</h2>
-          <p className="aside">Pieces on Tilo are stored as recordings, so the feed plays how they were made instead of only the result. These are sample pieces.</p>
-        </div>
+        <header className="sec-head">
+          <h2 id="feed-h">On the press</h2>
+          <p className="serif">Pieces are stored as recordings, so this row plays how they were made, not only how they ended. The strip under each one is its trace: every stroke in order, with its pressure.</p>
+        </header>
         <div className="feed" tabIndex={0} aria-label="Pieces being replayed">
-          {feed.map((p) => <FeedCard key={p.id} piece={p} />)}
+          {feed.map((p, i) => <LivePlate key={p.id} piece={p} no={i + 2} className="feed-card" />)}
         </div>
       </section>
 
-      <section className="sec wrap" id="workbenches" aria-labelledby="bench-h">
-        <div className="sec-head">
-          <span className="label">Workbenches</span>
-          <h2 id="bench-h">One mat, many materials</h2>
-          <p className="aside">Each discipline gets its own surface to work on. Painting is open now; the others arrive stage by stage. Hover one to see it drawn.</p>
-        </div>
-        <div className="benches">
-          {DISCIPLINES.map((d, i) => {
-            const body = (
-              <>
-                <span className="bench-surface">
-                  <ReplayCanvas strokes={d.demo} paper={null} mode="hover" label={`Example of ${d.name.toLowerCase()}`} />
-                </span>
-                <span className="bench-label">
-                  <span className="bench-name">{d.name}</span>
-                  <span className={`bench-stage mono${d.stage === 0 ? " is-open" : ""}`}>{d.stage === 0 ? "OPEN NOW" : `STAGE ${d.stage}`}</span>
-                </span>
-                <span className="bench-blurb">{d.blurb}</span>
-              </>
-            );
-            const style = { ["--settle-r" as string]: `${((i * 53) % 5) - 2}deg` };
-            return d.stage === 0 ? (
-              <Link key={d.id} to="/studio" viewTransition data-replay-host className={`bench sheet settle ${d.material}`} style={style}>{body}</Link>
-            ) : (
-              <div key={d.id} data-replay-host tabIndex={0} className={`bench sheet settle ${d.material}`} style={style}>{body}</div>
-            );
-          })}
-        </div>
+      <section className="sec wrap" id="benches" aria-labelledby="bench-h">
+        <header className="sec-head">
+          <h2 id="bench-h">Benches</h2>
+          <p className="serif">One studio, many surfaces. Each discipline gets the material it is made on. Painting is open now; the rest arrive stage by stage. Point at one to see it drawn.</p>
+        </header>
+        <Benches />
       </section>
 
       <section className="sec wrap" id="today" aria-labelledby="today-h">
-        <div className="sec-head">
-          <span className="label">Daily prompt</span>
-          <h2 id="today-h">Same rules for everyone, for one day</h2>
-          <p className="aside">A prompt sets a subject, a palette and a time limit. Other people stamp the entries, and the most stamped go to the front of the gallery.</p>
-        </div>
-        <div className="prompt-grid">
-          <article className="sheet tape prompt-card settle" style={{ ["--tr" as string]: "-3deg" }}>
-            <div className="mono prompt-no">PROMPT #{PROMPT.no} · CLOSES IN {countdown}</div>
-            <h3>{PROMPT.title}</h3>
-            <ul className="rules">
-              <li><b>{PROMPT.palette.length}</b><span>colours, fixed</span></li>
-              <li><b>{PROMPT.minutes}:00</b><span>minutes on the clock</span></li>
-              <li><b>1</b><span>sheet, no uploads</span></li>
+        <header className="sec-head">
+          <h2 id="today-h">The daily subject</h2>
+          <p className="serif">Same rules for everyone, for one day: a subject, six inks and ten minutes. People stamp the entries, and the most stamped go to the front of the gallery.</p>
+        </header>
+        <div className="subject">
+          <article className="poster press" aria-labelledby="poster-h">
+            <span className="poster-moon" aria-hidden="true" />
+            <p className="poster-top kicker"><span>Subject No. {PROMPT.no}</span><span>Closes in <b className="num">{countdown}</b></span></p>
+            <h3 id="poster-h" className="poster-title">{PROMPT.title}</h3>
+            <ul className="poster-rules">
+              <li><b className="num">{PROMPT.palette.length}</b>inks, fixed</li>
+              <li><b className="num">{PROMPT.minutes}:00</b>on the clock</li>
+              <li><b className="num">1</b>sheet, no uploads</li>
             </ul>
-            <div className="paint" aria-label="The colours for this prompt">
+            <ul className="poster-inks" aria-label="The inks for this subject">
               {PROMPT.palette.map((c, i) => (
-                <div key={c} style={{ ["--c" as string]: c, ["--fg" as string]: isLight(c) ? "#1B1E1D" : "#FFFFFF" }}><span>{PROMPT.names[i]}</span></div>
+                <li key={c}><i style={{ ["--c" as string]: c }} />{PROMPT.names[i]}</li>
               ))}
-            </div>
-            <div className="prompt-foot">
-              <Link to="/studio?prompt=312" viewTransition className="btn btn-ink"><Icon name="pencil" />Start the 10-minute sheet</Link>
-              <span className="mono">{PROMPT.entries} ENTRIES SO FAR (EXAMPLE)</span>
+            </ul>
+            <div className="poster-foot">
+              <Link to={`/studio?prompt=${PROMPT.no}`} viewTransition className="btn btn-poster"><Icon name="pencil" />Start the 10-minute sheet</Link>
+              <span className="serif">{PROMPT.entries} entries so far (example)</span>
             </div>
           </article>
-          <div className="entries">
-            <p className="entries-note"><span className="hand">Entries so far</span><span className="mono">SAMPLE PIECES · HOVER TO REPLAY</span></p>
-            {promptEntries.map((p, i) => <PinCard key={p.id} piece={p} index={i + 3} />)}
+          <div className="subject-entries">
+            <p className="kicker">Entries so far · point at one to replay it</p>
+            <div className="entries">{entries.map((p, i) => <PinCard key={p.id} piece={p} index={i} />)}</div>
           </div>
         </div>
       </section>
 
-      <section className="sec wrap" aria-labelledby="pin-h">
-        <div className="sec-head">
-          <span className="label">Gallery</span>
-          <h2 id="pin-h">Most stamped this week</h2>
-          <Link to="/gallery" viewTransition className="btn btn-mat sec-link">See the whole pinboard<Icon name="arrow" /></Link>
-        </div>
-        <div className="board">{top.map((p, i) => <PinCard key={p.id} piece={p} index={i} />)}</div>
+      <section className="sec wrap" aria-labelledby="top-h">
+        <header className="sec-head">
+          <h2 id="top-h">Most stamped this week</h2>
+          <p className="serif">Stamps are how people answer a piece: bold, patient, funny, remix me. No likes, no follower counts on the work.</p>
+          <Link to="/gallery" viewTransition className="btn btn-line sec-link">The whole gallery<Icon name="arrow" /></Link>
+        </header>
+        <div className="salon">{top.map((p, i) => <PinCard key={p.id} piece={p} index={i} no={i + 7} />)}</div>
       </section>
 
-      <section className="sec wrap proof-sec" aria-labelledby="proof-h">
-        <div className="proof-copy">
-          <span className="label">Proof of hand</span>
-          <h2 id="proof-h">The recording is the signature</h2>
-          <p>Uploads can't go into the hand-made gallery. A piece is drawn on Tilo, and its stroke record travels with it. That doesn't make faking impossible, but it makes faking more work than drawing.</p>
-          <ol className="badges">
-            <li><b>Recorded on Tilo</b><span>Every stroke is saved in order, with timing and pressure.</span></li>
-            <li><b>Drawn live</b><span>Made while others watched, in a live room or on the wall.</span></li>
-            <li><b>Verified artist</b><span>A person whose body of work and process have been reviewed.</span></li>
-          </ol>
+      <section className="sec wrap" aria-labelledby="proof-h">
+        <header className="sec-head">
+          <h2 id="proof-h">Proof of hand</h2>
+          <p className="serif">The recording is the signature. It is what separates a drawing from a picture of one.</p>
+        </header>
+        <div className="proof">
+          <LivePlate piece={proof} no={13} className="proof-plate" />
+          <div className="proof-copy">
+            <p className="lede serif">Uploads can't go into the hand-made gallery. A piece is drawn on Tilo, and its recording travels with it. That doesn't make faking impossible, but it makes faking more work than drawing.</p>
+            <ol className="badges">
+              <li><b>Recorded on Tilo</b><span className="serif">Every stroke is saved in order, with its timing and pressure.</span></li>
+              <li><b>Drawn live</b><span className="serif">Made while others watched, in a live room or on the wall.</span></li>
+              <li><b>Verified artist</b><span className="serif">A person whose body of work and process have been reviewed.</span></li>
+            </ol>
+          </div>
         </div>
-        <figure className="proof-sheet sheet tape settle" style={{ ["--tr" as string]: "3deg" }}>
-          <ReplayCanvas strokes={SAMPLES[2].strokes} mode="loop" label="Sololaki balcony replaying" />
-          <figcaption className="mono"><Icon name="proof" size={16} /> RECORDED ON TILO · {SAMPLES[2].strokes.length} STROKES · {fmtMin(SAMPLES[2].minutes)} MIN</figcaption>
-        </figure>
       </section>
     </main>
   );

@@ -207,11 +207,11 @@ export function Studio() {
       <div className="studio-top">
         <button className="icon-btn" onClick={() => nav("/", { viewTransition: true })} aria-label="Back to Tilo"><Icon name="back" /></button>
         <div className="studio-title">
-          {remix ? <>Remix<small>of “{remix.title}” by @{remix.by}</small></> : promptMode ? <>Prompt #{PROMPT.no} · {PROMPT.title}<small>6 colours · 10:00 on the clock, starts at your first stroke</small></> : <>Blank sheet<small>Free palette · no clock</small></>}
+          {remix ? <>Remix<small>of “{remix.title}” by @{remix.by}</small></> : promptMode ? <>Subject No. {PROMPT.no} · {PROMPT.title}<small>6 inks · 10:00 on the clock, starts at your first stroke</small></> : <>Blank sheet<small>Free palette · no clock</small></>}
         </div>
         <span className="sp" />
         {promptMode && <span className={`timer mono${timeLeft < 60000 ? " is-warn" : ""}`}>{timeLeft > 0 ? fmtMin(timeLeft / 60000) : "Time's up"}</span>}
-        <button className="btn btn-mat" onClick={() => { if (!strokes.length && !base.length) return say("Draw something first, then watch it back"); setReplayKey((k) => k + 1); replayDlg.current!.showModal(); }} aria-label="Replay your sheet"><Icon name="replay" /><span className="hide-s">Replay</span></button>
+        <button className="btn btn-line" onClick={() => { if (!strokes.length && !base.length) return say("Draw something first, then watch it back"); setReplayKey((k) => k + 1); replayDlg.current!.showModal(); }} aria-label="Replay your sheet"><Icon name="replay" /><span className="hide-s">Replay</span></button>
         <button className="btn btn-ink" onClick={openPin}><Icon name="pin" />Pin to gallery</button>
       </div>
 
@@ -237,7 +237,7 @@ export function Studio() {
 
       <aside className="studio-panel" aria-label="Sheet settings">
         <div className="sheet panel-card">
-          <h3 className="mono caps">Colour</h3>
+          <h3 className="kicker">Colour</h3>
           <div className="pal">
             {palette.map((c, i) => (
               <button key={c} className="chip-btn" aria-pressed={c === color} aria-label={`Colour ${promptMode ? PROMPT.names[i] : c}`} onClick={() => setColor(c)}>
@@ -246,37 +246,37 @@ export function Studio() {
             ))}
           </div>
           {!remix && (
-            <label className="check"><input type="checkbox" id="lock" checked={promptMode} onChange={(e) => setPromptMode(e.target.checked)} /> Use Prompt #{PROMPT.no} colours only</label>
+            <label className="check"><input type="checkbox" id="lock" checked={promptMode} onChange={(e) => setPromptMode(e.target.checked)} /> Use the inks of Subject No. {PROMPT.no} only</label>
           )}
           {!promptMode && <label className="custom">Mix your own <input type="color" id="custom" value={color} onChange={(e) => setColor(e.target.value.toUpperCase())} /></label>}
         </div>
         <div className="sheet panel-card">
-          <h3 className="mono caps">Brush size</h3>
+          <h3 className="kicker">Brush size</h3>
           <div className="sizer">
             <input type="range" id="size" min={1} max={40} value={size} onChange={(e) => setSize(+e.target.value)} aria-label="Brush size" />
             <span className="dot"><i style={{ width: Math.max(3, Math.min(44, size * 1.1)), height: Math.max(3, Math.min(44, size * 1.1)) }} /></span>
           </div>
         </div>
         <div className="sheet panel-card">
-          <h3 className="mono caps">This sheet</h3>
+          <h3 className="kicker">This sheet</h3>
           <div className="stats">
             <div><b>{(strokes.length + base.length).toLocaleString()}</b><span>strokes</span></div>
             <div><b>{fmtMin(ms / 60000)}</b><span>drawing time</span></div>
           </div>
         </div>
         <div className="sheet panel-card opt">
-          <h3 className="mono caps">Keys</h3>
+          <h3 className="kicker">Keys</h3>
           <p className="keys"><kbd>P</kbd> pencil <kbd>I</kbd> ink <kbd>M</kbd> marker <kbd>W</kbd> wash <kbd>E</kbd> eraser <kbd>[</kbd> <kbd>]</kbd> size <kbd>⌘Z</kbd> undo <kbd>⇧⌘Z</kbd> redo</p>
         </div>
       </aside>
 
       <dialog ref={pinDlg} aria-labelledby="pin-h">
-        <form className="small-sheet sheet tape" onSubmit={doPin}>
+        <form className="small-sheet sheet" onSubmit={doPin}>
           <h2 id="pin-h">Pin to the gallery</h2>
           <p>Your piece goes up with its full recording. Until accounts open, it stays on this device.</p>
           <div className="field"><label htmlFor="pin-title">Title</label><input type="text" id="pin-title" maxLength={60} placeholder="Untitled" autoComplete="off" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
           {promptMode && (
-            <label className="check"><input type="checkbox" id="pin-enter" checked={enter} disabled={timeLeft <= 0} onChange={(e) => setEnter(e.target.checked)} /> {timeLeft > 0 ? `Enter it in Prompt #${PROMPT.no}` : "Over the 10:00 limit, so it can't be entered"}</label>
+            <label className="check"><input type="checkbox" id="pin-enter" checked={enter} disabled={timeLeft <= 0} onChange={(e) => setEnter(e.target.checked)} /> {timeLeft > 0 ? `Enter it for Subject No. ${PROMPT.no}` : "Over the 10:00 limit, so it can't be entered"}</label>
           )}
           <div className="row"><button type="button" className="btn btn-quiet" onClick={() => pinDlg.current!.close()}>Keep drawing</button><button type="submit" className="btn btn-ink">Pin it</button></div>
         </form>
@@ -296,7 +296,7 @@ export function Studio() {
       <dialog ref={replayDlg} className="replay-dlg" aria-label="Replay of your sheet" onClick={(e) => e.target === e.currentTarget && replayDlg.current!.close()}>
         <div className="replay-box sheet">
           <ReplayCanvas key={replayKey} strokes={[...base, ...strokes]} mode="once" label="Your sheet, replaying" />
-          <div className="row"><span className="mono">{strokes.length + base.length} STROKES · {fmtMin(ms / 60000)}</span><button className="btn btn-quiet" onClick={() => replayDlg.current!.close()}>Close</button></div>
+          <div className="row"><span className="kicker">{strokes.length + base.length} strokes · {fmtMin(ms / 60000)}</span><button className="btn btn-quiet" onClick={() => replayDlg.current!.close()}>Close</button></div>
         </div>
       </dialog>
 

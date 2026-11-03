@@ -7,7 +7,7 @@ import { allPieces, stampTotal, useLocal } from "../data/local";
 import { PROMPT } from "../data/samples";
 import { fmtMin, toolsUsed, type Piece } from "../engine/stroke";
 
-const FILTERS = [["stamped", "Most stamped"], ["new", "Newest"], ["prompt", `Prompt #${PROMPT.no}`], ["remix", "Remixes"]] as const;
+const FILTERS = [["stamped", "Most stamped"], ["new", "Newest"], ["prompt", `Subject No. ${PROMPT.no}`], ["remix", "Remixes"]] as const;
 type Sort = (typeof FILTERS)[number][0];
 
 function Exhibition({ list }: { list: Piece[] }) {
@@ -26,21 +26,21 @@ function Exhibition({ list }: { list: Piece[] }) {
   return (
     <section className="expo" aria-roledescription="carousel" aria-label="Exhibition view">
       <div className="expo-wall">
-        <div className="expo-frame">
+        <div className="expo-frame plate reg">
           <ReplayCanvas key={p.id} strokes={p.strokes} mode="loop" label={`${p.title} by ${p.by}, replaying`} />
         </div>
         <aside className="expo-label" aria-live="polite">
-          <span className="mono">{String(i + 1).padStart(2, "0")} / {String(list.length).padStart(2, "0")}</span>
+          <span className="kicker num">Plate {String(i + 1).padStart(2, "0")} of {String(list.length).padStart(2, "0")}</span>
           <h2>{p.title}</h2>
-          <p>@{p.by}{p.mine ? " (you)" : ""}</p>
-          <p className="mono">{toolsUsed(p.strokes).join(", ").toUpperCase()} ON TILO PAPER<br />{p.strokes.length} STROKES · {fmtMin(p.minutes)} MIN</p>
+          <p className="serif expo-by">@{p.by}{p.mine ? " (you)" : ""}</p>
+          <p className="serif">{toolsUsed(p.strokes).join(", ")} on Tilo paper.<br />{p.strokes.length} strokes, {fmtMin(p.minutes)} min.</p>
           <Link to={`/piece/${p.id}`} viewTransition className="expo-open">Open the piece<Icon name="arrow" size={16} /></Link>
         </aside>
       </div>
       <div className="expo-nav">
-        <button className="btn btn-mat" onClick={() => go(-1)} aria-label="Previous piece"><Icon name="back" />Previous</button>
-        <span className="mono">USE ← → KEYS</span>
-        <button className="btn btn-mat" onClick={() => go(1)} aria-label="Next piece">Next<Icon name="next" /></button>
+        <button className="btn btn-line" onClick={() => go(-1)} aria-label="Previous piece"><Icon name="back" />Previous</button>
+        <span className="kicker">Arrow keys work too</span>
+        <button className="btn btn-line" onClick={() => go(1)} aria-label="Next piece">Next<Icon name="next" /></button>
       </div>
     </section>
   );
@@ -60,9 +60,9 @@ export function Gallery() {
 
   return (
     <main className="wrap gallery-page">
-      <div className="sec-head">
-        <span className="label">Gallery</span>
-        <h1>The pinboard</h1>
+      <header className="page-head">
+        <h1>The gallery</h1>
+        <p className="serif">Everything here was drawn on Tilo and can be replayed from its first stroke. The pieces and artists are samples for the prototype; what you pin stays on this device until accounts open.</p>
         <div className="gal-controls">
           <div className="filters" role="group" aria-label="Sort the gallery">
             {FILTERS.map(([k, l]) => (
@@ -70,16 +70,15 @@ export function Gallery() {
             ))}
           </div>
           <div className="filters" role="group" aria-label="View">
-            <button className="filter" aria-pressed={view === "board"} onClick={() => set("view", "board")}><Icon name="grid" size={16} />Pinboard</button>
+            <button className="filter" aria-pressed={view === "board"} onClick={() => set("view", "board")}><Icon name="grid" size={16} />Wall of plates</button>
             <button className="filter" aria-pressed={view === "exhibition"} onClick={() => set("view", "exhibition")}><Icon name="frame" size={16} />Exhibition</button>
           </div>
         </div>
-      </div>
-      <p className="mono gal-note">SAMPLE PIECES AND ARTISTS FOR THE PROTOTYPE. PIECES YOU PIN STAY ON THIS DEVICE UNTIL ACCOUNTS OPEN.</p>
+      </header>
       {list.length === 0 ? (
-        <p className="empty">Nothing here yet. <Link to="/studio">Start a sheet</Link> and pin it.</p>
+        <p className="empty serif">Nothing here yet. <Link to="/studio">Start a sheet</Link> and pin it.</p>
       ) : view === "board" ? (
-        <div className="board">{list.map((p, i) => <PinCard key={p.id} piece={p} index={i} />)}</div>
+        <div className="salon is-wide">{list.map((p, i) => <PinCard key={p.id} piece={p} index={i} no={i + 1} />)}</div>
       ) : (
         <Exhibition list={list} />
       )}
