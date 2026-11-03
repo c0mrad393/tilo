@@ -1,0 +1,101 @@
+/* Materials laid on the mat. A .sheet is the physical object; a .m-* class says what it is made of. */
+.sheet {
+  position: relative;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 2px;
+  box-shadow:
+    0 1px 0 var(--rule),
+    0 14px 28px -16px var(--shadow),
+    0 2px 6px -2px var(--shadow);
+}
+
+/* masking tape; --tr sets its angle */
+.tape::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  width: 92px;
+  height: 26px;
+  translate: -50% 0;
+  rotate: var(--tr, -2deg);
+  z-index: 2;
+  background: var(--tape);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: transform var(--d-mid) var(--ease-out), box-shadow var(--d-mid);
+  clip-path: polygon(0 8%, 6% 0, 12% 9%, 18% 1%, 25% 8%, 32% 0, 40% 7%, 48% 1%, 56% 9%, 64% 0, 72% 8%, 80% 1%, 88% 9%, 94% 0, 100% 7%, 100% 93%, 94% 100%, 87% 92%, 80% 100%, 72% 91%, 64% 100%, 56% 92%, 48% 100%, 40% 91%, 32% 100%, 25% 92%, 18% 100%, 12% 91%, 6% 100%, 0 92%);
+}
+.lift:hover.tape::before,
+.lift:focus-visible.tape::before {
+  transform: translateY(-3px) rotate(-3deg);
+  box-shadow: 0 6px 8px -4px rgba(0, 0, 0, 0.2);
+}
+
+/* sticky note */
+.note {
+  background: var(--note);
+  color: var(--note-ink);
+  box-shadow: 0 10px 20px -12px rgba(0, 0, 0, 0.35);
+}
+
+/* sheets settle onto the mat when they scroll into view (transform only, they stay visible) */
+@media (prefers-reduced-motion: no-preference) {
+  .settle {
+    transition: transform var(--d-slow) var(--ease-settle), box-shadow var(--d-slow) var(--ease-out);
+  }
+  .settle:not(.is-settled) {
+    transform: translateY(-14px) rotate(var(--settle-r, -1.2deg));
+    box-shadow:
+      0 1px 0 var(--rule),
+      0 30px 40px -18px var(--shadow);
+  }
+}
+
+.m-paper {
+  background-color: var(--paper);
+}
+.m-graph {
+  background-color: var(--m-graph);
+  background-image:
+    linear-gradient(var(--m-graph-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--m-graph-line) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+.m-light {
+  background-color: var(--m-light);
+  background-image: radial-gradient(ellipse at 50% 40%, var(--m-light-glow), transparent 70%);
+}
+.m-ruled {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(transparent 46%, rgba(200, 80, 80, 0.28) 46%, rgba(200, 80, 80, 0.28) calc(46% + 1px), transparent calc(46% + 1px)),
+    repeating-linear-gradient(transparent 0 21px, rgba(70, 110, 170, 0.2) 21px 22px);
+}
+.m-linen {
+  background-color: var(--m-linen);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(120, 95, 60, 0.07) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(120, 95, 60, 0.07) 0 1px, transparent 1px 3px);
+}
+.m-kraft {
+  background-color: var(--m-kraft);
+  background-image: radial-gradient(rgba(60, 35, 10, 0.12) 1px, transparent 1.4px);
+  background-size: 7px 7px;
+  color: var(--m-kraft-ink);
+}
+.m-staff {
+  background-color: var(--m-staff);
+  background-image: linear-gradient(90deg, transparent 6%, var(--m-staff-line) 6%, var(--m-staff-line) calc(6% + 1px), transparent calc(6% + 1px));
+}
+.m-glass {
+  background-color: var(--m-glass);
+  color: #eef;
+}
+.m-slate {
+  background-color: var(--m-slate);
+  color: var(--m-slate-ink);
+}
+.m-comic {
+  background-color: var(--paper);
+}

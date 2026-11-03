@@ -1,0 +1,1246 @@
+<title>Tilo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Martian+Mono:wght@400;500&family=Nanum+Pen+Script&display=swap">
+<style>
+/* Layout: the page is a cutting mat. Paper sheets, masking tape and pencil notes sit on it.
+   The hero is one big shared sheet anyone can draw on; the studio opens as a full workbench. */
+:root{
+  --mat:#CCDAD1; --mat-line:rgba(22,64,50,.11); --mat-line-2:rgba(22,64,50,.26);
+  --mat-ink:#0F2E27; --mat-soft:#365A50; --mat-accent:#2230B8; --mat-raise:rgba(255,255,255,.42);
+  --paper:#FBFAF5; --paper-2:#F0EEE5; --ink:#1B1E1D; --ink-soft:#575E5B; --rule:#DFDCD0;
+  --accent:#2B37D4; --on-accent:#FFFFFF; --accent-soft:rgba(43,55,212,.10);
+  --tape:rgba(236,208,118,.80); --live:#D23F27; --shadow:rgba(16,40,32,.20);
+  --f-display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --f-hand:"Nanum Pen Script","Bradley Hand","Segoe Print",cursive;
+  --f-mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:24px; --s-6:32px; --s-7:48px; --s-8:72px;
+  --t-xs:12px; --t-sm:14px; --t-md:16px; --t-lg:20px; --t-xl:28px;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --mat:#12291F; --mat-line:rgba(170,220,196,.07); --mat-line-2:rgba(170,220,196,.16);
+    --mat-ink:#E3EEE8; --mat-soft:#98B5AA; --mat-accent:#A6AEFF; --mat-raise:rgba(255,255,255,.05);
+    --paper:#EEECE3; --paper-2:#E2DFD4; --rule:#D4D0C3;
+    --tape:rgba(210,186,108,.78); --shadow:rgba(0,0,0,.50); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --mat:#12291F; --mat-line:rgba(170,220,196,.07); --mat-line-2:rgba(170,220,196,.16);
+  --mat-ink:#E3EEE8; --mat-soft:#98B5AA; --mat-accent:#A6AEFF; --mat-raise:rgba(255,255,255,.05);
+  --paper:#EEECE3; --paper-2:#E2DFD4; --rule:#D4D0C3;
+  --tape:rgba(210,186,108,.78); --shadow:rgba(0,0,0,.50); color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background-color:var(--mat); color:var(--mat-ink);
+  background-image:
+    linear-gradient(var(--mat-line-2) 1px,transparent 1px),
+    linear-gradient(90deg,var(--mat-line-2) 1px,transparent 1px),
+    linear-gradient(var(--mat-line) 1px,transparent 1px),
+    linear-gradient(90deg,var(--mat-line) 1px,transparent 1px);
+  background-size:120px 120px,120px 120px,24px 24px,24px 24px;
+  font-family:var(--f-display); font-size:var(--t-md); line-height:1.5;
+  font-variation-settings:"opsz" 14;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--mat)}
+.wrap{max-width:1280px;margin-inline:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--mat-accent);outline-offset:3px;border-radius:3px}
+.sheet :focus-visible,dialog :focus-visible,.studio-panel :focus-visible{outline-color:var(--accent)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mono{font-family:var(--f-mono);font-size:var(--t-xs);letter-spacing:.04em}
+.hand{font-family:var(--f-hand);font-weight:400;line-height:1.05}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* paper + tape */
+.sheet{background:var(--paper);color:var(--ink);border-radius:2px;position:relative;
+  box-shadow:0 1px 0 var(--rule),0 14px 28px -16px var(--shadow),0 2px 6px -2px var(--shadow)}
+.tape::before{content:"";position:absolute;top:-12px;left:50%;width:92px;height:26px;translate:-50% 0;rotate:var(--tr,-2deg);
+  background:var(--tape);box-shadow:0 1px 2px rgba(0,0,0,.08);
+  clip-path:polygon(0 8%,6% 0,12% 9%,18% 1%,25% 8%,32% 0,40% 7%,48% 1%,56% 9%,64% 0,72% 8%,80% 1%,88% 9%,94% 0,100% 7%,100% 93%,94% 100%,87% 92%,80% 100%,72% 91%,64% 100%,56% 92%,48% 100%,40% 91%,32% 100%,25% 92%,18% 100%,12% 91%,6% 100%,0 92%)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:var(--s-2);min-height:44px;padding:0 var(--s-4);border-radius:999px;border:1.5px solid currentColor;background:transparent;font-weight:600;font-size:var(--t-sm);text-decoration:none;transition:transform .15s var(--ease),background .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(1px)}
+.btn-ink{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn-mat{color:var(--mat-ink)}
+.btn-mat:hover{background:var(--mat-raise)}
+.btn-quiet{border-color:var(--rule);color:var(--ink)}
+.btn-quiet:hover{background:var(--paper-2)}
+.icon-btn{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;border:0;background:transparent;transition:background .15s}
+
+/* header */
+.top{display:flex;align-items:center;gap:var(--s-5);padding-block:var(--s-4)}
+.logo{display:flex;align-items:baseline;gap:var(--s-2);text-decoration:none;color:var(--mat-ink)}
+.logo b{font-size:34px;font-weight:800;letter-spacing:-.04em;font-variation-settings:"opsz" 96;position:relative}
+.logo b svg{position:absolute;left:-2px;right:-4px;bottom:-4px;width:calc(100% + 6px);height:10px}
+.logo span{font-family:var(--f-hand);font-size:22px;color:var(--mat-soft)}
+.nav{display:flex;gap:var(--s-1);margin-left:auto;flex-wrap:wrap}
+.nav a{color:var(--mat-ink);text-decoration:none;font-weight:500;font-size:var(--t-sm);padding:10px 12px;border-radius:8px}
+.nav a:hover{background:var(--mat-raise)}
+@media (max-width:720px){.nav a.opt{display:none}.logo span{display:none}}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:var(--s-6);align-items:end;padding-block:var(--s-6) var(--s-5)}
+.hero h1{margin:0;font-weight:800;font-size:clamp(2.6rem,6.4vw,5.4rem);line-height:.92;letter-spacing:-.035em;font-variation-settings:"opsz" 96;text-wrap:balance}
+.hero h1 em{font-style:normal;position:relative;white-space:nowrap}
+.hero h1 em svg{position:absolute;left:-4%;bottom:-.1em;width:108%;height:.36em;overflow:visible}
+.hero h1 em svg path{stroke:var(--mat-accent);stroke-width:7;fill:none;stroke-linecap:round;stroke-dasharray:520;stroke-dashoffset:0;animation:ink-in 1.1s .3s var(--ease) both}
+@keyframes ink-in{from{stroke-dashoffset:520}to{stroke-dashoffset:0}}
+.hero p{margin:0 0 var(--s-4);max-width:46ch;color:var(--mat-soft);font-size:var(--t-lg);line-height:1.45}
+.hero .ctas{display:flex;gap:var(--s-3);flex-wrap:wrap}
+@media (max-width:860px){.hero{grid-template-columns:1fr;gap:var(--s-4);padding-block:var(--s-4)}}
+
+/* the wall */
+.wall-shell{position:relative;margin-bottom:var(--s-7)}
+.ruler{height:30px;background:var(--paper-2);color:var(--ink);position:relative;overflow:hidden;border-radius:2px 2px 0 0;
+  background-image:repeating-linear-gradient(90deg,var(--ink-soft) 0 1px,transparent 1px 12px),repeating-linear-gradient(90deg,var(--ink) 0 1px,transparent 1px 60px);
+  background-size:100% 7px,100% 14px;background-repeat:no-repeat;background-position:0 100%,0 100%}
+.ruler span{position:absolute;top:3px;font-family:var(--f-mono);font-size:10px;translate:3px 0;color:var(--ink-soft)}
+.wall{position:relative;height:clamp(380px,46vw,640px);background:var(--paper);overflow:hidden;touch-action:none;cursor:none;border-radius:0}
+.wall canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.wall.panning{cursor:grab}
+.wall-note{position:absolute;left:clamp(12px,3vw,40px);top:clamp(16px,3vw,36px);width:min(250px,62%);padding:14px 16px 16px;pointer-events:none;rotate:-2.5deg;z-index:2;background:#FFF7C9;color:#2A2A22;box-shadow:0 10px 20px -12px rgba(0,0,0,.35)}
+.wall-note .hand{font-size:27px}
+.wall-note svg{position:absolute;right:-56px;bottom:-34px;width:70px;height:60px;stroke:#2A2A22;fill:none;stroke-width:2;stroke-linecap:round}
+@media (max-width:720px){.wall-note{width:56%;padding:10px 12px}.wall-note .hand{font-size:21px}.wall-note svg{display:none}}
+.ring{position:absolute;left:0;top:0;border-radius:50%;border:1.5px solid var(--ink);pointer-events:none;translate:-50% -50%;z-index:3;mix-blend-mode:multiply;opacity:0;transition:opacity .15s}
+.wall:hover .ring{opacity:.7}
+.wall.panning .ring{display:none}
+.peer{position:absolute;left:0;top:0;z-index:3;pointer-events:none;transition:transform .09s linear}
+.peer svg{width:22px;height:22px;display:block}
+.peer span{position:absolute;left:18px;top:16px;white-space:nowrap;font-family:var(--f-mono);font-size:11px;padding:2px 6px;border-radius:4px;color:#fff}
+.tray{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-3) var(--s-4);padding:10px 12px;background:var(--paper-2);color:var(--ink);border-radius:0 0 2px 2px;border-top:1px dashed var(--rule)}
+.tray .grp{display:flex;align-items:center;gap:6px}
+.tool{width:44px;height:44px;border-radius:10px;border:1.5px solid transparent;background:transparent;display:grid;place-items:center;color:var(--ink)}
+.tool:hover{background:var(--paper)}
+.tool[aria-pressed="true"]{background:var(--paper);border-color:var(--ink)}
+.chip{width:30px;height:30px;border-radius:50% 46% 52% 48%;border:2px solid var(--paper);box-shadow:0 0 0 1px var(--rule);background:var(--c);padding:0}
+.chip[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink);transform:scale(1.08)}
+.chip-wrap{width:44px;height:44px;display:grid;place-items:center;border:0;background:transparent;padding:0}
+.size{width:44px;height:44px;display:grid;place-items:center;border-radius:10px;border:1.5px solid transparent;background:transparent}
+.size i{display:block;border-radius:50%;background:var(--ink)}
+.size[aria-pressed="true"]{border-color:var(--ink);background:var(--paper)}
+.tray .status{margin-left:auto;display:flex;align-items:center;gap:var(--s-3);color:var(--ink-soft)}
+.live{display:inline-flex;align-items:center;gap:6px}
+.live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--live);animation:pulse 1.8s infinite}
+.live.off::before{background:var(--ink-soft);animation:none}
+@keyframes pulse{50%{opacity:.35}}
+.wall-msg{font-family:var(--f-mono);font-size:var(--t-xs);color:var(--mat-soft);margin-top:var(--s-2)}
+
+/* section heads */
+.sec{padding-block:var(--s-7)}
+.sec-head{display:flex;align-items:end;gap:var(--s-4);flex-wrap:wrap;margin-bottom:var(--s-5)}
+.sec-head h2{margin:0;font-size:clamp(1.9rem,3.6vw,2.8rem);font-weight:750;letter-spacing:-.03em;line-height:1;font-variation-settings:"opsz" 72;text-wrap:balance}
+.sec-head .label{display:inline-block;font-family:var(--f-mono);font-size:var(--t-xs);letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;background:var(--tape);color:#2A2616;rotate:-1.5deg}
+.sec-head .aside{margin-left:auto;color:var(--mat-soft);max-width:44ch;font-size:var(--t-sm)}
+
+/* today's prompt */
+.prompt-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:var(--s-6);align-items:start}
+@media (max-width:900px){.prompt-grid{grid-template-columns:1fr}}
+.prompt-card{padding:var(--s-6);rotate:-.6deg}
+.prompt-card .no{color:var(--ink-soft)}
+.prompt-card h3{margin:6px 0 var(--s-4);font-size:clamp(2rem,4.5vw,3.4rem);line-height:.95;letter-spacing:-.03em;font-weight:800;font-variation-settings:"opsz" 96}
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s-3);margin:0 0 var(--s-5);padding:0;list-style:none}
+.rules li{border-top:1.5px solid var(--ink);padding-top:var(--s-2)}
+.rules b{display:block;font-size:var(--t-xl);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.rules span{font-size:var(--t-xs);color:var(--ink-soft)}
+.paint{display:flex;gap:0;margin-bottom:var(--s-5);border-radius:3px;overflow:hidden;box-shadow:0 0 0 1px var(--rule)}
+.paint div{flex:1;height:54px;background:var(--c);position:relative}
+.paint div span{position:absolute;left:6px;bottom:4px;font-family:var(--f-mono);font-size:10px;color:var(--fg)}
+.prompt-foot{display:flex;align-items:center;gap:var(--s-4);flex-wrap:wrap}
+.prompt-foot .mono{color:var(--ink-soft)}
+.entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-5);padding-top:var(--s-3)}
+.entries .note{grid-column:1/-1;color:var(--mat-soft)}
+.entries .note .hand{font-size:26px;color:var(--mat-ink)}
+
+/* gallery */
+.filters{display:flex;gap:var(--s-2);flex-wrap:wrap}
+.filter{min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--mat-line-2);background:transparent;color:var(--mat-ink);font-size:var(--t-sm);font-weight:500}
+.filter[aria-pressed="true"]{background:var(--mat-ink);color:var(--mat);border-color:var(--mat-ink)}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:var(--s-7) var(--s-5);padding-top:var(--s-4)}
+.pin{padding:10px 10px 12px;rotate:var(--r,0deg);transition:rotate .25s var(--ease),transform .25s var(--ease);cursor:pointer;border:0;text-align:left;width:100%;display:block}
+.pin:hover{rotate:0deg;transform:translateY(-4px)}
+.pin canvas{display:block;width:100%;aspect-ratio:4/3;max-width:100%;background:#FBFAF5}
+.pin .meta{display:flex;gap:var(--s-2);align-items:baseline;margin-top:10px}
+.pin .t{font-weight:650;font-size:var(--t-md);line-height:1.2;flex:1;min-width:0}
+.pin .by{font-family:var(--f-mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
+.pin .facts{font-family:var(--f-mono);font-size:11px;color:var(--ink-soft);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap}
+.pin .stamps{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.pin .flag{position:absolute;right:10px;top:10px;font-family:var(--f-mono);font-size:10px;padding:2px 6px;background:var(--paper);color:var(--accent);border:1px solid var(--accent);border-radius:3px}
+.stamp{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border:1.5px solid var(--sc,#B23A2E);color:var(--sc,#B23A2E);border-radius:3px;rotate:var(--sr,-2deg);background:transparent;line-height:1.3}
+.stamp b{font-weight:500;margin-left:4px;opacity:.75}
+button.stamp{min-height:36px;padding:0 10px}
+button.stamp[aria-pressed="true"]{background:var(--sc);color:var(--paper)}
+
+/* why */
+.why{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s-5)}
+@media (max-width:900px){.why{grid-template-columns:1fr}}
+.why article{padding:var(--s-5)}
+.why article:nth-child(1){rotate:-1deg}.why article:nth-child(2){rotate:.8deg}.why article:nth-child(3){rotate:-.4deg}
+.why h3{margin:var(--s-2) 0;font-size:var(--t-lg);font-weight:700;letter-spacing:-.01em}
+.why p{margin:0;color:var(--ink-soft);font-size:var(--t-sm)}
+.why .hand{font-size:30px;color:var(--accent)}
+footer{padding-block:var(--s-7);color:var(--mat-soft);font-size:var(--t-sm);display:flex;gap:var(--s-4);flex-wrap:wrap;align-items:center}
+footer .mono{margin-left:auto}
+
+/* dialogs */
+dialog{border:0;padding:0;background:transparent;color:var(--ink);max-width:min(1160px,calc(100vw - 24px));width:100%;max-height:calc(100dvh - 24px)}
+dialog::backdrop{background:rgba(10,24,19,.62);backdrop-filter:blur(2px)}
+.piece{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:0;max-height:calc(100dvh - 24px);overflow:auto}
+@media (max-width:860px){.piece{grid-template-columns:1fr}}
+.piece-art{background:var(--mat);padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-3);color:var(--mat-ink);
+  background-image:linear-gradient(var(--mat-line) 1px,transparent 1px),linear-gradient(90deg,var(--mat-line) 1px,transparent 1px);background-size:24px 24px}
+.piece-art .frame{padding:12px;background:var(--paper)}
+.piece-art canvas{display:block;width:100%;aspect-ratio:4/3;max-width:100%;background:#FBFAF5}
+.player{display:flex;align-items:center;gap:var(--s-3)}
+.player input[type=range]{flex:1;min-width:0;accent-color:var(--mat-accent);height:28px}
+.player .mono{min-width:9ch;text-align:right;font-variant-numeric:tabular-nums}
+.play{width:44px;height:44px;border-radius:50%;border:0;background:var(--mat-ink);color:var(--mat);display:grid;place-items:center}
+.speed{min-height:36px;border-radius:999px;border:1.5px solid var(--mat-line-2);background:transparent;color:var(--mat-ink);padding:0 10px;font-family:var(--f-mono);font-size:var(--t-xs)}
+.piece-info{background:var(--paper);padding:var(--s-6) var(--s-5);display:flex;flex-direction:column;gap:var(--s-4);position:relative}
+.piece-info h2{margin:0;font-size:clamp(1.6rem,3vw,2.3rem);line-height:1;letter-spacing:-.03em;font-weight:780;font-variation-settings:"opsz" 72;text-wrap:balance;padding-right:44px}
+.piece-info .who{color:var(--ink-soft);font-size:var(--t-sm)}
+.close{position:absolute;right:10px;top:10px;color:var(--ink)}
+.close:hover{background:var(--paper-2)}
+.proof{display:flex;gap:var(--s-3);align-items:flex-start;padding:var(--s-3);border:1.5px dashed var(--accent);border-radius:6px;color:var(--ink);font-size:var(--t-sm);background:var(--accent-soft)}
+.proof svg{color:var(--accent);margin-top:2px}
+.facts-table{display:grid;grid-template-columns:auto 1fr;gap:6px var(--s-4);font-size:var(--t-sm);margin:0}
+.facts-table dt{font-family:var(--f-mono);font-size:var(--t-xs);color:var(--ink-soft);padding-top:2px}
+.facts-table dd{margin:0;font-variant-numeric:tabular-nums}
+.swatches{display:flex;gap:4px}
+.swatches i{width:18px;height:18px;border-radius:50%;background:var(--c);box-shadow:0 0 0 1px var(--rule)}
+.lineage{font-size:var(--t-sm);color:var(--ink-soft);border-left:2px solid var(--rule);padding-left:var(--s-3)}
+.lineage a{color:var(--accent);font-weight:600}
+.piece-actions{display:flex;gap:var(--s-3);flex-wrap:wrap;margin-top:auto}
+.small-sheet{background:var(--paper);padding:var(--s-6);max-width:440px;margin:auto;position:relative}
+.small-sheet h2{margin:0 0 var(--s-2);font-size:var(--t-xl);letter-spacing:-.02em}
+.small-sheet p{margin:0 0 var(--s-4);color:var(--ink-soft);font-size:var(--t-sm)}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:var(--s-4)}
+.field label{font-weight:600;font-size:var(--t-sm)}
+.field input[type=text]{min-height:44px;border:1.5px solid var(--rule);border-radius:8px;padding:0 12px;background:var(--paper);color:var(--ink)}
+.field input[type=text]:focus{border-color:var(--accent);outline:none}
+.check{display:flex;gap:var(--s-2);align-items:center;font-size:var(--t-sm);margin-bottom:var(--s-5);min-height:44px}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.row{display:flex;gap:var(--s-3);justify-content:flex-end;flex-wrap:wrap}
+
+/* studio */
+.studio{position:fixed;inset:0;z-index:40;background:var(--mat);color:var(--mat-ink);display:grid;
+  grid-template-columns:76px minmax(0,1fr) 300px;grid-template-rows:auto minmax(0,1fr);grid-template-areas:"top top top" "tools sheet panel";
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
+  background-image:linear-gradient(var(--mat-line-2) 1px,transparent 1px),linear-gradient(90deg,var(--mat-line-2) 1px,transparent 1px),linear-gradient(var(--mat-line) 1px,transparent 1px),linear-gradient(90deg,var(--mat-line) 1px,transparent 1px);
+  background-size:120px 120px,120px 120px,24px 24px,24px 24px}
+.studio-top{grid-area:top;display:flex;align-items:center;gap:var(--s-3);padding:10px 16px;border-bottom:1px solid var(--mat-line-2);flex-wrap:wrap}
+.studio-top .ttl{font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.studio-top .ttl small{display:block;font-family:var(--f-mono);font-size:11px;color:var(--mat-soft);font-weight:400}
+.studio-top .sp{flex:1}
+.timer{font-family:var(--f-mono);font-size:var(--t-sm);padding:6px 12px;border-radius:999px;border:1.5px solid var(--mat-line-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.timer.warn{border-color:var(--live);color:var(--live)}
+.studio-tools{grid-area:tools;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
+.studio-tools .tool{color:var(--mat-ink);width:52px;height:52px;border-radius:14px}
+.studio-tools .tool:hover{background:var(--mat-raise)}
+.studio-tools .tool[aria-pressed="true"]{background:var(--paper);color:var(--ink);border-color:transparent;box-shadow:0 6px 14px -8px var(--shadow)}
+.studio-tools hr{width:32px;border:0;border-top:1px solid var(--mat-line-2);margin:6px 0}
+.studio-tools .icon-btn{color:var(--mat-ink)}
+.studio-tools .icon-btn:hover{background:var(--mat-raise)}
+.studio-tools .icon-btn:disabled{opacity:.35;cursor:default}
+.studio-sheet{grid-area:sheet;display:grid;place-items:center;padding:20px;min-height:0;min-width:0;position:relative}
+.studio-sheet .paper{position:relative;background:var(--paper);box-shadow:0 18px 40px -20px var(--shadow),0 2px 8px -2px var(--shadow)}
+.studio-sheet canvas{display:block;touch-action:none;cursor:none}
+.studio-sheet .ring{border-color:#1B1E1D}
+.studio-sheet .paper:hover .ring{opacity:.7}
+.remix-banner{position:absolute;top:8px;left:50%;translate:-50% 0;z-index:2;font-size:var(--t-sm);background:var(--paper);color:var(--ink);padding:6px 12px;border-radius:999px;box-shadow:0 4px 12px -6px var(--shadow);white-space:nowrap;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}
+.studio-panel{grid-area:panel;overflow:auto;padding:16px 16px 24px 0;display:flex;flex-direction:column;gap:var(--s-4)}
+.studio-panel .sheet{padding:var(--s-4)}
+.studio-panel h3{margin:0 0 var(--s-2);font-size:var(--t-xs);font-family:var(--f-mono);font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.pal{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.pal .chip-wrap{width:100%;height:40px}
+.pal .chip{width:32px;height:32px}
+.lock{display:flex;align-items:center;gap:var(--s-2);font-size:var(--t-sm);margin-top:var(--s-3);min-height:36px}
+.lock input{width:18px;height:18px;accent-color:var(--accent)}
+.custom{display:flex;align-items:center;gap:var(--s-2);font-size:var(--t-sm);margin-top:var(--s-2)}
+.custom input{width:44px;height:32px;border:0;padding:0;background:transparent}
+.sizer{display:flex;align-items:center;gap:var(--s-3)}
+.sizer input{flex:1;accent-color:var(--accent);min-width:0;height:28px}
+.sizer .dot{width:48px;height:48px;display:grid;place-items:center;flex:none}
+.sizer .dot i{display:block;border-radius:50%;background:var(--ink)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3) var(--s-4)}
+.stats b{display:block;font-size:var(--t-lg);font-variant-numeric:tabular-nums}
+.stats span{font-size:var(--t-xs);color:var(--ink-soft)}
+.keys{font-size:var(--t-xs);color:var(--ink-soft);line-height:1.8}
+.keys kbd{font-family:var(--f-mono);font-size:11px;border:1px solid var(--rule);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--paper-2);color:var(--ink)}
+@media (max-width:860px){
+  .studio{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-areas:"top" "sheet" "tools" "panel"}
+  .studio-top .ttl small{display:none}
+  .studio-top .hide-s{display:none}
+  .studio-sheet{padding:10px}
+  .studio-tools{flex-direction:row;overflow-x:auto;padding:6px 12px;justify-content:flex-start;border-top:1px solid var(--mat-line-2)}
+  .studio-tools hr{width:1px;height:28px;border-top:0;border-left:1px solid var(--mat-line-2);margin:0 4px}
+  .studio-tools .tool{width:46px;height:46px;flex:none}
+  .studio-tools .icon-btn{flex:none}
+  .studio-panel{flex-direction:row;overflow-x:auto;padding:0 12px 10px;gap:var(--s-3)}
+  .studio-panel .sheet{flex:none;width:250px;padding:var(--s-3)}
+  .studio-panel .opt{display:none}
+}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));translate:-50% 0;z-index:60;background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:var(--t-sm);font-weight:600;box-shadow:0 10px 24px -10px rgba(0,0,0,.5);transition:opacity .2s,transform .2s}
+.toast[hidden]{display:block!important;opacity:0;transform:translateY(10px);pointer-events:none}
+@media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L15.6 5a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M13.8 6.8l3.4 3.4"/><path d="M4 20l3-.8"/></symbol>
+  <symbol id="i-ink" viewBox="0 0 24 24"><path d="M12 3l5 7-5 11-5-11z"/><path d="M12 10v4"/><circle cx="12" cy="9.5" r="1"/></symbol>
+  <symbol id="i-marker" viewBox="0 0 24 24"><path d="M14.5 4.5l5 5-8 8H7v-4.5z"/><path d="M7 13l4 4"/><path d="M4 20h7"/></symbol>
+  <symbol id="i-wash" viewBox="0 0 24 24"><path d="M18 3c-4 2-7 5-8.5 8.5"/><path d="M9.5 11.5c-3 0-5 2-5 4.5S3 20 3 20s4 .5 6.5-1.5c2-1.6 2-4.5 0-7z"/></symbol>
+  <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M8.5 20H20"/><path d="M5 15.5l9.5-9.5a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19.5H8.5z"/><path d="M9 11.5l4.5 4.5"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 12V6a1.5 1.5 0 0 1 3 0v5"/><path d="M11 10V4.5a1.5 1.5 0 0 1 3 0V10"/><path d="M14 10V6a1.5 1.5 0 0 1 3 0v7c0 4-2.5 7-6 7-2.5 0-4-1.2-5.5-3.5L4 13.5a1.5 1.5 0 0 1 2.4-1.7L8 13.5"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/><path d="M10.5 9v6l5-3z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 3 3H7l3-3z"/><path d="M12 12v9"/></symbol>
+  <symbol id="i-proof" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-remix" viewBox="0 0 24 24"><path d="M4 7h4c4 0 4 10 8 10h4"/><path d="M17 14l3 3-3 3"/><path d="M4 17h4c1.5 0 2.4-1.3 3-3"/><path d="M13 10c.6-1.7 1.5-3 3-3h4"/><path d="M17 4l3 3-3 3"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="#wall" aria-label="Tilo home">
+      <b>tilo<svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><path d="M2 6 C 25 2, 55 9, 98 4" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></b>
+      <span>a studio with a gallery attached</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#wall" class="opt">The wall</a>
+      <a href="#today">Today</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#studio" class="btn btn-mat" data-open-studio>Open studio</a>
+    </nav>
+  </header>
+
+  <section class="hero" id="wall" aria-labelledby="hero-h">
+    <h1 id="hero-h">Make it here. <em>Hang it here.<svg viewBox="0 0 300 30" preserveAspectRatio="none" aria-hidden="true"><path d="M4 20 C 70 6, 150 28, 296 10"/></svg></em></h1>
+    <div>
+      <p>Tilo is a free drawing studio in your browser with a public gallery attached. Every piece keeps its replay, so people can watch how it was made.</p>
+      <div class="ctas">
+        <a href="#studio" class="btn btn-mat" data-open-studio><svg class="i"><use href="#i-pencil"/></svg>Start a blank sheet</a>
+        <a href="#today" class="btn btn-mat">Today's prompt</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="wall-shell">
+    <div class="ruler" id="ruler" aria-hidden="true"></div>
+    <div class="wall" id="wallBox">
+      <canvas id="wallCanvas" role="img" aria-label="The shared wall: a large sheet of paper with marks from everyone on Tilo"></canvas>
+      <div class="wall-note sheet tape" style="--tr:4deg">
+        <div class="hand">This sheet is shared. Anyone on Tilo can add a mark. Try it.</div>
+        <svg viewBox="0 0 70 60" aria-hidden="true"><path d="M4 6 C 30 8, 52 22, 58 50"/><path d="M50 42 L58 52 L64 40"/></svg>
+      </div>
+      <div class="ring" id="wallRing"></div>
+      <div id="peers"></div>
+    </div>
+    <div class="tray" role="toolbar" aria-label="Wall tools">
+      <div class="grp" id="wallTools"></div>
+      <div class="grp" id="wallColors"></div>
+      <div class="grp" id="wallSizes"></div>
+      <div class="status mono">
+        <span class="live off" id="wallLive">Connecting</span>
+        <span id="wallCount">0 marks</span>
+      </div>
+    </div>
+    <div class="wall-msg" id="wallMsg" role="status"></div>
+  </div>
+
+  <section class="sec" id="today" aria-labelledby="today-h">
+    <div class="sec-head">
+      <span class="label">Daily prompt</span>
+      <h2 id="today-h">Same rules for everyone, for one day</h2>
+      <p class="aside">A prompt sets a subject, a palette and a time limit. Entries are stamped by other people and the most stamped go to the front of the gallery.</p>
+    </div>
+    <div class="prompt-grid">
+      <article class="sheet tape prompt-card" style="--tr:-3deg">
+        <div class="mono no">PROMPT #312 · CLOSES IN <span id="countdown">--:--:--</span></div>
+        <h3>A window at night</h3>
+        <ul class="rules">
+          <li><b>6</b><span>colours, fixed</span></li>
+          <li><b>10:00</b><span>minutes on the clock</span></li>
+          <li><b>1</b><span>sheet, no uploads</span></li>
+        </ul>
+        <div class="paint" id="promptPaint" aria-label="The six colours for this prompt"></div>
+        <div class="prompt-foot">
+          <a href="#studio" class="btn btn-ink" data-open-studio="prompt"><svg class="i"><use href="#i-pencil"/></svg>Start the 10-minute sheet</a>
+          <span class="mono">214 ENTRIES SO FAR (EXAMPLE)</span>
+        </div>
+      </article>
+      <div class="entries" id="entries">
+        <p class="note"><span class="hand">Entries so far</span><br><span class="mono">Sample pieces. Tap one to watch it being drawn.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="gallery" aria-labelledby="gal-h">
+    <div class="sec-head">
+      <span class="label">Gallery</span>
+      <h2 id="gal-h">The pinboard</h2>
+      <div class="filters" role="group" aria-label="Sort the gallery" id="filters"></div>
+    </div>
+    <p class="mono" style="color:var(--mat-soft);margin:0">SAMPLE PIECES AND ARTISTS FOR THE PROTOTYPE. PIECES YOU PIN STAY ON YOUR SCREEN.</p>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="why-h">
+    <div class="sec-head">
+      <span class="label">Why Tilo</span>
+      <h2 id="why-h">Three things a portfolio site can't do</h2>
+    </div>
+    <div class="why">
+      <article class="sheet tape" style="--tr:2deg">
+        <span class="hand">proof of hand</span>
+        <h3>Every piece has its replay</h3>
+        <p>Pieces are drawn on Tilo, so each one carries the full stroke record. Anyone can scrub through it. That shows the work is human-made without anyone having to argue about it.</p>
+      </article>
+      <article class="sheet tape" style="--tr:-3deg">
+        <span class="hand">limits help</span>
+        <h3>Prompts with rules</h3>
+        <p>One subject, six colours, ten minutes. A beginner and a professional start from the same sheet, so comparing their work is fair.</p>
+      </article>
+      <article class="sheet tape" style="--tr:1deg">
+        <span class="hand">pass it on</span>
+        <h3>Remix chains</h3>
+        <p>Pick up someone's piece and keep drawing on top. Credit stays attached and every piece shows where it came from and what grew out of it.</p>
+      </article>
+    </div>
+  </section>
+
+  <footer>
+    <span>Drawing, the wall, the gallery and stamps are free.</span>
+    <span class="mono">TILO · PROTOTYPE 0.1 · 1 SQUARE = 1 CM</span>
+  </footer>
+</div>
+
+<!-- studio -->
+<div class="studio" id="studio" hidden aria-label="Studio">
+  <div class="studio-top">
+    <button class="icon-btn" id="stBack" aria-label="Back to Tilo" style="color:var(--mat-ink)"><svg class="i"><use href="#i-back"/></svg></button>
+    <div class="ttl" id="stTitle">Blank sheet<small>Free palette · no clock</small></div>
+    <div class="sp"></div>
+    <span class="timer" id="stTimer" hidden>10:00</span>
+    <button class="btn btn-mat" id="stReplay" aria-label="Replay your sheet"><svg class="i"><use href="#i-replay"/></svg><span class="hide-s">Replay</span></button>
+    <button class="btn btn-ink" id="stPin"><svg class="i"><use href="#i-pin"/></svg>Pin to gallery</button>
+  </div>
+  <div class="studio-tools" role="toolbar" aria-label="Brushes" id="stTools"></div>
+  <div class="studio-sheet" id="stSheet">
+    <div class="remix-banner" id="stRemix" hidden></div>
+    <div class="paper" id="stPaper">
+      <canvas id="stCanvas" width="1600" height="1200" role="img" aria-label="Your drawing sheet"></canvas>
+      <div class="ring" id="stRing"></div>
+    </div>
+  </div>
+  <aside class="studio-panel" aria-label="Sheet settings">
+    <div class="sheet">
+      <h3>Colour</h3>
+      <div class="pal" id="stPal"></div>
+      <label class="lock" id="stLockRow"><input type="checkbox" id="stLock"> Use Prompt #312 colours only</label>
+      <label class="custom" id="stCustomRow">Mix your own <input type="color" id="stCustom" value="#2B37D4" aria-label="Custom colour"></label>
+    </div>
+    <div class="sheet">
+      <h3>Brush size</h3>
+      <div class="sizer"><input type="range" id="stSize" min="1" max="40" value="8" aria-label="Brush size"><span class="dot"><i id="stDot"></i></span></div>
+    </div>
+    <div class="sheet">
+      <h3>This sheet</h3>
+      <div class="stats">
+        <div><b id="stStrokes">0</b><span>strokes</span></div>
+        <div><b id="stTime">0:00</b><span>drawing time</span></div>
+      </div>
+    </div>
+    <div class="sheet opt">
+      <h3>Keys</h3>
+      <div class="keys"><kbd>P</kbd> pencil <kbd>I</kbd> ink <kbd>M</kbd> marker <kbd>W</kbd> wash <kbd>E</kbd> eraser<br><kbd>[</kbd> <kbd>]</kbd> size <kbd>⌘Z</kbd> undo <kbd>⇧⌘Z</kbd> redo</div>
+    </div>
+  </aside>
+</div>
+
+<dialog id="pieceDlg" aria-labelledby="pTitle">
+  <div class="piece">
+    <div class="piece-art">
+      <div class="frame"><canvas id="pCanvas" width="1600" height="1200" role="img" aria-label="Artwork replay"></canvas></div>
+      <div class="player">
+        <button class="play" id="pPlay" aria-label="Play replay"><svg class="i"><use href="#i-play"/></svg></button>
+        <input type="range" id="pScrub" min="0" max="1000" value="1000" aria-label="Replay position">
+        <span class="mono" id="pClock">0:00</span>
+        <button class="speed" id="pSpeed" aria-label="Replay speed">1×</button>
+      </div>
+      <div class="mono" id="pStrokeNo" style="color:var(--mat-soft)"></div>
+    </div>
+    <div class="piece-info">
+      <button class="icon-btn close" id="pClose" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+      <div>
+        <h2 id="pTitle"></h2>
+        <div class="who" id="pWho"></div>
+      </div>
+      <div class="proof"><svg class="i"><use href="#i-proof"/></svg><div id="pProof"></div></div>
+      <dl class="facts-table" id="pFacts"></dl>
+      <div>
+        <div class="mono" style="color:var(--ink-soft);margin-bottom:8px">STAMP IT · PICK ANY THAT FIT</div>
+        <div class="stamps" id="pStamps" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+      <div class="lineage" id="pLineage"></div>
+      <div class="piece-actions">
+        <button class="btn btn-ink" id="pRemix"><svg class="i"><use href="#i-remix"/></svg>Remix in studio</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="pinDlg" aria-labelledby="pinH">
+  <form class="small-sheet sheet tape" id="pinForm" method="dialog">
+    <h2 id="pinH">Pin to the gallery</h2>
+    <p>Your piece goes up with its full replay. In this prototype it stays on your screen only.</p>
+    <div class="field"><label for="pinTitle">Title</label><input type="text" id="pinTitle" maxlength="60" placeholder="Untitled" autocomplete="off"></div>
+    <label class="check" id="pinEnterRow"><input type="checkbox" id="pinEnter"> Enter it in Prompt #312</label>
+    <div class="row"><button type="button" class="btn btn-quiet" id="pinCancel">Keep drawing</button><button type="submit" class="btn btn-ink">Pin it</button></div>
+  </form>
+</dialog>
+
+<dialog id="clearDlg" aria-labelledby="clearH">
+  <div class="small-sheet sheet">
+    <h2 id="clearH">Start over?</h2>
+    <p>This removes every stroke on the sheet, including its replay. Undo won't bring it back.</p>
+    <div class="row"><button class="btn btn-quiet" id="clearNo">Keep it</button><button class="btn btn-ink" id="clearYes">Clear the sheet</button></div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("tilo." + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("tilo." + k, JSON.stringify(v)); } catch {} }
+};
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const icon = (id) => `<svg class="i" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+let toastT;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
+
+/* ---------- stroke engine ----------
+   A stroke is {tool, c, w, p:[x,y,pressure(0-99), ...]} in sheet units. */
+const TOOLS = {
+  pencil: { label: "Pencil", key: "p" },
+  ink:    { label: "Ink pen", key: "i" },
+  marker: { label: "Marker", key: "m" },
+  wash:   { label: "Watercolour wash", key: "w" },
+  eraser: { label: "Eraser", key: "e" }
+};
+function drawStroke(ctx, s, k = 1, upto) {
+  const p = s.p, n = Math.min(upto ?? Infinity, (p.length / 3) | 0);
+  if (n < 1) return;
+  const X = i => p[i * 3] * k, Y = i => p[i * 3 + 1] * k, P = i => p[i * 3 + 2] / 99;
+  const path = () => {
+    ctx.beginPath(); ctx.moveTo(X(0), Y(0));
+    if (n === 1) { ctx.lineTo(X(0) + .01, Y(0)); return; }
+    for (let i = 1; i < n - 1; i++) ctx.quadraticCurveTo(X(i), Y(i), (X(i) + X(i + 1)) / 2, (Y(i) + Y(i + 1)) / 2);
+    ctx.lineTo(X(n - 1), Y(n - 1));
+  };
+  const w = s.w * k;
+  ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = s.c;
+  switch (s.tool) {
+    case "pencil":
+      ctx.globalAlpha = .85; ctx.lineWidth = Math.max(.7, w * .5); path(); ctx.stroke();
+      ctx.globalAlpha = .28; ctx.lineWidth = Math.max(.5, w * .3); ctx.translate(.9 * k, -.7 * k); path(); ctx.stroke();
+      break;
+    case "ink": {
+      if (n < 3) { ctx.lineWidth = Math.max(.7, w * (.3 + .95 * P(0))); path(); ctx.stroke(); break; }
+      let px = X(0), py = Y(0);
+      for (let i = 1; i < n - 1; i++) {
+        const mx = (X(i) + X(i + 1)) / 2, my = (Y(i) + Y(i + 1)) / 2;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.quadraticCurveTo(X(i), Y(i), mx, my);
+        ctx.lineWidth = Math.max(.7, w * (.3 + .95 * P(i))); ctx.stroke(); px = mx; py = my;
+      }
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(X(n - 1), Y(n - 1)); ctx.lineWidth = Math.max(.7, w * (.3 + .95 * P(n - 1))); ctx.stroke();
+      break;
+    }
+    case "marker": ctx.globalAlpha = .55; ctx.lineWidth = w * 1.8; path(); ctx.stroke(); break;
+    case "wash":
+      ctx.globalAlpha = .2; ctx.lineWidth = w * 3.2; ctx.shadowColor = s.c; ctx.shadowBlur = w * 1.3; path(); ctx.stroke();
+      ctx.shadowBlur = 0; ctx.globalAlpha = .13; ctx.lineWidth = w * 1.9; path(); ctx.stroke();
+      break;
+    case "eraser": ctx.globalCompositeOperation = "destination-out"; ctx.strokeStyle = "#000"; ctx.lineWidth = w * 2.2; path(); ctx.stroke(); break;
+  }
+  ctx.restore();
+}
+const pointsOf = s => (s.p.length / 3) | 0;
+
+/* pointer capture shared by the wall and the studio */
+function capture(el, { toLocal, start, point, end, minDist = 2 }) {
+  let active = null, last = null, lastT = 0, sp = .6;
+  const feed = e => {
+    const [x, y] = toLocal(e);
+    const t = e.timeStamp || performance.now();
+    if (last && Math.hypot(x - last[0], y - last[1]) < minDist) return;
+    let pr;
+    if (e.pointerType === "pen" && e.pressure > 0) pr = e.pressure;
+    else {
+      const v = last ? Math.hypot(x - last[0], y - last[1]) / Math.max(1, t - lastT) : 0;
+      const target = Math.max(.22, Math.min(1, 1 - v * .18));
+      sp += (target - sp) * .35; pr = sp;
+    }
+    last = [x, y]; lastT = t;
+    point(x, y, Math.round(pr * 99));
+  };
+  el.addEventListener("pointerdown", e => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    if (active !== null) return;
+    if (start(e) === false) return;
+    active = e.pointerId; last = null; sp = .6; el.setPointerCapture(e.pointerId); feed(e); e.preventDefault();
+  });
+  el.addEventListener("pointermove", e => {
+    if (e.pointerId !== active) return;
+    const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    (list.length ? list : [e]).forEach(feed);
+  });
+  const stop = e => { if (e.pointerId !== active) return; active = null; end(); };
+  el.addEventListener("pointerup", stop); el.addEventListener("pointercancel", stop);
+}
+
+/* ---------- seeded sketch generator for sample pieces ---------- */
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function Sketch(seed) {
+  const R = rng(seed), strokes = [];
+  const st = (tool, c, w) => { const s = { tool, c, w, p: [] }; strokes.push(s); return s; };
+  const add = (s, x, y, pr = .6) => s.p.push(Math.round(x), Math.round(y), Math.round(Math.max(0, Math.min(1, pr)) * 99));
+  const S = {
+    R, strokes,
+    poly(pts, tool, c, w, j = 1.6, step = 14) {
+      const s = st(tool, c, w); let off = 0, total = 0;
+      const segs = []; for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(d); total += d; }
+      let run = 0;
+      for (let i = 1; i < pts.length; i++) {
+        const [x1, y1] = pts[i - 1], [x2, y2] = pts[i], d = segs[i - 1] || 1, n = Math.max(1, Math.ceil(d / step));
+        for (let k = (i === 1 ? 0 : 1); k <= n; k++) {
+          const t = k / n; off += (R() - .5) * j; off *= .86;
+          const nx = -(y2 - y1) / d, ny = (x2 - x1) / d, prog = (run + d * t) / (total || 1);
+          add(s, x1 + (x2 - x1) * t + nx * off, y1 + (y2 - y1) * t + ny * off, .35 + .6 * Math.sin(Math.PI * prog));
+        }
+        run += d;
+      }
+      return s;
+    },
+    line(x1, y1, x2, y2, tool, c, w, j) { return S.poly([[x1, y1], [x2, y2]], tool, c, w, j); },
+    circle(cx, cy, r, tool, c, w, j = 3, turns = 1.06) {
+      const s = st(tool, c, w), n = Math.max(18, Math.ceil(r * turns * 6.3 / 11)), a0 = R() * 6.283; let rr = r;
+      for (let i = 0; i <= n; i++) { const a = a0 + i / n * turns * 6.283; rr += (R() - .5) * j; rr += (r - rr) * .2; add(s, cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * .98, .45 + .45 * Math.sin(i / n * Math.PI)); }
+      return s;
+    },
+    rect(x, y, w, h, tool, c, sz, j = 2) {
+      const o = () => (R() - .5) * 14;
+      S.line(x + o(), y, x + w + o(), y + o() * .3, tool, c, sz, j); S.line(x + w, y + o(), x + w + o() * .3, y + h + o(), tool, c, sz, j);
+      S.line(x + w + o(), y + h, x + o(), y + h + o() * .3, tool, c, sz, j); S.line(x, y + h + o(), x + o() * .3, y + o(), tool, c, sz, j);
+    },
+    fill(x, y, w, h, tool, c, sz, gap, rows = 8) {   // zig-zag scribble fill, split into strokes like a hand would
+      let pts = [], count = 0, dir = 0;
+      for (let yy = y; yy <= y + h; yy += gap) {
+        const a = x + R() * gap * .5, b = x + w - R() * gap * .5;
+        pts.push(dir ? [b, yy + (R() - .5) * gap * .4] : [a, yy + (R() - .5) * gap * .4]);
+        pts.push(dir ? [a, yy + gap * .5] : [b, yy + gap * .5]);
+        dir ^= 1;
+        if (++count % rows === 0) { S.poly(pts, tool, c, sz, 1, 40); pts = [pts[pts.length - 1]]; }
+      }
+      if (pts.length > 1) S.poly(pts, tool, c, sz, 1, 40);
+    },
+    disc(cx, cy, r, tool, c, sz, gap) {
+      const pts = []; let dir = 0;
+      for (let yy = -r; yy <= r; yy += gap) { const half = Math.sqrt(Math.max(0, r * r - yy * yy)) * .96; pts.push([cx + (dir ? half : -half), cy + yy]); pts.push([cx + (dir ? -half : half), cy + yy + gap * .5]); dir ^= 1; }
+      S.poly(pts, tool, c, sz, 1, 36);
+    },
+    ridge(x0, x1, baseY, amp, peaks) {
+      const pts = []; const n = 26;
+      for (let i = 0; i <= n; i++) { const t = i / n, x = x0 + (x1 - x0) * t; let y = baseY; peaks.forEach(([px, h, wd]) => { y -= h * Math.max(0, 1 - Math.abs(x - px) / wd); }); y += (R() - .5) * amp; pts.push([x, y]); }
+      return pts;
+    }
+  };
+  return S;
+}
+const NAVY = "#1E2A5A", LAMP = "#F2C14E", EMBER = "#E26D3D", MOSS = "#3E7C6B", CREAM = "#F4EEE0", INK = "#1B1B1B";
+const PROMPT = { no: 312, title: "A window at night", palette: [NAVY, LAMP, EMBER, MOSS, CREAM, INK], names: ["Night navy", "Lamp", "Ember", "Moss", "Moon", "Ink"], minutes: 10 };
+
+function genWindow(S) {
+  S.fill(0, 0, 1600, 1200, "wash", NAVY, 64, 70, 6);
+  S.fill(470, 270, 660, 720, "wash", LAMP, 44, 60, 5);
+  for (let i = 0; i < 4; i++) S.disc(1000, 400, 70 - i * 14, "wash", CREAM, 14, 22);
+  S.circle(1000, 400, 72, "pencil", CREAM, 6);
+  for (let i = 0; i < 22; i++) { const x = S.R() * 1600, y = S.R() * 260 + 20; if (x > 430 && x < 1170 && y > 230) continue; S.line(x - 8, y, x + 8, y, "marker", CREAM, 4); S.line(x, y - 8, x, y + 8, "marker", CREAM, 4); }
+  for (let k = 0; k < 6; k++) { const x = 480 + k * 16; S.poly([[x, 270], [x + 20, 480], [x - 6, 700], [x + 18, 990]], "pencil", EMBER, 9, 3); }
+  for (let k = 0; k < 6; k++) { const x = 1120 - k * 16; S.poly([[x, 270], [x - 20, 480], [x + 6, 700], [x - 18, 990]], "pencil", EMBER, 9, 3); }
+  S.rect(450, 250, 700, 760, "ink", INK, 13, 2.5);
+  S.line(800, 250, 800, 1010, "ink", INK, 10); S.line(450, 620, 1150, 620, "ink", INK, 10);
+  S.line(380, 1032, 1220, 1026, "ink", INK, 16);
+  S.disc(1060, 990, 38, "marker", MOSS, 18, 16);
+  for (let i = 0; i < 6; i++) { const a = -2.6 + i * .42; S.line(1060, 960, 1060 + Math.cos(a) * 95, 960 + Math.sin(a) * 95, "ink", MOSS, 7); }
+}
+function genCat(S) {
+  S.disc(640, 950, 82, "marker", INK, 28, 20);
+  S.disc(705, 875, 52, "marker", INK, 24, 16);
+  S.poly([[668, 842], [672, 790], [700, 828]], "ink", INK, 12); S.poly([[716, 826], [742, 786], [748, 842]], "ink", INK, 12);
+  S.poly([[560, 1000], [500, 1018], [470, 980], [490, 930]], "ink", INK, 14, 2);
+  S.line(690, 870, 698, 872, "marker", LAMP, 6); S.line(722, 870, 730, 872, "marker", LAMP, 6);
+}
+function genMountains(S) {
+  S.fill(0, 0, 1600, 560, "wash", "#9CC3D9", 60, 80, 5);
+  for (let i = 0; i < 4; i++) S.disc(1150, 330, 110 - i * 22, "wash", "#F0A04B", 18, 24);
+  const layers = [
+    { y: 760, c: "#6E7F99", peaks: [[380, 380, 360], [880, 300, 300], [1300, 340, 330]] },
+    { y: 900, c: "#465672", peaks: [[200, 220, 300], [700, 260, 320], [1450, 200, 280]] },
+    { y: 1050, c: "#2B354A", peaks: [[500, 150, 400], [1200, 170, 360]] }
+  ];
+  layers.forEach((L, li) => {
+    const pts = S.ridge(-20, 1620, L.y, 18, L.peaks);
+    const zz = []; pts.forEach(([x, y], i) => { zz.push([x, y + 8]); zz.push([x + 30, 1200]); });
+    for (let i = 0; i < zz.length; i += 12) S.poly(zz.slice(i, i + 13), "wash", L.c, 40, 1, 60);
+    S.poly(pts, "ink", "#1B1F2A", li === 0 ? 6 : 8, 1.5);
+    if (li === 0) L.peaks.forEach(([px, h]) => { for (let k = 0; k < 4; k++) S.line(px - 30 + k * 14, L.y - h + 18 + k * 6, px - 12 + k * 14, L.y - h + 40 + k * 8, "marker", "#FFFFFF", 7); });
+  });
+  for (let i = 0; i < 5; i++) { const x = 500 + i * 70 + S.R() * 40, y = 240 + S.R() * 90; S.poly([[x - 22, y - 10], [x, y + 4], [x + 22, y - 12]], "ink", "#1B1F2A", 5); }
+}
+function genBalcony(S) {
+  S.fill(0, 0, 1600, 1200, "wash", "#D9A27E", 64, 74, 6);
+  S.rect(560, 80, 480, 560, "ink", "#3B2A20", 10);
+  S.fill(590, 110, 420, 500, "wash", "#5B8F86", 40, 60, 6);
+  for (let x = 620; x < 1000; x += 70) S.line(x, 120, x + 4, 600, "pencil", "#2F4F49", 10);
+  S.line(160, 690, 1440, 684, "ink", "#3B2A20", 18); S.line(160, 1000, 1440, 994, "ink", "#3B2A20", 18);
+  for (let x = 180; x < 1440; x += 64) {
+    S.line(x, 700, x + 2, 990, "ink", "#3B2A20", 8);
+    S.poly([[x + 4, 720], [x + 32, 840], [x + 4, 970]], "ink", "#3B2A20", 5);
+    S.poly([[x + 60, 720], [x + 32, 840], [x + 60, 970]], "ink", "#3B2A20", 5);
+  }
+  [[300, 650], [1250, 650], [880, 650]].forEach(([x, y]) => {
+    S.disc(x, y - 10, 44, "marker", "#A8462F", 20, 16);
+    for (let i = 0; i < 9; i++) { const a = -Math.PI + .2 + i * .34; S.poly([[x, y - 40], [x + Math.cos(a) * 60, y - 60 + Math.sin(a) * 80], [x + Math.cos(a) * 110, y - 50 + Math.sin(a) * 120]], "pencil", "#3E7C3F", 10, 3); }
+  });
+  S.line(120, 320, 560, 360, "pencil", "#3B2A20", 4);
+  [[180, 330, "#F4EEE0"], [300, 342, "#3E6FB0"], [420, 352, "#E0B23A"]].forEach(([x, y, c]) => S.fill(x, y, 80, 110, "marker", c, 16, 22, 8));
+  S.fill(0, 1010, 1600, 190, "wash", "#8C5A3C", 50, 60, 6);
+}
+function genPom(S) {
+  S.fill(0, 0, 1600, 1200, "wash", "#EFE3CF", 70, 90, 6);
+  for (let i = 0; i < 26; i++) { const x = 380 + i * 34; S.line(x, 1000, x + 120, 880, "pencil", "#6E6458", 7, 1); }
+  for (let i = 0; i < 6; i++) S.disc(700, 640, 300 - i * 46, "wash", i < 2 ? "#8E1E28" : "#B8262B", 26, 34);
+  S.circle(700, 640, 300, "ink", "#3A0E12", 12, 4);
+  S.poly([[640, 350], [650, 280], [680, 320], [700, 262], [720, 322], [752, 282], [760, 352]], "ink", "#3A0E12", 11, 1);
+  S.poly([[540, 540], [580, 470], [650, 440]], "marker", "#F7D8C4", 18, 1);
+  S.circle(1210, 860, 150, "ink", "#3A0E12", 10, 3);
+  S.disc(1210, 860, 130, "wash", "#F1D7B8", 20, 30);
+  for (let i = 0; i < 46; i++) { const a = S.R() * 6.28, r = S.R() * 118; const x = 1210 + Math.cos(a) * r, y = 860 + Math.sin(a) * r; S.line(x, y, x + 6, y + 9, "marker", "#9E1730", 11, .5); }
+}
+function genOneLine(S) {
+  S.fill(0, 0, 1600, 1200, "wash", "#F3E9DA", 70, 90, 6);
+  const pts = [];
+  for (let i = 0; i <= 700; i++) {
+    const t = i / 700 * Math.PI * 2;
+    pts.push([800 + 430 * Math.sin(t * 2 + .6) * Math.cos(t * .5) + 120 * Math.sin(t * 7), 600 + 380 * Math.sin(t * 3) * .8 + 90 * Math.cos(t * 5)]);
+  }
+  S.poly(pts, "ink", "#141414", 9, .8, 10);
+  S.poly([[1250, 1080], [1280, 1060], [1300, 1090], [1330, 1058], [1370, 1085]], "pencil", "#141414", 6, 1);
+}
+function genWaves(S) {
+  S.fill(0, 0, 1600, 520, "wash", "#F4D9B8", 64, 80, 5);
+  for (let i = 0; i < 4; i++) S.disc(420, 300, 90 - i * 20, "wash", "#E8873A", 16, 22);
+  S.line(0, 520, 1600, 514, "pencil", "#2E4C6D", 6);
+  const blues = ["#2E4C6D", "#3B6E99", "#5F98C2", "#2B5A7E"];
+  for (let r = 0; r < 14; r++) {
+    const y0 = 560 + r * 46, amp = 6 + r * 2.4, pts = [];
+    for (let x = -20; x <= 1620; x += 40) pts.push([x, y0 + Math.sin(x / (60 + r * 6) + r) * amp]);
+    S.poly(pts, r % 3 === 0 ? "ink" : "marker", blues[r % 4], r % 3 === 0 ? 6 : 10, 1.2, 20);
+  }
+  S.fill(0, 1040, 1600, 160, "wash", "#D8C3A0", 50, 60, 6);
+}
+function genTram(S) {
+  S.fill(0, 0, 1600, 1200, "wash", NAVY, 64, 70, 6);
+  S.line(0, 150, 1600, 190, "pencil", CREAM, 4); S.line(0, 170, 1600, 214, "pencil", CREAM, 3);
+  S.line(980, 196, 1080, 430, "ink", INK, 6);
+  S.fill(260, 430, 1060, 420, "marker", "#C9392F", 40, 40, 6);
+  S.rect(260, 430, 1060, 420, "ink", INK, 10);
+  for (let i = 0; i < 5; i++) { const x = 320 + i * 196; S.fill(x, 490, 150, 160, "wash", LAMP, 30, 36, 6); S.rect(x, 490, 150, 160, "ink", INK, 6); }
+  [460, 1100].forEach(x => { S.disc(x, 880, 52, "marker", INK, 22, 16); S.circle(x, 880, 54, "ink", INK, 8); });
+  S.line(0, 935, 1600, 930, "ink", INK, 10);
+  S.line(1440, 1000, 1440, 380, "ink", INK, 9);
+  for (let i = 0; i < 4; i++) S.disc(1440, 360, 90 - i * 20, "wash", LAMP, 16, 22);
+  S.poly([[380, 760], [400, 700], [420, 760]], "marker", CREAM, 8);
+}
+
+const SAMPLES = [
+  { id: "window", title: "A window at night", by: "nino.k", minutes: 9.6, prompt: 312, gen: genWindow, stamps: { Moody: 41, Bold: 12, "Clean line": 7, "Remix me": 19 } },
+  { id: "kazbegi", title: "Kazbegi, 7 a.m.", by: "luka_draws", minutes: 22, gen: genMountains, stamps: { Calm: 33, Colour: 28, Bold: 4 } },
+  { id: "balcony", title: "Sololaki balcony", by: "mari.lines", minutes: 31, gen: genBalcony, stamps: { Patient: 52, "Clean line": 18, Colour: 11 } },
+  { id: "cat", title: "A window at night, with Pilpili", by: "dato.m", minutes: 4, prompt: 312, remixOf: "window", gen: S => { genWindow(S); genCat(S); }, stamps: { Funny: 64, Moody: 9 } },
+  { id: "pomegranate", title: "Pomegranate study", by: "tamta", minutes: 9, gen: genPom, stamps: { Colour: 22, Bold: 30, "Remix me": 3 } },
+  { id: "oneline", title: "One line, no lifting", by: "g.okro", minutes: 3, gen: genOneLine, stamps: { "Clean line": 47, Funny: 6 } },
+  { id: "waves", title: "Batumi, low tide", by: "sea.sketch", minutes: 12, gen: genWaves, stamps: { Calm: 38, Patient: 6 } },
+  { id: "tram", title: "Last tram home", by: "ana.v", minutes: 9.8, prompt: 312, gen: genTram, stamps: { Moody: 25, Bold: 21, Colour: 9 } }
+];
+SAMPLES.forEach((s, i) => { const S = Sketch(1000 + i * 77); s.gen(S); s.strokes = S.strokes; s.sample = true; s.r = [-2.2, 1.6, -.8, 2.4, -1.4, 1, -2.6, .7][i % 8]; });
+const STAMP_SET = ["Bold", "Moody", "Calm", "Colour", "Clean line", "Patient", "Funny", "Remix me"];
+const STAMP_COL = { Bold: "#B23A2E", Moody: "#3B3F8F", Calm: "#2F6B5A", Colour: "#B5651D", "Clean line": "#1B1E1D", Patient: "#6B4C2E", Funny: "#A1386B", "Remix me": "#2B37D4" };
+
+let mine = store.get("pinned", []).filter(p => p && Array.isArray(p.strokes));
+let myStamps = store.get("stamps", {});
+const allPieces = () => [...mine, ...SAMPLES];
+const byId = id => allPieces().find(p => p.id === id);
+
+/* ---------- rendering pieces ---------- */
+function renderPiece(canvas, piece, upto) {
+  const ctx = canvas.getContext("2d"), k = canvas.width / 1600;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#FBFAF5"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // strokes are drawn on a transparent layer so the eraser only removes ink, never paper
+  const layer = document.createElement("canvas"); layer.width = canvas.width; layer.height = canvas.height;
+  const lc = layer.getContext("2d");
+  piece.strokes.forEach(s => drawStroke(lc, s, k));
+  ctx.drawImage(layer, 0, 0);
+}
+const toolsUsed = p => [...new Set(p.strokes.map(s => s.tool))].map(t => TOOLS[t]?.label.split(" ")[0].toLowerCase()).join(" · ");
+const paletteOf = p => { const m = new Map(); p.strokes.forEach(s => s.tool !== "eraser" && m.set(s.c, (m.get(s.c) || 0) + pointsOf(s))); return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(e => e[0]); };
+const fmtMin = m => { const s = Math.round(m * 60); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const stampTotal = p => Object.values(p.stamps || {}).reduce((a, b) => a + b, 0) + Object.keys(myStamps[p.id] || {}).length;
+
+function pinCard(p, i) {
+  const b = document.createElement("button");
+  b.className = "pin sheet tape"; b.style.setProperty("--r", (p.r ?? 0) + "deg"); b.style.setProperty("--tr", ((i * 37) % 7 - 3) + "deg");
+  b.setAttribute("aria-label", `${p.title} by ${p.by}. Open replay.`);
+  const cv = document.createElement("canvas"); const dpr = Math.min(2, devicePixelRatio || 1);
+  cv.width = Math.round(400 * dpr); cv.height = Math.round(300 * dpr);
+  b.appendChild(cv);
+  const top = Object.entries(p.stamps || {}).sort((a, b) => b[1] - a[1]).slice(0, 2);
+  b.insertAdjacentHTML("beforeend", `
+    ${p.mine ? '<span class="flag">YOURS</span>' : ""}
+    <div class="meta"><span class="t"></span><span class="by"></span></div>
+    <div class="facts"><span>${p.strokes.length.toLocaleString()} STROKES</span><span>${fmtMin(p.minutes)} MIN</span>${p.remixOf ? "<span>REMIX</span>" : ""}</div>
+    <div class="stamps">${top.map(([k, v], j) => `<span class="stamp" style="--sc:${STAMP_COL[k]};--sr:${j ? 2 : -2}deg">${k}<b>${v}</b></span>`).join("")}</div>`);
+  b.querySelector(".t").textContent = p.title; b.querySelector(".by").textContent = "@" + p.by;
+  b.addEventListener("click", () => openPiece(p.id));
+  requestAnimationFrame(() => renderPiece(cv, p));
+  return b;
+}
+
+let sortMode = "stamped";
+const FILTERS = [["stamped", "Most stamped"], ["new", "Newest"], ["prompt", "Prompt #312"], ["remix", "Remixes"]];
+function renderBoard() {
+  const f = $("#filters");
+  f.innerHTML = FILTERS.map(([k, l]) => `<button class="filter" aria-pressed="${k === sortMode}" data-k="${k}">${l}</button>`).join("");
+  let list = allPieces();
+  if (sortMode === "stamped") list = [...mine, ...SAMPLES.slice().sort((a, b) => stampTotal(b) - stampTotal(a))];
+  if (sortMode === "prompt") list = list.filter(p => p.prompt === 312);
+  if (sortMode === "remix") list = list.filter(p => p.remixOf);
+  const board = $("#board"); board.innerHTML = "";
+  list.forEach((p, i) => board.appendChild(pinCard(p, i)));
+  const ent = $("#entries"); ent.querySelectorAll(".pin").forEach(n => n.remove());
+  allPieces().filter(p => p.prompt === 312).slice(0, 4).forEach((p, i) => ent.appendChild(pinCard(p, i + 3)));
+}
+$("#filters").addEventListener("click", e => { const b = e.target.closest("[data-k]"); if (!b) return; sortMode = b.dataset.k; renderBoard(); });
+
+/* ---------- piece dialog + replay ---------- */
+const dlg = $("#pieceDlg"), pc = $("#pCanvas");
+const replay = { piece: null, total: 0, cum: [], pos: 1, playing: false, speed: 1, raf: 0, layer: null, done: -1 };
+function prepReplay(piece) {
+  replay.piece = piece; replay.cum = []; let t = 0;
+  piece.strokes.forEach(s => { t += Math.max(4, pointsOf(s)); replay.cum.push(t); });
+  replay.total = t; replay.layer = document.createElement("canvas"); replay.layer.width = pc.width; replay.layer.height = pc.height; replay.done = -1;
+}
+function drawReplay(pos) {
+  const R = replay, p = R.piece, target = pos * R.total;
+  let idx = 0; while (idx < R.cum.length && R.cum[idx] <= target) idx++;
+  const lc = R.layer.getContext("2d");
+  if (idx - 1 < R.done) { lc.clearRect(0, 0, R.layer.width, R.layer.height); R.done = -1; }
+  for (let i = R.done + 1; i < idx; i++) drawStroke(lc, p.strokes[i], 1);
+  R.done = idx - 1;
+  const ctx = pc.getContext("2d");
+  ctx.fillStyle = "#FBFAF5"; ctx.fillRect(0, 0, pc.width, pc.height);
+  if (idx < p.strokes.length) {
+    const prev = idx ? R.cum[idx - 1] : 0, s = p.strokes[idx];
+    const partial = Math.floor((target - prev) / (R.cum[idx] - prev) * pointsOf(s));
+    if (partial > 0) {
+      if (s.tool === "eraser") { const tmp = document.createElement("canvas"); tmp.width = pc.width; tmp.height = pc.height; const t2 = tmp.getContext("2d"); t2.drawImage(R.layer, 0, 0); drawStroke(t2, s, 1, partial); ctx.drawImage(tmp, 0, 0); }
+      else { ctx.drawImage(R.layer, 0, 0); drawStroke(ctx, s, 1, partial); }
+    } else ctx.drawImage(R.layer, 0, 0);
+  } else ctx.drawImage(R.layer, 0, 0);
+  $("#pScrub").value = Math.round(pos * 1000);
+  $("#pClock").textContent = fmtMin(p.minutes * pos) + " / " + fmtMin(p.minutes);
+  $("#pStrokeNo").textContent = `STROKE ${Math.min(idx + (idx < p.strokes.length ? 1 : 0), p.strokes.length).toLocaleString()} OF ${p.strokes.length.toLocaleString()}`;
+}
+function setPlaying(on) {
+  replay.playing = on; cancelAnimationFrame(replay.raf);
+  $("#pPlay").innerHTML = icon(on ? "pause" : "play"); $("#pPlay").setAttribute("aria-label", on ? "Pause replay" : "Play replay");
+  if (!on) return;
+  if (replay.pos >= 1) replay.pos = 0;
+  let last = performance.now();
+  const dur = Math.min(14000, 5000 + replay.piece.strokes.length * 40);
+  const tick = now => {
+    replay.pos = Math.min(1, replay.pos + (now - last) / dur * replay.speed); last = now;
+    drawReplay(replay.pos);
+    if (replay.pos < 1 && replay.playing) replay.raf = requestAnimationFrame(tick); else setPlaying(false);
+  };
+  replay.raf = requestAnimationFrame(tick);
+}
+$("#pPlay").addEventListener("click", () => setPlaying(!replay.playing));
+$("#pScrub").addEventListener("input", e => { setPlaying(false); replay.pos = e.target.value / 1000; drawReplay(replay.pos); });
+$("#pSpeed").addEventListener("click", e => { replay.speed = replay.speed === 1 ? 2 : replay.speed === 2 ? 4 : 1; e.target.textContent = replay.speed + "×"; });
+$("#pClose").addEventListener("click", () => dlg.close());
+dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+dlg.addEventListener("close", () => { setPlaying(false); if (location.hash.startsWith("#piece-")) history.replaceState(null, "", "#gallery"); });
+
+function openPiece(id) {
+  const p = byId(id); if (!p) return;
+  prepReplay(p);
+  $("#pTitle").textContent = p.title;
+  $("#pWho").textContent = `@${p.by}${p.mine ? " (you)" : ""}${p.prompt ? " · Prompt #" + p.prompt : ""}`;
+  $("#pProof").innerHTML = `<b>Drawn on Tilo.</b> All ${p.strokes.length.toLocaleString()} strokes were recorded as they were made. Press play to watch them in order.`;
+  const pal = paletteOf(p);
+  $("#pFacts").innerHTML = `<dt>TIME</dt><dd>${fmtMin(p.minutes)} min${p.prompt && p.minutes <= 10 ? " · inside the 10:00 limit" : ""}</dd>
+    <dt>TOOLS</dt><dd>${toolsUsed(p)}</dd><dt>PALETTE</dt><dd><span class="swatches">${pal.map(c => `<i style="--c:${c}" title="${c}"></i>`).join("")}</span></dd>
+    <dt>SHEET</dt><dd>4:3 · 1600 × 1200</dd>`;
+  renderStamps(p);
+  const src = p.remixOf && byId(p.remixOf), kids = allPieces().filter(q => q.remixOf === p.id);
+  const lin = $("#pLineage"); lin.innerHTML = "";
+  if (src) { lin.append("Remix of "); const a = document.createElement("a"); a.href = "#piece-" + src.id; a.textContent = src.title; a.onclick = ev => { ev.preventDefault(); openPiece(src.id); }; lin.append(a, ` by @${src.by}.`); }
+  if (kids.length) { if (src) lin.append(" "); lin.append(`${kids.length} remix${kids.length > 1 ? "es" : ""} grew out of this: `); kids.forEach((k, i) => { const a = document.createElement("a"); a.href = "#piece-" + k.id; a.textContent = k.title; a.onclick = ev => { ev.preventDefault(); openPiece(k.id); }; lin.append(i ? ", " : "", a); }); lin.append("."); }
+  if (!src && !kids.length) lin.textContent = "No remixes yet. Start one and the credit links back here.";
+  $("#pRemix").onclick = () => { dlg.close(); openStudio({ remix: p }); };
+  if (!dlg.open) dlg.showModal();
+  history.replaceState(null, "", "#piece-" + p.id);
+  replay.pos = reduced ? 1 : 0; drawReplay(replay.pos);
+  if (!reduced) setPlaying(true);
+}
+function renderStamps(p) {
+  const box = $("#pStamps"); const mineFor = myStamps[p.id] || {};
+  box.innerHTML = STAMP_SET.map((k, j) => { const on = !!mineFor[k]; const n = (p.stamps?.[k] || 0) + (on ? 1 : 0);
+    return `<button class="stamp" data-s="${k}" aria-pressed="${on}" style="--sc:${STAMP_COL[k]};--sr:${(j % 3) - 1.5}deg">${k}${n ? `<b>${n}</b>` : ""}</button>`; }).join("");
+  box.onclick = e => { const b = e.target.closest("[data-s]"); if (!b) return; const m = myStamps[p.id] || (myStamps[p.id] = {}); if (m[b.dataset.s]) delete m[b.dataset.s]; else m[b.dataset.s] = 1; store.set("stamps", myStamps); renderStamps(p); renderBoard(); };
+}
+
+/* ---------- studio ---------- */
+const studio = $("#studio"), sc = $("#stCanvas"), sctx = sc.getContext("2d");
+const FREE = ["#1B1E1D", "#5B5F66", "#2B37D4", "#3FA7D6", "#3E7C6B", "#8DBF5A", "#F2C14E", "#E26D3D", "#C9392F", "#A1386B", "#7A4E2D", "#FFFFFF"];
+const st = {
+  strokes: store.get("draft", []), redo: [], base: [], remix: null, tool: "ink", color: "#1B1E1D", size: 8,
+  promptMode: false, timeMs: store.get("draftTime", 0), lastUp: 0, started: 0, cur: null, committed: document.createElement("canvas")
+};
+st.committed.width = 1600; st.committed.height = 1200;
+function stRebuild() {
+  const c = st.committed.getContext("2d"); c.clearRect(0, 0, 1600, 1200);
+  st.base.forEach(s => drawStroke(c, s)); st.strokes.forEach(s => drawStroke(c, s)); stPaint();
+}
+function stPaint() {
+  sctx.clearRect(0, 0, 1600, 1200);
+  if (st.cur && st.cur.tool === "eraser") { const c = st.committed.getContext("2d"); const tmp = document.createElement("canvas"); tmp.width = 1600; tmp.height = 1200; const t = tmp.getContext("2d"); t.drawImage(st.committed, 0, 0); drawStroke(t, st.cur); sctx.drawImage(tmp, 0, 0); return; }
+  sctx.drawImage(st.committed, 0, 0); if (st.cur) drawStroke(sctx, st.cur);
+}
+function stStats() {
+  $("#stStrokes").textContent = (st.strokes.length + st.base.length).toLocaleString();
+  $("#stTime").textContent = fmtMin(st.timeMs / 60000);
+  $("#stUndo") && ($("#stUndo").disabled = !st.strokes.length); $("#stRedo") && ($("#stRedo").disabled = !st.redo.length);
+  if (!st.remix) { store.set("draft", st.strokes); store.set("draftTime", st.timeMs); }
+}
+function stFit() {
+  const box = $("#stSheet").getBoundingClientRect(); const pad = innerWidth < 860 ? 20 : 40;
+  const w = Math.max(200, Math.min(box.width - pad, (box.height - pad) * 4 / 3));
+  sc.style.width = w + "px"; sc.style.height = w * 3 / 4 + "px";
+}
+function stTools() {
+  const t = $("#stTools");
+  t.innerHTML = Object.entries(TOOLS).map(([k, v]) => `<button class="tool" data-tool="${k}" aria-pressed="${st.tool === k}" aria-label="${v.label} (${v.key.toUpperCase()})" title="${v.label} · ${v.key.toUpperCase()}">${icon(k)}</button>`).join("")
+    + `<hr><button class="icon-btn" id="stUndo" aria-label="Undo" title="Undo · ⌘Z">${icon("undo")}</button><button class="icon-btn" id="stRedo" aria-label="Redo" title="Redo · ⇧⌘Z">${icon("redo")}</button><button class="icon-btn" id="stClear" aria-label="Clear the sheet" title="Clear">${icon("trash")}</button>`;
+  stStats();
+}
+$("#stTools").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.tool) { st.tool = b.dataset.tool; stTools(); stRing(); }
+  else if (b.id === "stUndo") undo(); else if (b.id === "stRedo") redo(); else if (b.id === "stClear") { if (st.strokes.length) $("#clearDlg").showModal(); }
+});
+function undo() { if (!st.strokes.length) return; st.redo.push(st.strokes.pop()); stRebuild(); stStats(); }
+function redo() { if (!st.redo.length) return; st.strokes.push(st.redo.pop()); stRebuild(); stStats(); }
+$("#clearNo").onclick = () => $("#clearDlg").close();
+$("#clearYes").onclick = () => { st.strokes = []; st.redo = []; st.timeMs = 0; st.started = 0; stRebuild(); stStats(); stTimer(); $("#clearDlg").close(); toast("Sheet cleared"); };
+function stPalette() {
+  const cols = st.promptMode ? PROMPT.palette : FREE;
+  if (!cols.includes(st.color)) st.color = cols[0];
+  $("#stPal").innerHTML = cols.map((c, i) => `<button class="chip-wrap" data-c="${c}" aria-label="Colour ${st.promptMode ? PROMPT.names[i] : c}"><span class="chip" style="--c:${c}" aria-pressed="${c === st.color}"></span></button>`).join("");
+  $("#stCustomRow").hidden = st.promptMode; $("#stLock").checked = st.promptMode;
+}
+$("#stPal").addEventListener("click", e => { const b = e.target.closest("[data-c]"); if (!b) return; st.color = b.dataset.c; stPalette(); });
+$("#stCustom").addEventListener("input", e => { st.color = e.target.value; stPalette(); });
+$("#stLock").addEventListener("change", e => { st.promptMode = e.target.checked; stPalette(); stHeader(); stTimer(); });
+const stSizeEl = $("#stSize");
+function stSize(v) { st.size = Math.max(1, Math.min(40, v)); stSizeEl.value = st.size; const d = $("#stDot"); const px = Math.max(3, Math.min(44, st.size * 1.1)); d.style.width = d.style.height = px + "px"; stRing(); }
+stSizeEl.addEventListener("input", e => stSize(+e.target.value));
+function stHeader() {
+  const t = $("#stTitle");
+  if (st.remix) t.innerHTML = `Remix<small></small>`, t.querySelector("small").textContent = `of “${st.remix.title}” by @${st.remix.by}`;
+  else t.innerHTML = st.promptMode ? `Prompt #312 · ${PROMPT.title}<small>6 colours · 10:00 on the clock, starts at your first stroke</small>` : `Blank sheet<small>Free palette · no clock</small>`;
+}
+function stTimer() {
+  const el = $("#stTimer"); el.hidden = !st.promptMode; if (!st.promptMode) return;
+  const left = PROMPT.minutes * 60000 - st.timeMs;
+  el.textContent = left > 0 ? fmtMin(left / 60000) : "Time's up";
+  el.classList.toggle("warn", left < 60000);
+}
+/* drawing time counts while the pen is down, plus short pauses between strokes */
+setInterval(() => { if (studio.hidden) return; if (st.cur || (st.lastUp && performance.now() - st.lastUp < 4000)) { st.timeMs += 250; stTimer(); $("#stTime").textContent = fmtMin(st.timeMs / 60000); } }, 250);
+const ring = $("#stRing");
+function stRing(e) {
+  const scale = sc.getBoundingClientRect().width / 1600;
+  const mult = { pencil: .5, ink: 1, marker: 1.8, wash: 3.2, eraser: 2.2 }[st.tool];
+  const d = Math.max(6, st.size * mult * scale);
+  ring.style.width = ring.style.height = d + "px";
+  if (e) { const r = sc.getBoundingClientRect(); ring.style.left = (e.clientX - r.left) + "px"; ring.style.top = (e.clientY - r.top) + "px"; }
+}
+sc.addEventListener("pointermove", stRing);
+capture(sc, {
+  toLocal: e => { const r = sc.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * 1600, (e.clientY - r.top) / r.height * 1200]; },
+  start: () => { st.cur = { tool: st.tool, c: st.color, w: st.size, p: [] }; },
+  point: (x, y, pr) => { st.cur.p.push(Math.round(x), Math.round(y), pr); stPaint(); },
+  end: () => {
+    const s = st.cur; st.cur = null; st.lastUp = performance.now();
+    if (s && s.p.length) { st.strokes.push(s); st.redo = []; drawStroke(st.committed.getContext("2d"), s); }
+    stPaint(); stStats();
+  }
+});
+addEventListener("keydown", e => {
+  if (studio.hidden || document.querySelector("dialog[open]")) return;
+  if (e.target.matches("input[type=text]")) return;
+  const k = e.key.toLowerCase();
+  if ((e.metaKey || e.ctrlKey) && k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = Object.entries(TOOLS).find(([, v]) => v.key === k); if (t) { st.tool = t[0]; stTools(); stRing(); }
+  if (k === "[") stSize(st.size - 2); if (k === "]") stSize(st.size + 2);
+  if (k === "escape") closeStudio();
+});
+function openStudio(opts = {}) {
+  if (opts.remix) { st.remix = opts.remix; st.base = opts.remix.strokes; st.strokes = []; st.redo = []; st.timeMs = 0; st.promptMode = false; }
+  else if (st.remix) { st.remix = null; st.base = []; st.strokes = store.get("draft", []); st.timeMs = store.get("draftTime", 0); }
+  if (opts.prompt) { st.promptMode = true; }
+  $("#stRemix").hidden = !st.remix;
+  if (st.remix) $("#stRemix").textContent = `Remixing “${st.remix.title}” by @${st.remix.by}. Their strokes are the base and can't be undone.`;
+  $("#stLockRow").hidden = !!st.remix;
+  studio.hidden = false; document.body.style.overflow = "hidden";
+  stHeader(); stPalette(); stTools(); stSize(st.size); stFit(); stRebuild(); stTimer();
+  history.replaceState(null, "", "#studio");
+  $("#stBack").focus();
+}
+function closeStudio() { studio.hidden = true; document.body.style.overflow = ""; history.replaceState(null, "", "#wall"); }
+$("#stBack").onclick = closeStudio;
+document.querySelectorAll("[data-open-studio]").forEach(a => a.addEventListener("click", e => { e.preventDefault(); openStudio({ prompt: a.dataset.openStudio === "prompt" }); }));
+addEventListener("resize", () => { if (!studio.hidden) stFit(); });
+$("#stReplay").onclick = () => {
+  const all = [...st.base, ...st.strokes]; if (!all.length) { toast("Draw something first, then watch it back"); return; }
+  const p = { id: "_draft", title: "Your sheet so far", by: "you", minutes: st.timeMs / 60000, strokes: all, mine: true, stamps: {} };
+  mine = mine.filter(m => m.id !== "_draft"); const keep = mine; mine = [p, ...keep]; openPiece("_draft"); mine = keep;
+  $("#pRemix").hidden = true; dlg.addEventListener("close", () => $("#pRemix").hidden = false, { once: true });
+};
+$("#stPin").onclick = () => {
+  if (!st.strokes.length) { toast("The sheet is empty. Draw something first."); return; }
+  $("#pinTitle").value = ""; $("#pinEnterRow").hidden = !st.promptMode; $("#pinEnter").checked = st.promptMode && st.timeMs <= PROMPT.minutes * 60000;
+  $("#pinEnter").disabled = st.timeMs > PROMPT.minutes * 60000;
+  $("#pinDlg").showModal();
+};
+$("#pinCancel").onclick = () => $("#pinDlg").close();
+$("#pinForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const piece = { id: "mine-" + Date.now().toString(36), title: $("#pinTitle").value.trim() || "Untitled", by: "you", minutes: Math.max(.1, st.timeMs / 60000),
+    strokes: [...st.base, ...st.strokes], mine: true, stamps: {}, r: -1.2, prompt: ($("#pinEnter").checked && !$("#pinEnterRow").hidden) ? 312 : undefined, remixOf: st.remix?.id };
+  mine.unshift(piece);
+  if (JSON.stringify(mine).length > 3e6) mine.pop();
+  store.set("pinned", mine);
+  $("#pinDlg").close();
+  st.strokes = []; st.redo = []; st.timeMs = 0; st.remix = null; st.base = []; store.set("draft", []); store.set("draftTime", 0);
+  closeStudio(); sortMode = "new"; renderBoard();
+  $("#gallery").scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
+  toast("Pinned to the gallery");
+});
+
+/* ---------- the shared wall ----------
+   Wall space is 2000 × 1000 units. Marks live in the artifact db (collection "wall"),
+   live cursors go through room presence. Without either, the wall works locally. */
+const W = { w: 2000, h: 1000, K: 1.5 };
+const WALL_COLORS = ["#1B1E1D", "#2B37D4", "#C9392F", "#F2C14E", "#3E7C6B", "#A1386B"];
+const wall = { strokes: new Map(), off: document.createElement("canvas"), view: { s: 1, ox: 0, oy: 0 }, tool: "ink", color: "#1B1E1D", size: 6, cur: null,
+  mode: "connecting", db: null, room: null, user: null, myId: null, canWrite: true, lastT: 0, names: {} };
+wall.off.width = W.w * W.K; wall.off.height = W.h * W.K;
+const wc = $("#wallCanvas"), wbox = $("#wallBox"), wring = $("#wallRing");
+function wallFit() {
+  const r = wbox.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+  wc.width = Math.round(r.width * dpr); wc.height = Math.round(r.height * dpr);
+  const v = wall.view; v.s = Math.max(r.width / W.w, r.height / W.h);
+  v.ox = Math.max(0, Math.min(W.w - r.width / v.s, v.ox || (W.w - r.width / v.s) / 2));
+  v.oy = Math.max(0, Math.min(W.h - r.height / v.s, (W.h - r.height / v.s) / 2));
+  // ruler: one tick label per 120 css px, like a 1:1 scale strip
+  const ru = $("#ruler"); ru.innerHTML = ""; for (let x = 0, n = 0; x < r.width; x += 60, n++) { const s = document.createElement("span"); s.style.left = x + "px"; s.textContent = n; ru.appendChild(s); }
+  wallPaint(); renderPeers();
+}
+function wallPaint() {
+  const ctx = wc.getContext("2d"), dpr = wc.width / wbox.clientWidth, v = wall.view, s = v.s * dpr;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, wc.width, wc.height);
+  ctx.setTransform(s / W.K, 0, 0, s / W.K, -v.ox * s, -v.oy * s); ctx.drawImage(wall.off, 0, 0);
+  ctx.setTransform(s, 0, 0, s, -v.ox * s, -v.oy * s);
+  if (wall.strokes.size === 0 && !wall.cur) {
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = "rgba(27,30,29,.16)"; ctx.textAlign = "center";
+    ctx.font = `${Math.round(Math.min(64 * dpr, wc.width / 11))}px 'Nanum Pen Script', cursive`;
+    ctx.fillText(wall.mode === "connecting" ? "loading the wall…" : "the first mark is yours", wc.width * .55, wc.height * .58); ctx.restore();
+  }
+  if (wall.cur) drawStroke(ctx, wall.cur, 1);
+}
+let rebuildQueued = false;
+function wallRebuild() {
+  if (rebuildQueued) return; rebuildQueued = true;
+  requestAnimationFrame(() => {
+    rebuildQueued = false;
+    const c = wall.off.getContext("2d"); c.clearRect(0, 0, wall.off.width, wall.off.height);
+    [...wall.strokes.values()].sort((a, b) => a.t - b.t).forEach(s => drawStroke(c, s, W.K));
+    wall.lastT = Math.max(0, ...[...wall.strokes.values()].map(s => s.t));
+    wallPaint(); wallCount();
+  });
+}
+function wallAdd(id, s) {
+  if (wall.strokes.has(id)) return false;
+  wall.strokes.set(id, s);
+  if (s.t >= wall.lastT && !rebuildQueued) { drawStroke(wall.off.getContext("2d"), s, W.K); wall.lastT = s.t; wallPaint(); wallCount(); }
+  else wallRebuild();
+  return true;
+}
+function wallCount() { $("#wallCount").textContent = `${wall.strokes.size.toLocaleString()} mark${wall.strokes.size === 1 ? "" : "s"}`; }
+function cleanStroke(d) {   // data from other viewers is untrusted
+  if (!d || typeof d !== "object") return null;
+  const tool = ["pencil", "ink", "marker"].includes(d.tool) ? d.tool : null;
+  const c = typeof d.c === "string" && /^#[0-9a-f]{6}$/i.test(d.c) ? d.c : null;
+  const w = Number(d.w), t = Number(d.t);
+  if (!tool || !c || !(w >= 1 && w <= 40) || !Array.isArray(d.p) || d.p.length % 3 || d.p.length > 1800 || !isFinite(t)) return null;
+  const p = d.p.map(Number); if (p.some(n => !isFinite(n))) return null;
+  return { tool, c, w, p, t };
+}
+function wallTray() {
+  const tools = ["pencil", "ink", "marker", "hand"];
+  $("#wallTools").innerHTML = tools.map(k => `<button class="tool" data-wt="${k}" aria-pressed="${wall.tool === k}" aria-label="${k === "hand" ? "Move around the wall" : TOOLS[k].label}" title="${k === "hand" ? "Move around" : TOOLS[k].label}">${icon(k)}</button>`).join("");
+  $("#wallColors").innerHTML = WALL_COLORS.map(c => `<button class="chip-wrap" data-wc="${c}" aria-label="Colour ${c}"><span class="chip" style="--c:${c}" aria-pressed="${wall.color === c}"></span></button>`).join("");
+  $("#wallSizes").innerHTML = [[3, 4], [6, 8], [14, 14]].map(([v, px]) => `<button class="size" data-ws="${v}" aria-pressed="${wall.size === v}" aria-label="Brush size ${v}"><i style="width:${px}px;height:${px}px"></i></button>`).join("");
+  wbox.classList.toggle("panning", wall.tool === "hand");
+}
+$(".tray").addEventListener("click", e => {
+  const t = e.target.closest("[data-wt],[data-wc],[data-ws]"); if (!t) return;
+  if (t.dataset.wt) wall.tool = t.dataset.wt; if (t.dataset.wc) { wall.color = t.dataset.wc; if (wall.tool === "hand") wall.tool = "ink"; } if (t.dataset.ws) wall.size = +t.dataset.ws;
+  wallTray(); wallRingSize();
+});
+function wallRingSize() { const mult = { pencil: .5, ink: 1, marker: 1.8 }[wall.tool] || 1; const d = Math.max(6, wall.size * mult * wall.view.s); wring.style.width = wring.style.height = d + "px"; }
+const toWall = e => { const r = wbox.getBoundingClientRect(), v = wall.view; return [v.ox + (e.clientX - r.left) / v.s, v.oy + (e.clientY - r.top) / v.s]; };
+let pan = null;
+wbox.addEventListener("pointerdown", e => { if (wall.tool !== "hand") return; pan = { x: e.clientX, y: e.clientY, ox: wall.view.ox, oy: wall.view.oy, id: e.pointerId }; wbox.setPointerCapture(e.pointerId); });
+wbox.addEventListener("pointermove", e => {
+  const r = wbox.getBoundingClientRect(); wring.style.left = (e.clientX - r.left) + "px"; wring.style.top = (e.clientY - r.top) + "px";
+  if (pan && e.pointerId === pan.id) { const v = wall.view; v.ox = Math.max(0, Math.min(W.w - r.width / v.s, pan.ox - (e.clientX - pan.x) / v.s)); v.oy = Math.max(0, Math.min(W.h - r.height / v.s, pan.oy - (e.clientY - pan.y) / v.s)); wallPaint(); renderPeers(); }
+  if (wall.room) { const [x, y] = toWall(e); wall.room.presence({ x: Math.round(x), y: Math.round(y), c: wall.color }).catch(() => {}); }
+});
+wbox.addEventListener("pointerup", () => pan = null);
+wbox.addEventListener("pointerleave", () => { if (wall.room) wall.room.presence({ x: null, y: null }).catch(() => {}); });
+capture(wbox, {
+  toLocal: toWall, minDist: 2,
+  start: () => { if (wall.tool === "hand") return false; wall.cur = { tool: wall.tool, c: wall.color, w: wall.size, p: [] }; },
+  point: (x, y, pr) => { if (wall.cur.p.length >= 1800) return; wall.cur.p.push(Math.round(x), Math.round(y), pr); wallPaint(); },
+  end: async () => {
+    const s = wall.cur; wall.cur = null; if (!s || !s.p.length) return wallPaint();
+    s.t = Date.now(); const id = "m" + s.t.toString(36) + Math.random().toString(36).slice(2, 7);
+    wallAdd(id, s);
+    if (wall.mode === "live" && wall.canWrite) {
+      try { await wall.db.collection("wall").doc(id).set({ tool: s.tool, c: s.c, w: s.w, p: s.p, t: s.t, by: wall.myId || null }); }
+      catch (err) { wall.canWrite = false; wallMsg("This copy of the wall is read-only for you. Your marks stay on your screen."); }
+    }
+  }
+});
+function wallMsg(t) { $("#wallMsg").textContent = t; }
+function setWallMode(m) {
+  wall.mode = m; const live = $("#wallLive");
+  live.classList.toggle("off", m !== "live");
+  live.textContent = m === "live" ? "Live" : m === "connecting" ? "Connecting" : "Offline";
+  if (m === "offline") wallMsg("Offline preview: the shared wall needs a signed-in claude.ai viewer. Marks you make here stay on your screen.");
+  wallPaint();
+}
+const PEER_COLS = ["#2B37D4", "#C9392F", "#3E7C6B", "#A1386B", "#B5651D", "#1B1E1D"];
+let peersNow = [];
+function renderPeers() {
+  const box = $("#peers"); box.innerHTML = ""; const v = wall.view;
+  const others = peersNow.filter(p => !p.isMe && p.kind === "viewer");
+  others.forEach((p, i) => {
+    const x = Number(p.presence?.x), y = Number(p.presence?.y); if (!isFinite(x) || !isFinite(y)) return;
+    const col = PEER_COLS[[...String(p.peer)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % PEER_COLS.length];
+    const el = document.createElement("div"); el.className = "peer"; el.style.transform = `translate(${(x - v.ox) * v.s}px,${(y - v.oy) * v.s}px)`;
+    el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l7 17 2.5-7.5L20 10z" fill="${col}" stroke="#fff" stroke-width="1.5"/></svg><span style="background:${col}"></span>`;
+    el.querySelector("span").textContent = (p.by && wall.names[p.by]) || (p.guest ? "Guest" : "Someone");
+    box.appendChild(el);
+  });
+  const n = peersNow.filter(p => p.kind === "viewer").length;
+  if (wall.mode === "live") $("#wallLive").textContent = n > 1 ? `${n} here now` : "Live · just you";
+}
+async function wallConnect() {
+  if (!window.claude || typeof window.claude.use !== "function") return setWallMode("offline");
+  const [db, room, user] = await Promise.all([claude.use("db"), claude.use("room"), claude.use("user")]).catch(() => [null, null, null]);
+  wall.user = user;
+  if (user) { try { wall.myId = await user.id(); } catch {} try { const can = await user.can("data.write"); if (can === false) wall.canWrite = false; } catch {} }
+  if (!db) return setWallMode("offline");
+  wall.db = db; setWallMode("connecting");
+  const timer = setTimeout(() => wallMsg("The wall can't be reached yet. You can still draw; your marks stay on your screen until it connects."), 10000);
+  db.collection("wall").orderBy("t", "desc").limit(900).onSnapshot(snap => {
+    if (!snap.metadata?.fromCache) { clearTimeout(timer); if (wall.mode !== "live") { setWallMode("live"); wallMsg(wall.canWrite ? "" : "You can look at the wall, but this copy doesn't let you add marks."); } }
+    let rebuild = false;
+    snap.docChanges().forEach(ch => {
+      const id = ch.doc.id;
+      if (ch.type === "removed") { if (wall.strokes.delete(id)) rebuild = true; return; }
+      const s = cleanStroke(ch.doc.data()); if (!s) return;
+      if (ch.type === "modified") { wall.strokes.set(id, s); rebuild = true; } else wallAdd(id, s);
+    });
+    if (rebuild) wallRebuild(); else { wallCount(); wallPaint(); }
+  }, err => { clearTimeout(timer); setWallMode("offline"); wallMsg("The shared wall stopped answering. Marks you make now stay on your screen."); });
+  if (room) {
+    wall.room = room;
+    room.onPeers(async ch => {
+      peersNow = ch.peers;
+      const ids = [...new Set(ch.peers.map(p => p.by).filter(Boolean))].filter(id => !(id in wall.names));
+      if (ids.length && user?.profiles) { try { const ps = await user.profiles(ids); ids.forEach(id => wall.names[id] = (ps[id] && ps[id].name) || ""); } catch {} }
+      renderPeers();
+    });
+  }
+}
+
+/* ---------- page bits ---------- */
+function promptPaint() {
+  const light = c => { const n = parseInt(c.slice(1), 16); return ((n >> 16) * .299 + ((n >> 8) & 255) * .587 + (n & 255) * .114) > 150; };
+  $("#promptPaint").innerHTML = PROMPT.palette.map((c, i) => `<div style="--c:${c};--fg:${light(c) ? "#1B1E1D" : "#FFFFFF"}"><span>${PROMPT.names[i]}</span></div>`).join("");
+}
+function countdown() {
+  const now = new Date(), end = new Date(now); end.setUTCHours(24, 0, 0, 0);
+  const s = Math.floor((end - now) / 1000);
+  $("#countdown").textContent = [s / 3600, (s % 3600) / 60, s % 60].map(n => String(Math.floor(n)).padStart(2, "0")).join(":");
+}
+function route() {
+  const h = location.hash.slice(1);
+  if (h === "studio") openStudio();
+  else if (h.startsWith("piece-") && byId(h.slice(6))) openPiece(h.slice(6));
+}
+
+wallTray(); wallRingSize(); promptPaint(); countdown(); setInterval(countdown, 1000); renderBoard();
+new ResizeObserver(() => { wallFit(); wallRingSize(); }).observe(wbox);
+document.fonts?.ready.then(() => wallPaint());
+wallConnect();
+route();
+})();
+</script>

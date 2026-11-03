@@ -1,0 +1,112 @@
+/* Tilo design tokens.
+   The page is a cutting mat. Work happens on materials laid on top of it, and each
+   discipline has its own material. Paper and the materials keep their colours in both
+   themes because they are physical objects; only the mat and its chrome change. */
+:root {
+  /* mat */
+  --mat: #ccdad1;
+  --mat-line: rgba(22, 64, 50, 0.11);
+  --mat-line-2: rgba(22, 64, 50, 0.26);
+  --mat-ink: #0f2e27;
+  --mat-soft: #365a50;
+  --mat-accent: #2230b8;
+  --mat-raise: rgba(255, 255, 255, 0.45);
+  --mat-deep: #b9cbc0;
+
+  /* paper and ink, fixed across themes */
+  --paper: #fbfaf5;
+  --paper-2: #f0eee5;
+  --ink: #1b1e1d;
+  --ink-soft: #575e5b;
+  --rule: #dfdcd0;
+  --accent: #2b37d4;
+  --on-accent: #ffffff;
+  --accent-soft: rgba(43, 55, 212, 0.1);
+  --note: #fff7c9;
+  --note-ink: #2a2a22;
+  --tape: rgba(236, 208, 118, 0.82);
+  --live: #d23f27;
+  --shadow: rgba(16, 40, 32, 0.22);
+
+  /* materials */
+  --m-graph: #f6f9fb;
+  --m-graph-line: rgba(64, 120, 190, 0.22);
+  --m-light: #eef6ff;
+  --m-light-glow: rgba(150, 200, 255, 0.55);
+  --m-linen: #ece4d4;
+  --m-kraft: #c79f72;
+  --m-kraft-ink: #2e1f12;
+  --m-staff: #fdfbf3;
+  --m-staff-line: rgba(30, 30, 30, 0.28);
+  --m-glass: #1c2130;
+  --m-slate: #1f2724;
+  --m-slate-ink: #cfe8dc;
+
+  /* type */
+  --f-display: "Bricolage Grotesque Variable", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-hand: "Nanum Pen Script", "Bradley Hand", "Segoe Print", cursive;
+  --f-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --t-xs: 12px;
+  --t-sm: 14px;
+  --t-md: 16px;
+  --t-lg: 20px;
+  --t-xl: 28px;
+  --t-2xl: clamp(1.9rem, 3.6vw, 2.8rem);
+  --t-hero: clamp(2.8rem, 7vw, 6rem);
+
+  /* space */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 72px;
+  --s-9: 112px;
+
+  /* motion: physical objects land with a little overshoot, then rest */
+  --ease-settle: cubic-bezier(0.22, 1.25, 0.36, 1);
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --d-fast: 140ms;
+  --d-mid: 280ms;
+  --d-slow: 560ms;
+
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --mat: #12291f;
+    --mat-line: rgba(170, 220, 196, 0.07);
+    --mat-line-2: rgba(170, 220, 196, 0.16);
+    --mat-ink: #e3eee8;
+    --mat-soft: #98b5aa;
+    --mat-accent: #a6aeff;
+    --mat-raise: rgba(255, 255, 255, 0.06);
+    --mat-deep: #0c1e16;
+    --paper: #eeece3;
+    --paper-2: #e2dfd4;
+    --rule: #d4d0c3;
+    --tape: rgba(210, 186, 108, 0.8);
+    --shadow: rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --mat: #12291f;
+  --mat-line: rgba(170, 220, 196, 0.07);
+  --mat-line-2: rgba(170, 220, 196, 0.16);
+  --mat-ink: #e3eee8;
+  --mat-soft: #98b5aa;
+  --mat-accent: #a6aeff;
+  --mat-raise: rgba(255, 255, 255, 0.06);
+  --mat-deep: #0c1e16;
+  --paper: #eeece3;
+  --paper-2: #e2dfd4;
+  --rule: #d4d0c3;
+  --tape: rgba(210, 186, 108, 0.8);
+  --shadow: rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
