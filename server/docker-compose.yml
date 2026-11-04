@@ -147,6 +147,13 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       FILES_DIR: /srv/files
       PUBLISH_PER_DAY: ${PUBLISH_PER_DAY:-20}
+      # a member's pieces go live without a mod once a mod has let in this many
+      TRUST_AFTER: ${TRUST_AFTER:-3}
+      # members whose reports take a live piece out of the gallery (one is enough for "nsfw")
+      REPORTS_TO_HOLD: ${REPORTS_TO_HOLD:-3}
+      # purges the edge cache when a piece leaves the gallery; empty on this computer
+      CF_ZONE_ID: ${CF_ZONE_ID:-}
+      CF_API_TOKEN: ${CF_API_TOKEN:-}
       # absolute links in link previews
       PUBLIC_URL: ${PUBLIC_URL}
       # for deleting accounts, through Auth's admin API

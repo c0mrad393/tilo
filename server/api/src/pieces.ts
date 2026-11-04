@@ -1,22 +1,27 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
+import { imgPath, makeDirs, publicUrls, recPath, removeFiles, type Purge } from "./files.ts";
+import { proofOf } from "./proof.ts";
 import { decode, FORMAT, MAX_BYTES } from "./recording.ts";
+import type { Screener } from "./screen.ts";
 
-/* /api/pieces: publishing. The studio sends the recording, a picture of the finished sheet
-   and what it knows about the piece; the server reads the recording before anything is kept.
-   Files go to disk first and the row last, so a row never points at a missing file.
-   The proof-of-hand checks (2.5) grow out of check() below. */
+/* /api/pieces: publishing. The studio sends the recording and what it knows about the
+   piece; the server reads the recording before anything is kept. The piece starts out held,
+   with its recording in private/, until the screener has drawn its picture and checked it.
+   Its file goes to disk first and the row last, so a row never points at a missing file. */
 
 interface Options {
   member: MiddlewareHandler<AuthEnv>;
   filesDir: string;
   /** pieces one member may publish in 24 hours */
   perDay: number;
+  screener: Screener;
+  site: string;
+  purge: Purge;
 }
 
 // kept in step with the studio's lists (src/engine/paper.ts and stroke.ts)
@@ -24,7 +29,6 @@ const PAPERS = new Set(["smooth", "cold", "newsprint", "kraft", "grey", "black"]
 const SHAPES = new Set(["land", "port", "square"]);
 const BLENDS = new Set(["source-over", "multiply", "screen", "overlay", "darken", "lighten", "soft-light", "color-burn"]);
 const OPS = new Set(["move", "dup", "merge"]);
-const MAX_PICTURE = 1024 * 1024;
 /** a subject piece is drawn against a 10:00 clock; the recording may run a little past it */
 const SUBJECT_SECONDS = 11 * 60;
 
@@ -63,11 +67,6 @@ function layersFrom(v: unknown): Layer[] {
   });
 }
 
-const PICTURES = {
-  webp: (b: Uint8Array) => b.length > 12 && String.fromCharCode(...b.subarray(0, 4)) === "RIFF" && String.fromCharCode(...b.subarray(8, 12)) === "WEBP",
-  jpg: (b: Uint8Array) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
-};
-
 export interface Draft {
   title: string;
   paper: string;
@@ -80,13 +79,11 @@ export interface Draft {
   format: number;
   bytes: number;
   strokes: number;
-  picture: keyof typeof PICTURES;
 }
 
 /** Reads what the studio sent and says what would be stored, or why it can't be. */
-export function check(meta: Record<string, unknown>, rec: Uint8Array, img: Uint8Array): Draft {
+export function check(meta: Record<string, unknown>, rec: Uint8Array): Draft & { decoded: ReturnType<typeof decode> } {
   if (rec.length > MAX_BYTES) throw new Refused("A recording can be 2 MB at most.", 413);
-  if (img.length > MAX_PICTURE) throw new Refused("The picture can be 1 MB at most.", 413);
   let strokes;
   try {
     strokes = decode(rec);
@@ -126,10 +123,7 @@ export function check(meta: Record<string, unknown>, rec: Uint8Array, img: Uint8
 
   const remixable = meta.remixable !== false;
 
-  const picture = (Object.keys(PICTURES) as (keyof typeof PICTURES)[]).find((k) => PICTURES[k](img));
-  if (!picture) throw new Refused("The picture has to be WebP or JPEG.");
-
-  return { title, paper, shape, layers, minutes: Math.round(minutes * 100) / 100, subject, remix_of, remixable, format, bytes: rec.length, strokes: strokes.length, picture };
+  return { title, paper, shape, layers, minutes: Math.round(minutes * 100) / 100, subject, remix_of, remixable, format, bytes: rec.length, strokes: strokes.length, decoded: strokes };
 }
 
 /** a piece's id: ten letters and digits, too many to guess (52 bits) */
@@ -138,31 +132,26 @@ const newId = () => {
   return [...randomBytes(10)].map((b) => abc[b % 36]).join("");
 };
 
-export const pieceFiles = (filesDir: string, id: string) => [
-  join(filesDir, "rec", `${id}.tl`),
-  join(filesDir, "img", `${id}.webp`),
-  join(filesDir, "img", `${id}.jpg`),
-];
-
-export function pieces(sql: Sql, { member, filesDir, perDay }: Options) {
+export function pieces(sql: Sql, { member, filesDir, perDay, screener, site, purge }: Options) {
   const app = new Hono<AuthEnv>();
 
-  // multipart form: "meta" (JSON), "rec" (the recording), "img" (the picture)
+  // multipart form: "meta" (JSON) and "rec" (the recording); the server draws the picture
   app.post(
     "/",
     member,
-    bodyLimit({ maxSize: MAX_BYTES + MAX_PICTURE + 64 * 1024, onError: (c) => c.json({ error: "That's more than a piece can be." }, 413) }),
+    bodyLimit({ maxSize: MAX_BYTES + 64 * 1024, onError: (c) => c.json({ error: "That's more than a piece can be." }, 413) }),
     async (c) => {
       const { id: owner } = c.get("member");
       try {
-        const [profile] = await sql`select handle from public.profiles where id = ${owner}`;
+        const [profile] = await sql`select handle, suspended from public.profiles where id = ${owner}`;
         if (!profile) throw new Refused("Pick a handle before you publish.", 400);
+        if (profile.suspended) throw new Refused("This account is suspended.", 400);
         const [{ n }] = await sql`select count(*)::int as n from public.pieces where owner = ${owner} and created > now() - interval '1 day'`;
         if (n >= perDay) throw new Refused(`You've published ${perDay} pieces today, which is the most for a day. Try again tomorrow.`, 429);
 
         const form = await c.req.formData().catch(() => null);
-        const rec = form?.get("rec"), img = form?.get("img"), meta = form?.get("meta");
-        if (!(rec instanceof File) || !(img instanceof File) || typeof meta !== "string") throw new Refused("Send meta, rec and img as a form.", 400);
+        const rec = form?.get("rec"), meta = form?.get("meta");
+        if (!(rec instanceof File) || typeof meta !== "string") throw new Refused("Send meta and rec as a form.", 400);
         let fields: Record<string, unknown>;
         try {
           fields = JSON.parse(meta);
@@ -170,34 +159,35 @@ export function pieces(sql: Sql, { member, filesDir, perDay }: Options) {
           throw new Refused("meta isn't JSON.", 400);
         }
         const recBytes = new Uint8Array(await rec.arrayBuffer());
-        const imgBytes = new Uint8Array(await img.arrayBuffer());
-        const d = check(fields, recBytes, imgBytes);
+        const d = check(fields, recBytes);
+        let base = 0;
         if (d.remix_of) {
-          const [src] = await sql`select owner, remixable from public.pieces where id = ${d.remix_of} and status = 'live'`;
+          const [src] = await sql`select owner, remixable, strokes from public.pieces where id = ${d.remix_of} and status = 'live'`;
           if (!src) throw new Refused("The piece this remixes isn't in the gallery any more.");
           // an artist may always remix their own piece
           if (!src.remixable && src.owner !== owner) throw new Refused("The artist has turned remixing off for that piece.");
+          base = src.strokes;
         }
+        const proof = proofOf(d.decoded, { base });
+        if (proof.refuse) throw new Refused(proof.refuse);
 
         const id = newId();
-        const recPath = join(filesDir, "rec", `${id}.tl`);
-        const imgPath = join(filesDir, "img", `${id}.${d.picture}`);
-        await mkdir(join(filesDir, "rec"), { recursive: true });
-        await mkdir(join(filesDir, "img"), { recursive: true });
-        // written beside and renamed into place, so Caddy never serves half a file
-        await writeFile(`${recPath}.part`, recBytes);
-        await writeFile(`${imgPath}.part`, imgBytes);
-        await rename(`${recPath}.part`, recPath);
-        await rename(`${imgPath}.part`, imgPath);
+        const path = recPath(filesDir, id, false);
+        await makeDirs(filesDir);
+        await writeFile(`${path}.part`, recBytes);
+        await rename(`${path}.part`, path);
         try {
           const [row] = await sql`
-            insert into public.pieces (id, owner, title, paper, shape, layers, strokes, minutes, format, bytes, subject, remix_of, remixable, picture)
+            insert into public.pieces (id, owner, title, paper, shape, layers, strokes, minutes, format, bytes, subject, remix_of, remixable,
+                                       status, why, proof, screen)
             values (${id}, ${owner}, ${d.title}, ${d.paper}, ${d.shape}, ${sql.json(d.layers as never)}, ${d.strokes}, ${d.minutes},
-                    ${d.format}, ${d.bytes}, ${d.subject}, ${d.remix_of}, ${d.remixable}, ${d.picture})
+                    ${d.format}, ${d.bytes}, ${d.subject}, ${d.remix_of}, ${d.remixable},
+                    'held', 'check', ${proof.badge}, ${sql.json({ proof: proof.notes })})
             returning *`;
+          screener.add(id);
           return c.json(row, 201);
         } catch (e) {
-          await Promise.all([rm(recPath, { force: true }), rm(imgPath, { force: true })]);
+          await rm(path, { force: true });
           throw e;
         }
       } catch (e) {
@@ -211,11 +201,30 @@ export function pieces(sql: Sql, { member, filesDir, perDay }: Options) {
   app.delete("/:id", member, async (c) => {
     const { id: owner } = c.get("member");
     const id = c.req.param("id");
-    const gone = await sql`delete from public.pieces where id = ${id} and owner = ${owner} returning id`;
+    const gone = await sql`delete from public.pieces where id = ${id} and owner = ${owner} returning status, picture`;
     if (!gone.length) return c.json({ error: "No piece of yours has that id." }, 404);
-    await Promise.all(pieceFiles(filesDir, id).map((f) => rm(f, { force: true })));
+    await removeFiles(filesDir, id);
+    if (gone[0].status === "live") await purge(publicUrls(site, id, gone[0].picture));
     return c.body(null, 204);
   });
+
+  // a piece that isn't live, for its artist and the mods; live ones are under /files
+  for (const kind of ["rec", "img"] as const) {
+    app.get(`/:id/${kind}`, member, async (c) => {
+      const { id: me } = c.get("member");
+      const id = c.req.param("id");
+      const [p] = await sql`
+        select p.status, p.picture from public.pieces p
+        where p.id = ${id} and (p.owner = ${me} or exists (select 1 from public.profiles where id = ${me} and role in ('mod', 'admin')))`;
+      if (!p || p.status === "removed") return c.json({ error: "No such piece, or it isn't yours to see." }, 404);
+      const live = p.status === "live";
+      const bytes = await readFile(kind === "rec" ? recPath(filesDir, id, live) : imgPath(filesDir, id, live, p.picture)).catch(() => null);
+      if (!bytes) return c.json({ error: kind === "img" ? "The picture isn't drawn yet." : "The recording is missing." }, 404);
+      c.header("cache-control", "private, no-store");
+      c.header("content-type", kind === "rec" ? "application/octet-stream" : `image/${p.picture === "jpg" ? "jpeg" : "webp"}`);
+      return c.body(bytes);
+    });
+  }
 
   return app;
 }

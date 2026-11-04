@@ -30,8 +30,11 @@
 		reverse_proxy api:8787
 	}
 
-	# recordings and pictures; a file never changes once written
+	# recordings and pictures of live pieces; a file never changes once written. Pieces that
+	# aren't live keep theirs in private/, which only tilo-api reads.
 	handle_path /files/* {
+		@unlisted not path /rec/* /img/*
+		respond @unlisted 404
 		root * /srv/files
 		header Cache-Control "public, max-age=31536000, immutable"
 		header X-Content-Type-Options nosniff

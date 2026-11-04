@@ -1,6 +1,7 @@
 // End-to-end check of the running stack, through Caddy as the app will reach it: sign in
 // with an emailed link (read from Mailpit), pick a handle with an invite, edit the profile,
-// follow, stamp, export, delete the account, and make sure the access rules hold.
+// follow, stamp, publish, report, moderate, export, delete the account, and make sure the
+// access rules hold.
 // Needs `npm run server:up` with COMPOSE_PROFILES=local (Mailpit).
 // Usage: npm run server:smoke   (TILO_SERVER overrides http://localhost:8000)
 import { execFileSync } from "node:child_process";
@@ -158,8 +159,8 @@ const forge = await call("/rest/v1/pieces", { method: "POST", token, json: { id:
 check(forge.status === 401 || forge.status === 403, "members can't write pieces past tilo-api", forge);
 
 // stamps on two pieces (written as tilo-api would): one live, one held
-psql(`insert into public.pieces (id, owner, title, strokes, format, bytes, status) values
-  ('live${tag}', '${userId}', 'Smoke', 3, 3, 100, 'live'), ('held${tag}', '${userId}', 'Held', 3, 3, 100, 'held');`);
+psql(`insert into public.pieces (id, owner, title, strokes, format, bytes, status, checked) values
+  ('live${tag}', '${userId}', 'Smoke', 3, 3, 100, 'live', now()), ('held${tag}', '${userId}', 'Held', 3, 3, 100, 'held', now());`);
 const stamp = (piece: string) => call("/rest/v1/stamps", { method: "POST", token: token2, json: { piece, kind: "Bold" } });
 check((await stamp(`live${tag}`)).status === 201, "a member stamps a live piece");
 const counted = await call(`/rest/v1/pieces?id=eq.live${tag}&select=stamps`);
@@ -170,27 +171,48 @@ check((await call(`/rest/v1/pieces?id=eq.held${tag}&select=id`, { token })).body
 await call(`/rest/v1/stamps?piece=eq.live${tag}&kind=eq.Bold`, { method: "DELETE", token: token2 });
 const uncounted = await call(`/rest/v1/pieces?id=eq.live${tag}&select=stamps`);
 check(JSON.stringify(uncounted.body?.[0]?.stamps) === "{}", "taking the stamp back counts it down", uncounted);
-const filed = await call("/rest/v1/reports", { method: "POST", token: token2, json: { piece: `live${tag}`, reason: "spam" } });
-check(filed.status === 201, "a member files a report", filed);
-const reports = await call("/rest/v1/reports?select=id", { token: token2 });
-check(reports.status === 200 && Array.isArray(reports.body) && reports.body.length === 0, "only mods read reports", reports);
 
-// publishing through tilo-api: a form with the recording, a picture and what the studio knows
-const WEBP = new Uint8Array([...new TextEncoder().encode("RIFF"), 0, 0, 0, 0, ...new TextEncoder().encode("WEBPVP8 "), 0, 0, 0, 0]);
+// the second member is a mod from here on
+psql(`update public.profiles set role = 'mod' where id = '${other.id}'`);
+const mod = (path: string, json: unknown, as = token2) => call(`/api/mod/${path}`, { method: "POST", token: as, json });
+check((await mod(`pieces/live${tag}`, { action: "hide" }, token)).status === 403, "only mods can moderate");
+
+// publishing through tilo-api: a form with the recording and what the studio knows; the
+// server draws the picture itself and checks it before the piece goes anywhere
 const LAYERS = [0, 1, 2].map((id) => ({ id, name: `Layer ${id + 1}`, blend: "source-over", opacity: 1 }));
-const publish = (as: string | undefined, meta: Record<string, unknown>, recording: Uint8Array = encode(strokes), picture: Uint8Array = WEBP) => {
+const publish = (as: string | undefined, meta: Record<string, unknown>, recording: Uint8Array = encode(strokes)) => {
   const form = new FormData();
   form.set("meta", JSON.stringify({ title: "Smoke piece", paper: "cold", shape: "square", layers: LAYERS, minutes: 1.5, ...meta }));
   form.set("rec", new Blob([recording as Uint8Array<ArrayBuffer>]), "piece.tl");
-  form.set("img", new Blob([picture as Uint8Array<ArrayBuffer>]), "piece.webp");
   return call("/api/pieces", { method: "POST", token: as, body: form });
 };
+/** waits for the server's check, then says where the piece is: "live:", "held:new-member", ... */
+const settled = async (id: string) => {
+  for (let i = 0; i < 240; i++) {
+    const s = psql(`select status || ':' || coalesce(why, '') from public.pieces where id = '${id}' and checked is not null`);
+    if (s) return s;
+    await sleep(250);
+  }
+  return "still checking";
+};
+const letIn = async (id: string) => (await settled(id), (await mod(`pieces/${id}`, { action: "approve" })).status);
+
 const anonymous = await publish(undefined, {});
 check(anonymous.status === 401, "publishing needs a session", anonymous);
 check((await publish(token, { layers: LAYERS.slice(0, 2) })).status === 422, "a stroke on a layer the piece doesn't have is refused");
-check((await publish(token, {}, encode(strokes), new TextEncoder().encode("<svg/>"))).status === 422, "a picture that isn't WebP or JPEG is refused");
 check((await publish(token, { subject: 312, minutes: 14 })).status === 422, "a piece past the 10:00 clock can't be entered for a subject");
 check((await publish(token, {}, new Uint8Array([84, 76, 3, 9, 9]))).status === 422, "a broken recording is refused");
+// proof of hand: a recording that couldn't have been drawn is refused
+const retimed = (f: (s: Stroke, i: number) => number) => encode(strokes.map((s, i) => ({ ...s, t: f(s, i) })));
+const old = await publish(token, {}, retimed((s) => s.t! - 20 * 365 * 864e5));
+check(old.status === 422 && /before Tilo/.test(old.body.error), "a recording timed before Tilo existed is refused", old);
+check((await publish(token, {}, retimed((s) => s.t! + 864e5))).status === 422, "a recording timed in the future is refused");
+const backwards = await publish(token, {}, retimed((_, i) => t0 - i * 120_000));
+check(backwards.status === 422 && /out of order/.test(backwards.body.error), "a recording whose strokes go back in time is refused", backwards);
+const flick = Array.from({ length: 5 }, (_, i): Stroke => ({ tool: "ink", c: "#000000", w: 4, p: [0, i * 10, 50, 1500, i * 10, 50], t: t0 + i }));
+const fast = await publish(token, { layers: [] }, encode(flick));
+check(fast.status === 422 && /faster than a hand/.test(fast.body.error), "strokes faster than a hand are refused", fast);
+
 const published = await publish(token, { title: "  Smoke   piece  ", subject: 312 });
 const pid: string = published.body?.id ?? "";
 check(
@@ -198,6 +220,29 @@ check(
   "a member publishes a piece",
   published,
 );
+check(published.body?.status === "held" && published.body.why === "check", "it waits for the server's check");
+check(published.body?.proof === true, "a recording drawn in time earns the proof-of-hand badge", published.body?.proof);
+check((await settled(pid)) === "held:new-member", "a new member's piece waits for a mod after the check");
+const screened = JSON.parse(psql(`select screen from public.pieces where id = '${pid}'`) || "{}");
+check(screened.frames >= 2 && screened.explicit < 0.25 && screened.sexy < 0.4, "the image check looked at frames along the replay and passed them", screened);
+check((await fetch(`${BASE}/files/rec/${pid}.tl`)).status === 404, "a held piece's files aren't public");
+check((await fetch(`${BASE}/files/private/rec/${pid}.tl`)).status === 404, "and the private folder isn't served");
+const ownCopy = await fetch(`${BASE}/api/pieces/${pid}/rec`, { headers: { authorization: `Bearer ${token}` } });
+check(ownCopy.ok && (await ownCopy.arrayBuffer()).byteLength === encode(strokes).length, "its artist still fetches the recording");
+const ownPicture = await fetch(`${BASE}/api/pieces/${pid}/img`, { headers: { authorization: `Bearer ${token}` } });
+check(ownPicture.ok && ownPicture.headers.get("content-type") === "image/webp", "and the picture the server drew");
+const peek = await fetch(`${BASE}/api/pieces/held${tag}/rec`, { headers: { authorization: `Bearer ${token}` } });
+check(peek.status === 404, "a piece's private files have to exist to be fetched");
+psql(`update public.profiles set role = 'member' where id = '${other.id}'`);
+check((await fetch(`${BASE}/api/pieces/${pid}/rec`, { headers: { authorization: `Bearer ${token2}` } })).status === 404, "nobody else can fetch them");
+psql(`update public.profiles set role = 'mod' where id = '${other.id}'`);
+check((await fetch(`${BASE}/api/pieces/${pid}/rec`, { headers: { authorization: `Bearer ${token2}` } })).ok, "a mod can");
+const approved = await mod(`pieces/${pid}`, { action: "approve", note: "smoke" });
+check(approved.status === 200 && psql(`select status || ' ' || (reviewed_by = '${other.id}') from public.pieces where id = '${pid}'`) === "live true", "a mod lets it into the gallery", approved);
+check(psql(`select count(*) from public.mod_log where piece = '${pid}' and action = 'approve'`) === "1", "the action is logged");
+const oneStroke = await publish(token, { title: "One stroke", layers: [] }, encode([strokes[0]]));
+check(oneStroke.status === 201 && oneStroke.body.proof === false, "a piece with one stroke is published, without the badge", oneStroke.body?.proof);
+
 // what another device sees: the row through PostgREST, the files through Caddy
 const listed = await call(`/rest/v1/pieces?id=eq.${pid}&select=id,title,shape,paper,layers,picture,owner:profiles!pieces_owner_fkey(handle)`);
 check(listed.body?.[0]?.owner?.handle === handle && listed.body[0].layers.length === 3 && listed.body[0].shape === "square", "anyone reads the published piece with its artist", listed);
@@ -206,13 +251,16 @@ const recBack = new Uint8Array(await recFile.arrayBuffer());
 check(recFile.ok && recBack.length === encode(strokes).length && recBack.every((b, i) => b === encode(strokes)[i]), "the recording comes back byte for byte");
 check(/immutable/.test(recFile.headers.get("cache-control") ?? ""), "recordings are cached for good");
 const imgFile = await fetch(`${BASE}/files/img/${pid}.webp`);
-check(imgFile.ok && imgFile.headers.get("content-type") === "image/webp", "the picture is served as WebP", imgFile.headers.get("content-type"));
+const imgBytes = new Uint8Array(await imgFile.arrayBuffer());
+check(imgFile.ok && imgFile.headers.get("content-type") === "image/webp" && new TextDecoder().decode(imgBytes.subarray(8, 12)) === "WEBP", "the picture is served as WebP", imgFile.headers.get("content-type"));
 const remixed = await publish(token2, { title: "After smoke", remix_of: pid });
 check(remixed.status === 201 && remixed.body.remix_of === pid, "another member publishes a remix that credits it", remixed);
+check((await settled(remixed.body?.id)) === "live:", "a mod's own piece goes live after the check");
 check((await publish(token2, { remix_of: `held${tag}` })).status === 422, "a held piece can't be remixed");
 // remixing across accounts: the artist can switch it off, for others but not for themself
 const closedPiece = await publish(token, { title: "Not for remixing", remixable: false });
 check(closedPiece.status === 201 && closedPiece.body.remixable === false, "an artist publishes a piece others may not remix", closedPiece);
+check((await letIn(closedPiece.body?.id)) === 200, "a mod lets that one in too");
 const refusedRemix = await publish(token2, { remix_of: closedPiece.body?.id });
 check(refusedRemix.status === 422 && /remixing off/.test(refusedRemix.body.error), "remixing it is refused for anyone else", refusedRemix);
 const ownRemix = await publish(token, { title: "My own remix", remix_of: closedPiece.body?.id });
@@ -222,6 +270,10 @@ check(psql(`select remixable from public.pieces where id = '${closedPiece.body?.
 const reopened = await call(`/rest/v1/pieces?id=eq.${closedPiece.body?.id}`, { method: "PATCH", token, headers: { prefer: "return=representation" }, json: { remixable: true } });
 check(reopened.body?.[0]?.remixable === true, "the artist switches remixing back on", reopened);
 check((await publish(token2, { remix_of: closedPiece.body?.id })).status === 201, "and then others can remix it");
+// the third piece a mod lets in makes the artist trusted: the next one goes straight live
+check((await letIn(ownRemix.body?.id)) === 200, "a mod lets in a third piece");
+const trustedPiece = await publish(token, { title: "Trusted now" });
+check((await settled(trustedPiece.body?.id)) === "live:", "after three, the artist's pieces go live after the check alone");
 // the gallery's Following tab: who the second member follows, then their pieces
 const followees = (await call(`/rest/v1/follows?follower=eq.${other.id}&select=followee`)).body.map((f: { followee: string }) => f.followee);
 const feed = await call(`/rest/v1/pieces?owner=in.(${followees.join(",")})&status=eq.live&select=id&order=created.desc`);
@@ -236,20 +288,66 @@ check(asCrawler.includes(`<meta property="og:title" content="Smoke, retitled by 
 const asBrowser = await fetch(`${BASE}/piece/${pid}`, { headers: { "user-agent": "Mozilla/5.0 Safari/605" } }).then((r) => r.text());
 check(asBrowser.includes('id="root"') && !asBrowser.includes("og:title"), "a browser still gets the app");
 check((await fetch(`${BASE}/piece/held${tag}`, { headers: { "user-agent": "Slackbot" } })).status === 404, "a held piece has no preview");
-// the daily limit counts every piece of the last 24 hours: three published above, two from the stamp checks
-psql(`insert into public.pieces (id, owner, title, strokes, format, bytes)
-  select 'fill${tag}' || n, '${userId}', 'Filler', 1, 3, 1 from generate_series(1, 15) n`);
+
+// reports: filed through tilo-api; one "nsfw" report takes a piece out of the gallery
+check([401, 403].includes((await call("/rest/v1/reports", { method: "POST", token: token2, json: { piece: pid, reason: "spam" } })).status), "reports can't go around tilo-api");
+const report = (json: unknown, as = token2) => call("/api/reports", { method: "POST", token: as, json });
+check((await report({ piece: pid, reason: "bored" })).status === 400, "a report needs a reason from the list");
+check((await report({ piece: pid, reason: "spam" }, token)).status === 400, "nobody reports their own piece");
+check((await report({ piece: pid, reason: "spam", note: "smoke" })).status === 201, "a member reports a piece");
+check(psql(`select status from public.pieces where id = '${pid}'`) === "live", "one spam report leaves it in the gallery");
+check((await report({ piece: pid, reason: "spam" })).status === 201 && psql(`select count(*) from public.reports where piece = '${pid}'`) === "1", "reporting it again adds nothing");
+check((await report({ profile: userId, reason: "abuse" })).status === 201, "a member reports a profile");
+check((await call("/rest/v1/reports?select=id", { token })).body?.length === 0, "only mods read reports");
+check((await call(`/rest/v1/reports?piece=eq.${pid}&select=id,reason`, { token: token2 })).body?.length === 1, "mods read them");
+check((await report({ piece: trustedPiece.body?.id, reason: "nsfw" })).status === 201, "a member reports a piece as not for all ages");
+check(psql(`select status || ':' || why from public.pieces where id = '${trustedPiece.body?.id}'`) === "held:reports", "it waits for a mod at once");
+check((await fetch(`${BASE}/files/rec/${trustedPiece.body?.id}.tl`)).status === 404, "and its files stop being public");
+check((await mod(`pieces/${trustedPiece.body?.id}`, { action: "approve" })).status === 200, "a mod finds nothing wrong and lets it back");
+check(psql(`select status from public.reports where piece = '${trustedPiece.body?.id}'`) === "dismissed", "which closes the report");
+check((await fetch(`${BASE}/files/rec/${trustedPiece.body?.id}.tl`)).ok, "and its files are public again");
+const openId = psql(`select id from public.reports where piece = '${pid}' and status = 'open'`);
+check((await mod(`reports/${openId}`, { action: "dismiss" })).status === 200, "a mod dismisses a report");
+// hide keeps the piece for its artist; remove deletes its files
+check((await mod(`pieces/${trustedPiece.body?.id}`, { action: "hide", note: "smoke" })).status === 200, "a mod hides a piece");
+check((await call(`/rest/v1/pieces?id=eq.${trustedPiece.body?.id}&select=id`)).body?.length === 0, "a hidden piece isn't public");
+check((await call(`/rest/v1/pieces?id=eq.${trustedPiece.body?.id}&select=status,why`, { token })).body?.[0]?.why === "mod", "its artist sees why");
+check((await mod(`pieces/${trustedPiece.body?.id}`, { action: "remove" })).status === 200, "a mod removes it");
+check((await fetch(`${BASE}/api/pieces/${trustedPiece.body?.id}/rec`, { headers: { authorization: `Bearer ${token}` } })).status === 404, "a removed piece's files are gone");
+check((await mod(`pieces/${trustedPiece.body?.id}`, { action: "approve" })).status === 409, "and it can't come back");
+
+// suspending a member hides their pieces and bans the account; lifting it brings both back
+check((await mod(`members/${other.id}`, { action: "suspend" })).status === 400, "a mod can't suspend themself");
+const suspended = await mod(`members/${userId}`, { action: "suspend", note: "smoke" });
+check(suspended.status === 200 && suspended.body.pieces >= 3, "a mod suspends a member", suspended);
+check(psql(`select count(*) from public.pieces where owner = '${userId}' and status = 'live'`) === "0", "their pieces leave the gallery");
+check((await publish(token, {})).status === 400, "a suspended member can't publish");
+const bannedLink = await fetch(`${BASE}/auth/v1/admin/generate_link`, {
+  method: "POST",
+  headers: { apikey: env.SERVICE_ROLE_KEY, authorization: `Bearer ${env.SERVICE_ROLE_KEY}`, "content-type": "application/json" },
+  body: JSON.stringify({ type: "magiclink", email: `smoke-${tag}@tilo.test` }),
+}).then((r) => r.json());
+const bannedVerify = await fetch((bannedLink.action_link ?? `${BASE}/auth/v1/verify`).replace(/^https?:\/\/[^/]+/, BASE), { redirect: "manual" });
+check(!/access_token=/.test(bannedVerify.headers.get("location") ?? ""), "and can't sign in");
+check((await mod(`members/${userId}`, { action: "unsuspend" })).status === 200, "a mod lifts the suspension");
+check(psql(`select count(*) from public.pieces where id = '${pid}' and status = 'live'`) === "1", "their pieces come back");
+check((await fetch(`${BASE}/files/rec/${pid}.tl`)).ok, "with their files");
+
+// the daily limit counts every piece of the last 24 hours, published or not
+psql(`insert into public.pieces (id, owner, title, strokes, format, bytes, checked)
+  select 'fill${tag}' || n, '${userId}', 'Filler', 1, 3, 1, now() from generate_series(1, 20) n`);
 const limited = await publish(token, {});
 check(limited.status === 429, "the 21st piece in a day waits until tomorrow", limited);
 psql(`delete from public.pieces where id like 'fill${tag}%'`);
 const tidy = await publish(token, { title: "To take down" });
+await settled(tidy.body?.id);
 check((await call(`/api/pieces/${tidy.body?.id}`, { method: "DELETE", token })).status === 204, "the artist takes a piece down");
-check((await fetch(`${BASE}/files/rec/${tidy.body?.id}.tl`)).status === 404, "its files go with it");
+check((await fetch(`${BASE}/api/pieces/${tidy.body?.id}/rec`, { headers: { authorization: `Bearer ${token}` } })).status === 404, "its files go with it");
 
 // export, then delete the account for good
 const exported = await call("/api/me/export", { token });
 check(
-  exported.status === 200 && exported.body.profile?.handle === handle && exported.body.pieces.length === 5 && exported.body.followers[0]?.handle === `smoke_${tag}_b`,
+  exported.status === 200 && exported.body.profile?.handle === handle && exported.body.pieces.length === 7 && exported.body.followers[0]?.handle === `smoke_${tag}_b`,
   "the member exports everything Tilo keeps about them",
   exported.status,
 );

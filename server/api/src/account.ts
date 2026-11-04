@@ -1,8 +1,7 @@
-import { rm } from "node:fs/promises";
 import { Hono, type MiddlewareHandler } from "hono";
 import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
-import { pieceFiles } from "./pieces.ts";
+import { publicUrls, removeFiles, type Purge } from "./files.ts";
 
 /* /api/me: the signed-in member's own account. Everything here acts only on whoever the
    session belongs to, so there is no id in any path. */
@@ -13,9 +12,11 @@ interface Options {
   /** Supabase Auth inside the compose network, and the key for its admin API */
   authUrl: string;
   serviceKey: string;
+  site: string;
+  purge: Purge;
 }
 
-export function account(sql: Sql, { member, filesDir, authUrl, serviceKey }: Options) {
+export function account(sql: Sql, { member, filesDir, authUrl, serviceKey, site, purge }: Options) {
   const app = new Hono<AuthEnv>();
   app.use("*", member);
   const admin = (path: string, init: RequestInit = {}) =>
@@ -63,10 +64,11 @@ export function account(sql: Sql, { member, filesDir, authUrl, serviceKey }: Opt
     const { id } = c.get("member");
     const body = await c.req.json().catch(() => null);
     if (body?.confirm !== true) return c.json({ error: "Send { \"confirm\": true } to delete the account." }, 400);
-    const pieces = await sql<{ id: string }[]>`select id from public.pieces where owner = ${id}`;
+    const pieces = await sql<{ id: string; status: string; picture: "webp" | "jpg" }[]>`select id, status, picture from public.pieces where owner = ${id}`;
     const res = await admin(id, { method: "DELETE" });
     if (!res.ok && res.status !== 404) throw new Error(`Auth didn't delete the user: ${res.status} ${await res.text()}`);
-    await Promise.all(pieces.flatMap((p) => pieceFiles(filesDir, p.id).map((f) => rm(f, { force: true }))));
+    await Promise.all(pieces.map((p) => removeFiles(filesDir, p.id)));
+    await purge(pieces.filter((p) => p.status === "live").flatMap((p) => publicUrls(site, p.id, p.picture)));
     return c.body(null, 204);
   });
 

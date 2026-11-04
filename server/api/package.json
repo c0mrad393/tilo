@@ -4,14 +4,21 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "node src/index.ts"
+    "start": "node src/index.ts",
+    "build": "esbuild src/screen/worker.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=dist/screen.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",
+    "@napi-rs/canvas": "1.0.12",
+    "@tensorflow/tfjs": "4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "4.22.0",
+    "buffer": "6.0.3",
     "hono": "4.13.13",
+    "nsfwjs": "4.4.0",
     "postgres": "3.4.9"
   },
   "devDependencies": {
-    "@types/node": "24.19.2"
+    "@types/node": "24.19.2",
+    "esbuild": "0.25.12"
   }
 }
