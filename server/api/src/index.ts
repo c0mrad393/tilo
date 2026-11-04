@@ -5,6 +5,7 @@ import postgres from "postgres";
 import { account } from "./account.ts";
 import { type AuthEnv, signedIn } from "./auth.ts";
 import { pieces } from "./pieces.ts";
+import { preview } from "./preview.ts";
 import { FORMAT, MAX_BYTES, summarise } from "./recording.ts";
 
 /* tilo-api: the part of the server that has to read what members send before it is stored.
@@ -31,6 +32,9 @@ app.route(
   "/me",
   account(sql, { member, filesDir: env("FILES_DIR"), authUrl: env("AUTH_URL"), serviceKey: env("SERVICE_ROLE_KEY") }),
 );
+
+// link previews; Caddy sends crawlers asking for /piece/{id} and /u/{handle} here
+app.route("/og", preview(sql, { publicUrl: env("PUBLIC_URL") }));
 
 app.route("/pieces", pieces(sql, { member, filesDir: env("FILES_DIR"), perDay: Number(process.env.PUBLISH_PER_DAY ?? 20) }));
 

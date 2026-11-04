@@ -72,6 +72,13 @@ export function pinPiece(p: Piece) {
   return ok;
 }
 
+/** Drops a pin from this device, once it has been published for everyone. */
+export function unpinPiece(id: string) {
+  state = { ...state, mine: state.mine.filter((p) => p.id !== id) };
+  write("pinned", pack(state.mine));
+  emit();
+}
+
 export function toggleStamp(pieceId: string, stamp: string) {
   const forPiece = { ...(state.stamps[pieceId] || {}) };
   if (forPiece[stamp]) delete forPiece[stamp];

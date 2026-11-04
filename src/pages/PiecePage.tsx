@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { Icon } from "../components/Icon";
 import { Trace } from "../components/Trace";
 import { ACCOUNTS, useAccount } from "../data/account";
 import { allPieces, pieceById, stampCount, toggleStamp, useLocal } from "../data/local";
 import { type Full, getPiece, listPieces, loadPiece, myStamps, type Published, setStamp, takeDown } from "../data/pieces";
-import { STAMPS, STAMP_COLOR } from "../data/samples";
+import { publishedSample, STAMPS, STAMP_COLOR } from "../data/samples";
 import { Replayer, prefersReducedMotion } from "../engine/replay";
 import { drawnCount, fmtMin, paletteOf, SHAPES, sizeOf, toolsUsed, type Piece } from "../engine/stroke";
 
@@ -207,6 +207,8 @@ export function PiecePage() {
   const nav = useNavigate();
   const { profile } = useAccount();
   const piece = usePiece(id);
+  // with accounts on, a sample lives in the shared gallery, with real stamps
+  if (ACCOUNTS && piece && piece !== "failed" && piece.sample) return <Navigate to={`/piece/${publishedSample(piece.id)}`} replace />;
   if (piece === undefined)
     return (
       <main id="main" tabIndex={-1} className="wrap piece-page" aria-busy="true">

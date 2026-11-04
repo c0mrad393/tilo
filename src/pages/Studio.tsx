@@ -6,7 +6,7 @@ import { blankSheet, lastSheet, library, migrateDraft, type Guides, type Sheet }
 import { ACCOUNTS, useAccount } from "../data/account";
 import { pinPiece } from "../data/local";
 import { findPiece, getPiece, isPublished, publish } from "../data/pieces";
-import { PROMPT } from "../data/samples";
+import { PROMPT, publishedSample } from "../data/samples";
 import { download, fileName, pictureBlob, thumbnail, timelapse, videoType, webPicture } from "../engine/export";
 import { drawGuides, handleAt, snapDirection } from "../engine/guides";
 import { Painter } from "../engine/painter";
@@ -928,8 +928,8 @@ function Studio({ sheet }: { sheet: Sheet }) {
       try {
         const all = [...base, ...strokes];
         const id = await publish(
-          // a remix of a sample stays uncredited until the samples are published (2.3 part B)
-          { title: name, strokes: all, layers, paper, shape, minutes: Math.max(0.1, ms / 60000), subject, remixOf: isPublished(remix) ? remix.id : undefined },
+          // a sample is credited as the copy the server publishes as @tilo
+          { title: name, strokes: all, layers, paper, shape, minutes: Math.max(0.1, ms / 60000), subject, remixOf: isPublished(remix) ? remix.id : remix?.sample ? publishedSample(remix.id) : undefined },
           await webPicture(all, layers, paper, dims),
         );
         setSending("");

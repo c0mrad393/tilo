@@ -19,6 +19,17 @@
 		reverse_proxy api:8787
 	}
 
+	# link previews: a crawler gets a small page with Open Graph tags instead of the app,
+	# which only draws itself in a browser
+	@preview {
+		path /piece/* /u/*
+		header_regexp User-Agent (?i)(bot|crawler|spider|preview|facebookexternalhit|meta-externalagent|whatsapp|telegram|slack|discord|skype|embedly|iframely|pinterest|vkshare|mastodon|bluesky|signal)
+	}
+	handle @preview {
+		rewrite * /api/og{path}
+		reverse_proxy api:8787
+	}
+
 	# recordings and pictures; a file never changes once written
 	handle_path /files/* {
 		root * /srv/files

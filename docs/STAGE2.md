@@ -126,8 +126,20 @@ published pieces a page at a time (newest, most stamped this week, subject, remi
 their pictures and fetches a recording only when a card is pointed at; the piece page,
 stamps, remixes of published pieces, take-down and the profile's pieces work against the
 server. The smoke test checks that a recording comes back byte for byte (65 checks).
-Part B is left: samples to a seeded `tilo` account, link previews for crawlers, and offering
-to publish this device's pins after the first sign-in.
+
+Part B done (2026-11-04), so 2.3 is complete:
+- The eight samples are published as @tilo (the "Tilo team" account, `hello@tiloart.com`).
+  Their recordings and pictures are committed in `server/seed/samples/`, and the migrate
+  step seeds them once per database (`SAMPLES=true`), so a sample that is taken down stays
+  down. With accounts on, `/piece/window` and the other sample addresses redirect to the
+  published copies (`tilowindow`, ...), and a remix of a sample credits it.
+- Link previews: Caddy sends crawlers (by user agent) asking for `/piece/{id}` or
+  `/u/{handle}` to `/api/og/...`, which answers with Open Graph tags, the picture and a
+  plain link. Browsers get the app as before. Behind Cloudflare, check that Bot Fight Mode
+  doesn't turn the preview crawlers away (2.8).
+- `/account` lists the pieces pinned on this device and publishes them one by one or all at
+  once; each pin then leaves the device and its sheet points at the published piece.
+- Smoke test: 69 checks.
 
 Watch for 2.5 and 2.8: /files are cached as immutable for a year, so behind Cloudflare a
 taken-down or removed piece keeps being served from the edge. Moderation has to purge its

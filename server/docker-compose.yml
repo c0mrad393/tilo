@@ -125,10 +125,13 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: postgres
       SEED: ${SEED}
+      SAMPLES: ${SAMPLES:-true}
     volumes:
       - ./db/migrate.sh:/tilo/migrate.sh:ro
       - ./migrations:/tilo/migrations:ro
       - ./seed:/tilo/seed:ro
+      # the sample pieces' files are copied in here
+      - files:/srv/files
 
   api:
     build:
@@ -144,6 +147,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       FILES_DIR: /srv/files
       PUBLISH_PER_DAY: ${PUBLISH_PER_DAY:-20}
+      # absolute links in link previews
+      PUBLIC_URL: ${PUBLIC_URL}
       # for deleting accounts, through Auth's admin API
       AUTH_URL: http://auth:9999
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}

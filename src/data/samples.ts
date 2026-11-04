@@ -146,6 +146,10 @@ export const SAMPLES: Piece[] = DEFS.map(({ gen, ...d }, i) => {
   return { ...d, strokes: S.strokes, sample: true, tilt: TILTS[i % TILTS.length] };
 });
 
+/** A sample's id in the shared gallery, where the server's seed publishes it as @tilo
+    (server/seed/samples). With accounts on, its page and remix credit go there. */
+export const publishedSample = (id: string) => `tilo${id}`;
+
 export const STAMPS = ["Bold", "Moody", "Calm", "Colour", "Clean line", "Patient", "Funny", "Remix me"] as const;
 export const STAMP_COLOR: Record<string, string> = {
   Bold: "#B23A2E", Moody: "#3B3F8F", Calm: "#2F6B5A", Colour: "#99520F",

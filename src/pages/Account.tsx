@@ -16,6 +16,9 @@ import {
   signOut,
   useAccount,
 } from "../data/account";
+import { useLocal } from "../data/local";
+import { publishPin } from "../data/pieces";
+import { drawnCount, fmtMin } from "../engine/stroke";
 
 /* /account: signing in, picking a handle, and the settings of your account, depending on
    where you are. Sign-in links from email land here too. */
@@ -312,6 +315,8 @@ function Settings({ profile, email, onDeleted }: { profile: Profile; email: stri
           </form>
         </section>
 
+        <PinsSection />
+
         <section className="account-section" aria-labelledby={`${id}-s`}>
           <h2 id={`${id}-s`} className="kicker">Signing in</h2>
           <p className="serif">Signing out everywhere ends your sessions on every device, a lost phone included. Each one needs a new link to get back in.</p>
@@ -325,6 +330,59 @@ function Settings({ profile, email, onDeleted }: { profile: Profile; email: stri
         <DeleteSection handle={profile.handle} onDeleted={onDeleted} />
       </div>
     </Page>
+  );
+}
+
+/* pieces pinned on this device before there was an account: offered for publishing, one by
+   one or all at once; each leaves this list once it is up */
+function PinsSection() {
+  const { mine } = useLocal();
+  const [done, setDone] = useState<{ id: string; title: string }[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const id = useId();
+  if (!mine.length && !done.length) return null;
+  const send = async (ids: string[]) => {
+    setError(null);
+    for (const pin of ids) {
+      const p = mine.find((q) => q.id === pin);
+      if (!p) continue;
+      setBusy(pin);
+      try {
+        const published = await publishPin(p);
+        setDone((d) => [...d, { id: published, title: p.title }]);
+      } catch (err) {
+        setError(`“${p.title}” didn't go up: ${message(err)}`);
+        break;
+      }
+    }
+    setBusy(null);
+  };
+  return (
+    <section className="account-section" aria-labelledby={`${id}-pins`}>
+      <div className="account-section-head">
+        <h2 id={`${id}-pins`} className="kicker">Pinned on this device</h2>
+        {mine.length > 1 && <button className="btn btn-line" disabled={!!busy} onClick={() => send(mine.map((p) => p.id))}>Publish all {mine.length}</button>}
+      </div>
+      {mine.length > 0 && <p className="serif">You pinned these before you had an account, so only this device has them. Publish them to put them in the gallery under your handle.</p>}
+      {error && <p className="notice notice-error serif" role="alert">{error}</p>}
+      <ul className="pin-list">
+        {mine.map((p) => (
+          <li key={p.id}>
+            <span>
+              <b>{p.title}</b>
+              <small className="serif">{fmtMin(p.minutes)} min · {drawnCount(p.strokes).toLocaleString()} stroke{drawnCount(p.strokes) === 1 ? "" : "s"}{p.remixOf ? " · remix" : ""}</small>
+            </span>
+            <button className="btn btn-ink" disabled={!!busy} onClick={() => send([p.id])}>{busy === p.id ? "Publishing…" : "Publish"}</button>
+          </li>
+        ))}
+      </ul>
+      {done.length > 0 && (
+        <p className="serif" role="status">
+          Published: {done.map((d, i) => <span key={d.id}>{i ? ", " : ""}<Link to={`/piece/${d.id}`} viewTransition>{d.title}</Link></span>)}.
+        </p>
+      )}
+    </section>
   );
 }
 

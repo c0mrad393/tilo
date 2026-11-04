@@ -43,6 +43,7 @@ stays in Docker volumes). To start over with an empty database:
 | `migrations/` | the schema and access rules; add new files, never edit applied ones |
 | `api/` | tilo-api; reads recordings with `src/engine/codec.ts` |
 | `scripts/` | secrets setup and the smoke test |
+| `seed/samples/` | the sample pieces published as @tilo: recordings, pictures and `samples.sql`, seeded once |
 | `mail/` | the sign-in, sign-up and email-change mails; Caddy serves them to Auth on `:8080` |
 
 ## Keys
@@ -51,6 +52,22 @@ stays in Docker volumes). To start over with an empty database:
 row-level security rules allow a signed-out visitor. `SERVICE_ROLE_KEY` bypasses every rule;
 it stays on the server. Both are signed with `JWT_SECRET`, which also signs every session,
 so changing it signs everyone out.
+
+## Sample pieces
+
+The migrate step publishes the prototype's eight samples as @tilo the first time it meets a
+database, unless `SAMPLES=false`. To make them again after `src/data/samples.ts` changes:
+sign in to a local stack as a `tilo` profile, publish each sample with the studio's own
+`publish()` (from the browser console), copy the files out of the `files` volume as
+`tilo{sample id}.tl` / `.webp`, and rewrite the rows in `samples.sql`. A database that has
+seeded them once won't do it again (`seed:samples` in `tilo_meta.migrations`).
+
+## Link previews
+
+A link to a piece or a profile shared in a chat app is fetched by a crawler, which can't
+run the app. Caddy recognises crawlers by user agent and hands them `/api/og/...` instead:
+a small page with the Open Graph title, description and picture. Try it with
+`curl -A facebookexternalhit/1.1 http://localhost:8000/piece/tilowindow`.
 
 ## Mail and Google on the server
 

@@ -1,8 +1,11 @@
 import { decode, encode } from "../engine/codec";
 import type { PaperId } from "../engine/paper";
-import type { LayerDef, Piece, ShapeId, Stroke } from "../engine/stroke";
+import { webPicture } from "../engine/export";
+import { layersOf, sizeOf, type LayerDef, type Piece, type ShapeId, type Stroke } from "../engine/stroke";
 import { call, request } from "./account";
-import { pieceById } from "./local";
+import { library } from "./library";
+import { pieceById, unpinPiece } from "./local";
+import { publishedSample } from "./samples";
 
 /* Published pieces, from Stage 2.3. The rows come from PostgREST; each piece's recording and
    picture are files under /files, which never change once written. A list only fetches rows
@@ -137,6 +140,30 @@ export async function publish(d: Draft, picture: Blob) {
   const res = await request("/api/pieces", { method: "POST", body: form });
   const row = (await res.json()) as Omit<Row, "owner"> & { owner: string };
   return row.id;
+}
+
+/** Publishes a piece pinned on this device before there was an account, then lets the pin
+    go: its sheet in the library now points at the published piece. */
+export async function publishPin(p: Piece) {
+  const layers = layersOf(p);
+  // a pin's remix credit points at a sample (published as @tilo), a published piece, or
+  // another pin of this device, which has no page anyone else can open
+  const src = p.remixOf && !p.remixOf.startsWith("mine-") ? (pieceById(p.remixOf)?.sample ? publishedSample(p.remixOf) : p.remixOf) : undefined;
+  const id = await publish(
+    { title: p.title, strokes: p.strokes, layers, paper: p.paper ?? "smooth", shape: p.shape ?? "land", minutes: p.minutes, subject: src ? undefined : p.prompt, remixOf: src },
+    await webPicture(p.strokes, layers, p.paper ?? "smooth", sizeOf(p)),
+  );
+  unpinPiece(p.id);
+  try {
+    for (const meta of await library.list()) {
+      if (meta.pinned !== p.id) continue;
+      const sheet = await library.get(meta.id);
+      if (sheet) await library.put({ ...sheet, pinned: id });
+    }
+  } catch {
+    // no library on this device: nothing points at the pin
+  }
+  return id;
 }
 
 /** Takes your own piece down for good. */

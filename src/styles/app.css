@@ -2300,3 +2300,31 @@ main[tabindex="-1"]:focus {
   justify-content: center;
   margin-top: var(--s-6);
 }
+.pin-list {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-4) 0;
+  padding: 0;
+  list-style: none;
+}
+.pin-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--rule-soft);
+}
+.pin-list li > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.pin-list b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pin-list small {
+  font-size: 15px;
+}

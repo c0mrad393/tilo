@@ -150,6 +150,8 @@ check(big.status === 413, "tilo-api turns away anything over 2 MB", big.status);
 // the access rules, through PostgREST
 const pieces = await call("/rest/v1/pieces?select=id");
 check(pieces.status === 200 && Array.isArray(pieces.body), "anyone can list live pieces", pieces);
+const samples = await call("/rest/v1/pieces?owner=eq.71100000-0000-4000-8000-000000000001&select=id");
+check(env.SAMPLES === "false" || samples.body?.length >= 1, "the sample pieces are published as @tilo", samples.body?.length);
 const invites = await call("/rest/v1/invites?select=code", { token });
 check(invites.status === 401 || invites.status === 403, "members can't read invite codes", invites);
 const forge = await call("/rest/v1/pieces", { method: "POST", token, json: { id: "forged01", owner: userId, title: "x", strokes: 1, format: 2, bytes: 1 } });
@@ -211,6 +213,12 @@ check((await publish(token2, { remix_of: `held${tag}` })).status === 422, "a hel
 check((await call(`/api/pieces/${pid}`, { method: "DELETE", token: token2 })).status === 404, "nobody else can take a piece down");
 const retitle = await call(`/rest/v1/pieces?id=eq.${pid}`, { method: "PATCH", token, headers: { prefer: "return=representation" }, json: { title: "Smoke, retitled" } });
 check(retitle.body?.[0]?.title === "Smoke, retitled", "the artist retitles it", retitle);
+// link previews: crawlers get Open Graph tags, browsers get the app
+const asCrawler = await fetch(`${BASE}/piece/${pid}`, { headers: { "user-agent": "facebookexternalhit/1.1" } }).then((r) => r.text());
+check(asCrawler.includes(`<meta property="og:title" content="Smoke, retitled by @${handle}">`) && asCrawler.includes(`/files/img/${pid}.webp`), "a link preview shows the title and the picture");
+const asBrowser = await fetch(`${BASE}/piece/${pid}`, { headers: { "user-agent": "Mozilla/5.0 Safari/605" } }).then((r) => r.text());
+check(asBrowser.includes('id="root"') && !asBrowser.includes("og:title"), "a browser still gets the app");
+check((await fetch(`${BASE}/piece/held${tag}`, { headers: { "user-agent": "Slackbot" } })).status === 404, "a held piece has no preview");
 // the daily limit counts every piece of the last 24 hours: one published above, two from the stamp checks
 psql(`insert into public.pieces (id, owner, title, strokes, format, bytes)
   select 'fill${tag}' || n, '${userId}', 'Filler', 1, 3, 1 from generate_series(1, 17) n`);

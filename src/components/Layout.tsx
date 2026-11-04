@@ -94,7 +94,7 @@ export function Layout() {
               <h2 className="kicker">This edition</h2>
               <p className="serif">
                 {ACCOUNTS
-                  ? `Version ${__APP_VERSION__}, closed beta. Your sheets live on this device until you publish them; the sample pieces and artists are still samples.`
+                  ? `Version ${__APP_VERSION__}, closed beta. Your sheets live on this device until you publish them; the pieces by @tilo were drawn for the prototype.`
                   : `Version ${__APP_VERSION__}, before accounts open. Your sheets and pins live on this device; the other pieces and artists are samples.`}
               </p>
             </section>

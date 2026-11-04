@@ -3,10 +3,10 @@ import { Link, useSearchParams } from "react-router";
 import { Icon } from "../components/Icon";
 import { PinCard, PlateCard } from "../components/PinCard";
 import { ReplayCanvas } from "../components/ReplayCanvas";
-import { ACCOUNTS } from "../data/account";
+import { ACCOUNTS, useAccount } from "../data/account";
 import { allPieces, stampTotal, useLocal } from "../data/local";
 import { listPieces, loadStrokes, type Published, type Sort } from "../data/pieces";
-import { PROMPT, SAMPLES } from "../data/samples";
+import { PROMPT } from "../data/samples";
 import { PAPERS, paperOf } from "../engine/paper";
 import { drawnCount, fmtMin, toolsUsed, type Piece, type Stroke } from "../engine/stroke";
 
@@ -93,14 +93,15 @@ export function Gallery() {
   const view = params.get("view") === "exhibition" ? "exhibition" : "board";
   const set = (k: string, v: string) => setParams((p) => { p.set(k, v); return p; }, { replace: true });
   const shared = usePublished(sort);
+  const { profile } = useAccount();
 
-  // pieces of this device: the samples, and what was pinned here before (or without) an account
-  let list: Piece[] = ACCOUNTS ? [...local.mine, ...SAMPLES] : allPieces(local);
+  // pieces of this device: what was pinned here, and without accounts the samples (with
+  // accounts they are published as @tilo, so they come with the shared gallery)
+  let list: Piece[] = ACCOUNTS ? local.mine : allPieces(local);
   if (sort === "stamped") list = [...local.mine, ...list.filter((p) => !p.mine).sort((a, b) => stampTotal(b, local) - stampTotal(a, local))];
   if (sort === "prompt") list = list.filter((p) => p.prompt === PROMPT.no);
   if (sort === "remix") list = list.filter((p) => p.remixOf);
   const mine = list.filter((p) => p.mine);
-  const samples = list.filter((p) => !p.mine);
 
   const board = (items: Shown[]) => (
     <div className="salon is-wide">
@@ -147,15 +148,8 @@ export function Gallery() {
           {mine.length > 0 && view === "board" && (
             <section className="gal-section" aria-labelledby="gal-mine">
               <h2 id="gal-mine" className="kicker">Pinned on this device</h2>
-              <p className="serif">Only you see these. Open one in your sheets and publish it to put it up for everyone.</p>
+              <p className="serif">Only you see these. {profile ? <>Publish them from <Link to="/account">your account</Link> to put them up for everyone.</> : <><Link to="/account">Sign in</Link> to publish them for everyone.</>}</p>
               {board(mine)}
-            </section>
-          )}
-          {samples.length > 0 && view === "board" && (
-            <section className="gal-section" aria-labelledby="gal-samples">
-              <h2 id="gal-samples" className="kicker">Samples</h2>
-              <p className="serif">Pieces made for the prototype, with sample artists and stamps.</p>
-              {board(samples)}
             </section>
           )}
         </>
