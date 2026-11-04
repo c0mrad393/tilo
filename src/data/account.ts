@@ -134,7 +134,7 @@ export async function request(path: string, init: RequestInit & { json?: unknown
   const res = await fetch(path, { ...init, headers, body: init.json !== undefined ? JSON.stringify(init.json) : init.body });
   if (!res.ok) {
     const b = await res.json().catch(() => null);
-    throw new ServerError(b?.message ?? b?.error ?? b?.msg ?? `The server answered ${res.status}.`, res.status, b?.hint ?? undefined);
+    throw new ServerError(b?.message ?? b?.error ?? b?.msg ?? `The server answered ${res.status}.`, res.status, b?.hint ?? b?.field ?? undefined);
   }
   return res;
 }
@@ -187,8 +187,9 @@ export async function signOut(everywhere = false) {
 /** Null when the handle can be used; otherwise what's wrong with it. */
 export const handleProblem = (handle: string) => rpc<string | null>("handle_problem", { handle });
 
-export async function claimHandle(handle: string, name: string, invite: string) {
-  const profile = await rpc<Profile>("claim_handle", { handle, name, invite });
+/** agreed: the terms version the member agreed to, along with being old enough */
+export async function claimHandle(handle: string, name: string, invite: string, agreed: string) {
+  const profile = await rpc<Profile>("claim_handle", { handle, name, invite, agreed });
   set({ profile });
   writeHint(profile.handle);
   return profile;

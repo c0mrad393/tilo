@@ -55,8 +55,10 @@ function QueueLink() {
     Promise.all([
       call<{ id: string }[]>("/rest/v1/pieces?status=eq.held&why=neq.check&select=id&limit=100"),
       call<{ piece: string | null; profile: string | null }[]>("/rest/v1/reports?status=eq.open&select=piece,profile&limit=200"),
-    ]).then(([held, reports]) => setN(new Set([...held.map((p) => p.id), ...reports.map((r) => r.piece ?? r.profile)]).size), () => {});
-  }, [isMod, pathname]);
+      // admins answer takedown claims too
+      profile.role === "admin" ? call<{ claims: unknown[] }>("/api/admin/claims").then((r) => r.claims.length) : 0,
+    ]).then(([held, reports, claims]) => setN(new Set([...held.map((p) => p.id), ...reports.map((r) => r.piece ?? r.profile)]).size + claims), () => {});
+  }, [isMod, profile?.role, pathname]);
   if (!isMod) return null;
   // admins land on the queue too; the admin panel's other tabs sit beside it
   const label = profile.role === "admin" ? "Admin" : "Queue";
@@ -114,6 +116,12 @@ export function Layout() {
             <section>
               <h2 className="kicker">Free, for good</h2>
               <p className="serif">Drawing, the wall, the gallery and stamps are free and stay free. Ways to support Tilo open with the beta.</p>
+            </section>
+            <section>
+              <h2 className="kicker">The small print</h2>
+              <p className="serif">
+                <Link to="/terms">Terms of use</Link> · <Link to="/privacy">Privacy</Link> · <Link to="/takedown">Report work to take down</Link>
+              </p>
             </section>
             <section>
               <h2 className="kicker">This edition</h2>

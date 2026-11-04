@@ -2716,6 +2716,83 @@ a.admin-tile:hover b {
 .prose-page a {
   color: var(--blue);
 }
+.legal-page .lede {
+  font-size: 20px;
+}
+.legal-updated {
+  font-size: 15px;
+  color: var(--ground-soft);
+}
+.legal-page h2 {
+  scroll-margin-top: var(--s-6);
+}
+.legal-page ul li + li {
+  margin-top: 6px;
+}
+.claim-form {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 36rem;
+}
+.claim-form .field input,
+.claim-form .field textarea {
+  width: 100%;
+}
+.claim-form .report-reasons {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.claim-form .check {
+  align-items: flex-start;
+  font-size: 16px;
+}
+.claim-form .check input,
+.account-agree input {
+  flex: none;
+  margin-top: 4px;
+}
+.claim-sworn {
+  padding: var(--s-3);
+  border-left: 3px solid var(--blue);
+}
+.claim-sent {
+  padding: var(--s-4);
+  border: 2px solid var(--blue);
+}
+.claim-sent h3 {
+  margin: 0 0 var(--s-2);
+}
+.account-agree-row {
+  display: grid;
+  gap: 6px;
+}
+.account-agree {
+  align-items: flex-start;
+  font-family: var(--f-serif);
+  font-size: 17px;
+}
+.account-agree a {
+  color: var(--blue);
+}
+.claim-item {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-4) 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.claim-details {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--pink);
+  font-size: 16px;
+  white-space: pre-wrap;
+}
+.claim-late {
+  color: var(--pink-ink);
+}
 @media (max-width: 640px) {
   .queue-item {
     grid-template-columns: 96px minmax(0, 1fr);

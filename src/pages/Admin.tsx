@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { AdminTabs } from "../components/AdminTabs";
 import { ACCOUNTS, call, type Profile, useAccount } from "../data/account";
-import { type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite } from "../data/admin";
+import { ModButtons } from "../components/Moderation";
+import { type Claim, claims, closeClaim, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite } from "../data/admin";
+import { ANSWER_IN } from "../data/legal";
 import { fromRow, type Published, SELECT } from "../data/pieces";
 import { NotFound } from "./Errors";
 import { LOGGED, PieceItem, when } from "./Queue";
@@ -95,6 +97,7 @@ function Overview() {
     ["In the gallery", s.live, `${s.hidden} hidden`, "/admin/pieces"],
     ["Waiting for a mod", s.waiting, "pieces", "/mod"],
     ["Open reports", s.reports, "pieces and profiles", "/mod"],
+    ["Takedown claims", s.claims, `open, answer within ${ANSWER_IN}`, "/admin/claims"],
     ["Invites left", s.invites_left, `${s.invites_used} used`, "/admin/invites"],
     ["Feedback", s.feedback, "messages", "/admin/feedback"],
   ];
@@ -243,6 +246,97 @@ function Pager({ page, more, setPage }: { page: number; more: boolean; setPage: 
       <span className="serif">Page {page + 1}</span>
       <button className="btn btn-quiet" disabled={!more} onClick={() => setPage(page + 1)}>Older</button>
     </div>
+  );
+}
+
+// ---------- claims ----------
+
+const KIND: Record<Claim["kind"], string> = { copyright: "Copyright", abuse: "Abuse", privacy: "Privacy", other: "Other" };
+const late = (c: Claim) => Date.now() - new Date(c.created).getTime() > 2 * 86400_000;
+
+function ClaimItem({ c, onDone }: { c: Claim; onDone: () => void }) {
+  const [outcome, setOutcome] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const id = `claim-${c.id}`;
+  const answer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await closeClaim(c.id, outcome);
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const path = c.url.replace(/^https?:\/\/[^/]+/, "");
+  const subject = encodeURIComponent(`Your Tilo claim, number ${c.id}`);
+  return (
+    <li className="claim-item" aria-labelledby={`${id}-h`}>
+      <p className="queue-title" id={`${id}-h`}>
+        <span className="admin-flag">{KIND[c.kind]}</span> Number {c.id}, about{" "}
+        {c.piece ? <Link to={path}>“{c.title}”</Link> : <Link to={path}>{path}</Link>}
+        {c.about && <span className="serif"> by <Link to={`/u/${c.about}`}>@{c.about}</Link></span>}
+      </p>
+      <p className="serif queue-why">
+        From {c.name}, <a href={`mailto:${c.email}?subject=${subject}`}>{c.email}</a>
+        {c.sent_by && <>, signed in as <Link to={`/u/${c.sent_by}`}>@{c.sent_by}</Link></>}, {when.format(new Date(c.created))}
+        {c.status === "open" && late(c) && <b className="claim-late">, over two days old</b>}.
+        {c.kind === "copyright" && (c.sworn ? " Statement ticked." : " No statement.")}
+        {c.piece_status && c.piece_status !== "live" && ` The piece is ${c.piece_status}.`}
+      </p>
+      <blockquote className="claim-details serif">{c.details}</blockquote>
+      {c.status === "open" ? (
+        <>
+          {c.piece && c.piece_status && <ModButtons piece={{ id: c.piece, status: c.piece_status as Published["status"], title: c.title ?? "" }} onDone={onDone} />}
+          <form className="admin-filters" onSubmit={answer}>
+            <label className="field">
+              <span className="kicker">What was done</span>
+              <input value={outcome} maxLength={500} placeholder="e.g. Removed; artist told. Or: kept, it's their own work." onChange={(e) => setOutcome(e.target.value)} />
+            </label>
+            <button className="btn btn-line" disabled={busy || !outcome.trim()}>Mark answered</button>
+          </form>
+          <p className="field-note">Answer the claimant by email first; marking it answered only closes it here and writes the log.</p>
+          {error && <p className="field-note is-error" role="alert">{error}</p>}
+        </>
+      ) : (
+        <p className="serif queue-why">
+          Answered {c.closed_at && when.format(new Date(c.closed_at))}{c.closed_by && ` by @${c.closed_by}`}: {c.outcome}
+        </p>
+      )}
+    </li>
+  );
+}
+
+function Claims() {
+  const [status, setStatus] = useState<"open" | "closed">("open");
+  const { data, failed, reload } = useLoad(() => claims(status), [status]);
+  return (
+    <>
+      <p className="serif queue-lede">
+        Copyright, abuse and privacy claims from the <Link to="/takedown">takedown page</Link>, from anyone. The terms promise an answer within{" "}
+        {ANSWER_IN}. Hide or remove what has to go, write to the claimant, then mark the claim answered.
+      </p>
+      <div className="admin-filters">
+        <label className="field">
+          <span className="kicker">Show</span>
+          <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+            <option value="open">Open</option>
+            <option value="closed">Answered</option>
+          </select>
+        </label>
+      </div>
+      {!data ? (
+        <Wait failed={failed} />
+      ) : !data.length ? (
+        <p className="empty serif">{status === "open" ? "No open claims." : "None answered yet."}</p>
+      ) : (
+        <ul className="queue-list">{data.map((c) => <ClaimItem key={c.id} c={c} onDone={reload} />)}</ul>
+      )}
+    </>
   );
 }
 
@@ -443,7 +537,7 @@ function Log() {
     const rows = await call<{ id: number; action: string; piece: string | null; note: string; created: string; mod: { handle: string } | null; who: { handle: string } | null }[]>(`/rest/v1/mod_log?${p}`);
     return { rows: rows.slice(0, LOG), more: rows.length > LOG };
   }, [action, page]);
-  const actions = { ...LOGGED, role: "changed the role of", invite: "made invites:", uninvite: "withdrew an invite:", setting: "changed a setting:" };
+  const actions = { ...LOGGED, role: "changed the role of", invite: "made invites:", uninvite: "withdrew an invite:", setting: "changed a setting:", claim: "answered a claim about" };
   return (
     <>
       <div className="admin-filters">
@@ -478,6 +572,7 @@ function Log() {
 const SECTIONS: Record<string, [string, () => React.ReactElement]> = {
   "": ["Overview", Overview],
   members: ["Members", Members],
+  claims: ["Claims", Claims],
   invites: ["Invites", Invites],
   pieces: ["Pieces", Pieces],
   feedback: ["Feedback", Feedback],

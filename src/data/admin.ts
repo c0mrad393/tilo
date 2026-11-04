@@ -14,6 +14,8 @@ export interface Stats {
   invites_left: number;
   invites_used: number;
   feedback: number;
+  /** open takedown claims */
+  claims: number;
   /** pieces published on each of the last 14 days, oldest first */
   days: { day: string; n: number }[];
 }
@@ -43,6 +45,32 @@ export interface Invite {
   made_by: string | null;
   used_by: string | null;
 }
+
+export interface Claim {
+  id: number;
+  kind: "copyright" | "abuse" | "privacy" | "other";
+  url: string;
+  piece: string | null;
+  title: string | null;
+  piece_status: string | null;
+  /** the handle of the artist or profile it's about */
+  about: string | null;
+  name: string;
+  email: string;
+  details: string;
+  sworn: boolean;
+  /** the member who sent it, when they were signed in */
+  sent_by: string | null;
+  status: "open" | "closed";
+  outcome: string;
+  created: string;
+  closed_at: string | null;
+  closed_by: string | null;
+}
+
+export const claims = (status: "open" | "closed") => call<{ claims: Claim[] }>(`/api/admin/claims${status === "closed" ? "?status=closed" : ""}`).then((r) => r.claims);
+
+export const closeClaim = (id: number, outcome: string) => call(`/api/admin/claims/${id}`, { method: "POST", json: { outcome } });
 
 export const stats = () => call<Stats>("/api/admin/stats");
 

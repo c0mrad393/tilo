@@ -16,6 +16,7 @@ import {
   signOut,
   useAccount,
 } from "../data/account";
+import { MIN_AGE, TERMS_VERSION } from "../data/legal";
 import { useLocal } from "../data/local";
 import { publishPin } from "../data/pieces";
 import { drawnCount, fmtMin } from "../engine/stroke";
@@ -155,6 +156,7 @@ function PickHandle({ email }: { email: string }) {
   const [handle, setHandle] = useState("");
   const [name, setName] = useState("");
   const [invite, setInvite] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ text: string; field?: string } | null>(null);
   const { problem, checking } = useHandleCheck(handle);
@@ -165,7 +167,7 @@ function PickHandle({ email }: { email: string }) {
     setBusy(true);
     setError(null);
     try {
-      await claimHandle(handle, name, invite);
+      await claimHandle(handle, name, invite, agreed ? TERMS_VERSION : "");
     } catch (err) {
       setError({ text: message(err), field: (err as { hint?: string }).hint });
     } finally {
@@ -176,6 +178,7 @@ function PickHandle({ email }: { email: string }) {
   const edited = (field: string) => error?.field === field && setError(null);
   const handleError = problem ?? (error?.field === "handle" ? error.text : null);
   const inviteError = error?.field === "invite" ? error.text : null;
+  const agreedError = error?.field === "agreed" ? error.text : null;
 
   return (
     <Page title="Pick your handle" lede="Your handle is the name on your pieces and the address of your page. You can change it later.">
@@ -227,9 +230,29 @@ function PickHandle({ email }: { email: string }) {
             {inviteError ?? "Tilo is in a closed beta. A member or the team gives you a code."}
           </p>
         </div>
+        <div className="account-agree-row">
+          <label className="check account-agree">
+            <input
+              type="checkbox"
+              required
+              checked={agreed}
+              aria-invalid={!!agreedError}
+              aria-describedby={agreedError ? `${id}-agreed-note` : undefined}
+              onChange={(e) => {
+                setAgreed(e.target.checked);
+                edited("agreed");
+              }}
+            />
+            <span>
+              I'm {MIN_AGE} or older, and I agree to the <Link to="/terms" target="_blank">terms of use</Link>. The{" "}
+              <Link to="/privacy" target="_blank">privacy policy</Link> says what Tilo keeps about me.
+            </span>
+          </label>
+          {agreedError && <p id={`${id}-agreed-note`} className="field-note serif is-error" role="alert">{agreedError}</p>}
+        </div>
         {error && !error.field && <p className="notice notice-error serif" role="alert">{error.text}</p>}
         <div className="row row-start">
-          <button className="btn btn-ink" disabled={busy || !!problem || checking}>{busy ? "Joining…" : "Join Tilo"}</button>
+          <button className="btn btn-ink" disabled={busy || !!problem || checking || !agreed}>{busy ? "Joining…" : "Join Tilo"}</button>
           <button type="button" className="btn btn-quiet" onClick={() => signOut()}>Not {email}? Sign out</button>
         </div>
       </form>

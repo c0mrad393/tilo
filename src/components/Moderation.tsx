@@ -115,6 +115,11 @@ export function ReportButton({ target, label }: { target: { piece: string } | { 
                   </label>
                 ))}
               </fieldset>
+              {"piece" in target && (
+                <p className="field-note">
+                  Is it your own work, shown by someone else? <Link to={`/takedown?url=${encodeURIComponent(`${location.origin}/piece/${target.piece}`)}#claim`}>Send a copyright claim</Link> instead.
+                </p>
+              )}
               <label className="field">
                 <span className="kicker">Note<span className="field-optional">optional</span></span>
                 <textarea value={note} maxLength={500} rows={3} onChange={(e) => setNote(e.target.value)} />
