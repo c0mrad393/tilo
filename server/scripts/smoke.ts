@@ -76,7 +76,13 @@ check((await call("/api/me", { token: token?.slice(0, -4) + "AAAA" })).status ==
 
 // picking a handle, through the invite gate
 const handle = `smoke_${tag}`;
-const claim = (h: string, invite: string) => call("/rest/v1/rpc/claim_handle", { method: "POST", token, json: { handle: h, name: "Smoke Test", invite } });
+const terms = await call("/rest/v1/rpc/terms_version", { method: "POST", json: {} });
+check(terms.status === 200 && /^\d{4}-\d{2}-\d{2}$/.test(terms.body), "anyone can ask which terms are current", terms);
+const claim = (h: string, invite: string, agreed = terms.body) =>
+  call("/rest/v1/rpc/claim_handle", { method: "POST", token, json: { handle: h, name: "Smoke Test", invite, agreed } });
+const unagreed = await claim(handle, "NOPE-0000", "");
+check(unagreed.status === 400 && unagreed.body.hint === "agreed", "a handle needs the age and terms confirmed", unagreed);
+check((await claim(handle, "NOPE-0000", "2020-01-01")).body?.hint === "agreed", "and the current terms, not old ones");
 const badInvite = await claim(handle, "NOPE-0000");
 check(badInvite.status === 400 && badInvite.body.hint === "invite", "a wrong invite code is refused", badInvite);
 psql(`insert into public.invites (code) values ('SMOKE-${tag.toUpperCase()}')`);
@@ -90,6 +96,8 @@ const again = await claim(`${handle}x`, `SMOKE-${tag}`);
 check(again.status === 400, "a handle can only be picked once", again);
 const used = psql(`select used_by from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`);
 check(used === userId, "the invite is used up by this member", used);
+check(psql(`select terms from public.agreements where member = '${userId}'`) === terms.body, "what they agreed to is kept");
+check((await call(`/rest/v1/agreements?select=terms`)).status >= 400, "and nobody signed out can read it");
 
 // editing the profile
 const edit = await call(`/rest/v1/profiles?id=eq.${userId}`, {
@@ -175,7 +183,8 @@ check(JSON.stringify(uncounted.body?.[0]?.stamps) === "{}", "taking the stamp ba
 // the second member is a mod from here on
 psql(`update public.profiles set role = 'mod' where id = '${other.id}'`);
 const mod = (path: string, json: unknown, as = token2) => call(`/api/mod/${path}`, { method: "POST", token: as, json });
-check((await mod(`pieces/live${tag}`, { action: "hide" }, token)).status === 403, "only mods can moderate");
+const notMod = await mod(`pieces/live${tag}`, { action: "hide" }, token);
+check(notMod.status === 403, "only mods can moderate", notMod);
 
 // publishing through tilo-api: a form with the recording and what the studio knows; the
 // server draws the picture itself and checks it before the piece goes anywhere
@@ -369,6 +378,32 @@ check((await adm("settings", { method: "PUT", json: { invites_required: false } 
 await adm("settings", { method: "PUT", json: { invites_required: true } });
 check(psql(`select value from tilo_meta.settings where key = 'invites_required'`) === "true", "and closes it again");
 check((await adm("stats", {}, token)).status === 403, "a member can't open the admin panel");
+
+// takedown claims: anyone may send one, about a piece or profile on Tilo; admins answer
+const site = env.PUBLIC_URL.replace(/\/$/, "");
+const sendClaim = (json: Record<string, unknown>, as?: string) =>
+  // each run as its own sender, so the hourly limit per address doesn't trip on reruns
+  call("/api/claims", { method: "POST", token: as, headers: { "cf-connecting-ip": `smoke-${tag}` }, json: { kind: "abuse", name: "Smoke Claimant", email: `claim-${tag}@tilo.test`, details: "This piece is aimed at a person.", ...json } });
+check((await sendClaim({ url: "https://example.com/piece/abcdef" })).body?.field === "url", "a claim must be about something on Tilo");
+check((await sendClaim({ url: `${site}/gallery` })).body?.field === "url", "a piece or a profile, that is");
+check((await sendClaim({ url: `${site}/piece/zzzzzz9` })).status === 404, "one that exists");
+check((await sendClaim({ url: `/u/${handle}`, email: "nope" })).body?.field === "email", "with an address to answer");
+check((await sendClaim({ url: `/u/${handle}`, kind: "copyright" })).body?.field === "sworn", "a copyright claim needs the statement");
+const sentClaim = await sendClaim({ url: `${site}/piece/${pid}`, kind: "copyright", sworn: true });
+check(sentClaim.status === 201 && typeof sentClaim.body.id === "number", "someone without an account sends a claim", sentClaim);
+const memberClaim = await sendClaim({ url: `/u/smoke_${tag}_b` }, token);
+check(memberClaim.status === 201 && psql(`select member from public.claims where id = ${memberClaim.body.id}`) === userId, "a member's claim says who sent it", memberClaim);
+check((await call(`/rest/v1/claims?select=id`, { token: token2 })).status >= 400, "claims can't be read through PostgREST, even by an admin");
+const open = await adm("claims");
+const mine = open.body?.claims?.find((k: { id: number }) => k.id === sentClaim.body.id);
+check(mine?.piece === pid && mine?.about === handle && mine?.email === `claim-${tag}@tilo.test`, "an admin sees the open claim, with what it's about", open.body);
+check((await adm("stats")).body?.claims >= 2, "and counts them on the overview");
+check((await adm(`claims/${sentClaim.body.id}`, { method: "POST", json: {} })).status === 400, "answering says what was done");
+check((await adm(`claims/${sentClaim.body.id}`, { method: "POST", json: { outcome: "Not theirs to claim; kept." } })).status === 200, "an admin answers a claim");
+check(psql(`select count(*) from public.mod_log where claim = ${sentClaim.body.id} and action = 'claim'`) === "1", "the answer is in the log");
+check((await adm("claims?status=closed")).body?.claims?.some((k: { id: number }) => k.id === sentClaim.body.id), "answered claims are listed apart");
+check((await adm("claims", {}, token)).status === 403, "a member can't read claims");
+check((await call(`/rest/v1/agreements?select=terms`, { token: token2 })).body?.length === 0, "nor another member, what someone agreed to");
 psql(`update public.profiles set role = 'mod' where id = '${other.id}'`);
 
 // the daily limit counts every piece of the last 24 hours, published or not
@@ -389,6 +424,7 @@ check(
   "the member exports everything Tilo keeps about them",
   exported.status,
 );
+check(exported.body.agreed_to?.terms === terms.body && exported.body.claims_sent?.length === 1, "the export has what they agreed to and the claims they sent", exported.body.agreed_to);
 check(/attachment; filename="tilo-smoke_/.test(exported.headers.get("content-disposition") ?? ""), "the export downloads as a file");
 check((await call("/api/me", { token, method: "DELETE", json: {} })).status === 400, "deleting needs an explicit confirm");
 const gone = await call("/api/me", { token, method: "DELETE", json: { confirm: true } });
@@ -404,6 +440,7 @@ psql(`delete from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`);
 
 // tidy up the second member, and what they did as a mod
 psql(`delete from public.mod_log where mod = '${other.id}'`);
+psql(`delete from public.claims where email = 'claim-${tag}@tilo.test'`);
 const removed = await fetch(`${BASE}/auth/v1/admin/users/${other.id}`, {
   method: "DELETE",
   headers: { apikey: env.SERVICE_ROLE_KEY, authorization: `Bearer ${env.SERVICE_ROLE_KEY}` },

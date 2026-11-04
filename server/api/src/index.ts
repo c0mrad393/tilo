@@ -5,6 +5,7 @@ import postgres from "postgres";
 import { account } from "./account.ts";
 import { admin as adminRoutes } from "./admin.ts";
 import { type AuthEnv, signedIn } from "./auth.ts";
+import { claims } from "./claims.ts";
 import { makeDirs, purger } from "./files.ts";
 import { moderation, reports } from "./mod.ts";
 import { pieces } from "./pieces.ts";
@@ -54,6 +55,7 @@ const modOptions = { member, move, ...admin, holdAfter: Number(process.env.REPOR
 app.route("/reports", reports(sql, modOptions));
 app.route("/mod", moderation(sql, modOptions));
 app.route("/admin", adminRoutes(sql, { member }));
+app.route("/claims", claims(sql, { jwtSecret: env("JWT_SECRET"), site }));
 
 // reads a recording and says what is in it
 app.post(
@@ -79,9 +81,26 @@ app.onError((e, c) => {
 await makeDirs(filesDir);
 void screen.resume();
 
+// what the privacy policy promises: Auth's sign-in log goes after 30 days, unused sessions
+// after 90, and answered takedown claims after three years
+const prune = async () => {
+  try {
+    const [n] = await sql`select * from public.prune_sign_ins()`;
+    const gone = await sql`delete from public.claims where status = 'closed' and closed_at < now() - interval '3 years' returning id`;
+    if (n.log || n.sessions || gone.length) console.log(`pruned ${n.log} sign-in records, ${n.sessions} sessions, ${gone.length} claims`);
+  } catch (e) {
+    console.error("pruning failed", e);
+  }
+};
+void prune();
+setInterval(prune, 24 * 3600_000).unref();
+
 const server = serve({ fetch: app.fetch, port: Number(process.env.PORT ?? 8787) }, (info) =>
   console.log(`tilo-api on :${info.port}`),
 );
+// Caddy drops idle connections after 4 s (Caddyfile); Node waiting longer means Caddy
+// always closes first and never sends a request down a connection Node is closing
+if ("keepAliveTimeout" in server) server.keepAliveTimeout = 65_000;
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {

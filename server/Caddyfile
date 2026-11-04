@@ -16,7 +16,13 @@
 	}
 
 	handle /api/* {
-		reverse_proxy api:8787
+		reverse_proxy api:8787 {
+			# Node closes an idle connection after 5 s; Caddy keeps them for 2 min by
+			# default, and a request sent down one Node just closed comes back as a 502
+			transport http {
+				keepalive 4s
+			}
+		}
 	}
 
 	# link previews: a crawler gets a small page with Open Graph tags instead of the app,

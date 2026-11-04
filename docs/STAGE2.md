@@ -232,6 +232,32 @@ check the admin role on every call. Role, invite and setting changes go into the
 - No tracking cookies, so no cookie banner: only the sign-in session, plus Cloudflare
   Web Analytics, which is cookieless.
 
+Progress (2.6, done locally). Decided with you: Tilo is run by you as a private person in
+Georgia, accounts are for 16 and older, the addresses are hello@ and legal@tiloart.com, and
+claims are answered within two working days.
+- `/terms`, `/privacy` and `/takedown`, linked from every page's footer. The facts they rest
+  on (who runs Tilo, the addresses, the age, the terms version) are in `src/data/legal.ts`.
+- Picking a handle needs "I'm 16 or older and agree to the terms" ticked; `claim_handle`
+  refuses anything but the current terms version (`tilo_meta.settings.terms_version`, which
+  must match `TERMS_VERSION` in legal.ts) and keeps it in `agreements`, which only that
+  member can read. It's in the export.
+- The takedown form posts to `/api/claims`, from anyone, signed in or not: kind, address on
+  Tilo, name, email, details, and the good-faith statement for copyright. Five an hour per
+  address, 200 a day in all. Admins answer them under Admin > Claims, with the piece's mod
+  buttons; open claims count in the nav, and answering writes the log.
+- tilo-api deletes Auth's sign-in log after 30 days, sessions unused for 90, and answered
+  claims after three years, once a day, as the privacy policy says.
+- No cookies and no analytics, so no banner. If Cloudflare Web Analytics is switched on
+  later, the privacy policy has to say so first.
+- Before accounts open: put your name in `OPERATOR` (legal.ts), and the mail service in
+  `MAIL_SERVICE` once picked; set up Cloudflare Email Routing for hello@ and legal@.
+- Not settled, worth a lawyer's look before the beta: a controller outside the EU that
+  serves people in the EU normally needs a representative in the EU (GDPR article 27).
+- Known flake: in about one smoke run in three, the "only mods can moderate" check gets a
+  502 (Caddy sees the connection close). It was there before 2.6 and couldn't be reproduced
+  outside the smoke run; Caddy now drops idle upstream connections after 4 s and Node keeps
+  them for 65 s, which didn't remove it.
+
 ### 2.7 Donations (about half a week)
 - A "Support Tilo" page and a quiet link in the footer. No paywall, no perks that
   change what anyone can make.
@@ -257,7 +283,8 @@ check the admin role on every call. Role, invite and setting changes go into the
 - Monitoring: an uptime check with alerts, and a disk-space warning.
 - Invite codes (each member gets a few), a feedback box on every page, error reports.
 - Accessibility and performance pass on the new pages.
-- Launch checklist: domain through Cloudflare, mail sending, terms and privacy linked,
+- Launch checklist: domain through Cloudflare, mail sending, terms and privacy linked (with
+  the operator's name and the mail service filled in, and hello@/legal@ forwarding),
   admin account, restore tested.
 - Done when: the first invited group is in.
 

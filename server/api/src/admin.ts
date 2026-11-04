@@ -48,7 +48,8 @@ export function admin(sql: Sql, { member }: { member: MiddlewareHandler<AuthEnv>
         (select count(*)::int from public.reports where status = 'open') as reports,
         (select count(*)::int from public.invites where used_at is null) as invites_left,
         (select count(*)::int from public.invites where used_at is not null) as invites_used,
-        (select count(*)::int from public.feedback) as feedback`;
+        (select count(*)::int from public.feedback) as feedback,
+        (select count(*)::int from public.claims where status = 'open') as claims`;
     // pieces published on each of the last 14 days, oldest first, days without any included
     const days = await sql`
       select to_char(d, 'YYYY-MM-DD') as day, count(p.id)::int as n
@@ -130,6 +131,39 @@ export function admin(sql: Sql, { member }: { member: MiddlewareHandler<AuthEnv>
     if (!gone.length) return c.json({ error: "No unused code like that." }, 404);
     await log(me, "uninvite", null, code);
     return c.body(null, 204);
+  });
+
+  // takedown claims, oldest open ones first; ?status=closed for the answered ones
+  app.get("/claims", async (c) => {
+    const closed = c.req.query("status") === "closed";
+    const rows = await sql`
+      select k.id::int, k.kind, k.url, k.piece, k.name, k.email, k.details, k.sworn, k.status, k.outcome, k.created, k.closed_at,
+        p.handle as about, m.handle as sent_by, cl.handle as closed_by, pc.title, pc.status as piece_status
+      from public.claims k
+      left join public.profiles p on p.id = k.profile
+      left join public.profiles m on m.id = k.member
+      left join public.profiles cl on cl.id = k.closed_by
+      left join public.pieces pc on pc.id = k.piece
+      where k.status = ${closed ? "closed" : "open"}
+      order by ${closed ? sql`k.closed_at desc` : sql`k.created`}
+      limit 200`;
+    return c.json({ claims: rows });
+  });
+
+  // { outcome } answers a claim: what was done, said in a line for the log
+  app.post("/claims/:id", async (c) => {
+    const { id: me } = c.get("member");
+    const id = Number(c.req.param("id"));
+    if (!Number.isSafeInteger(id)) return c.json({ error: "No open claim like that." }, 404);
+    const body = await c.req.json().catch(() => null);
+    const outcome = String(body?.outcome ?? "").trim().slice(0, 500);
+    if (!outcome) return c.json({ error: "Say what was done, for the log." }, 400);
+    const [k] = await sql`
+      update public.claims set status = 'closed', outcome = ${outcome}, closed_by = ${me}, closed_at = now()
+      where id = ${id} and status = 'open' returning profile, piece`;
+    if (!k) return c.json({ error: "No open claim like that." }, 404);
+    await sql`insert into public.mod_log (mod, action, piece, profile, claim, note) values (${me}, 'claim', ${k.piece}, ${k.profile}, ${id}, ${outcome})`;
+    return c.json({ ok: true });
   });
 
   app.get("/settings", async (c) => {

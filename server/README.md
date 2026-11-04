@@ -98,6 +98,20 @@ The image check is a filter, not a guarantee: it was tried here on clean drawing
 how well it catches explicit drawings is unmeasured. The first-three-pieces rule and reports
 are what make up for it.
 
+## Legal
+
+Members agree to the terms when they pick a handle; which version, and when, is in
+`public.agreements`. When the terms change in a way members must agree to again, add a
+migration that updates `tilo_meta.settings` `terms_version` and change `TERMS_VERSION` in
+`src/data/legal.ts` in the same commit, or nobody can join.
+
+Takedown claims arrive at `POST /api/claims` from anyone and are answered under Admin >
+Claims. The per-address limit reads `CF-Connecting-IP`, which Cloudflare sets; that is only
+trustworthy while 80 and 443 accept Cloudflare's addresses alone (2.8).
+
+Once a day tilo-api calls `public.prune_sign_ins()`, which deletes Auth's sign-in log after
+30 days and sessions unused for 90, and deletes answered claims after three years.
+
 ## Mail and Google on the server
 
 On the VPS, drop the `local` profile and point `SMTP_*` at the mail provider (Resend or
