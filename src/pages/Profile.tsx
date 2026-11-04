@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { Avatar } from "../components/Avatar";
+import { ReportButton } from "../components/Moderation";
 import { PlateCard } from "../components/PinCard";
-import { ACCOUNTS, auth, type ProfilePage, profilePage, setFollow, useAccount } from "../data/account";
-import { listPieces, type Published } from "../data/pieces";
+import { ACCOUNTS, auth, call, type ProfilePage, profilePage, setFollow, useAccount } from "../data/account";
+import { listPieces, moderate, type Published } from "../data/pieces";
 import { NotFound } from "./Errors";
 
 const joined = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
@@ -20,7 +21,11 @@ function Pieces({ owner, isMe }: { owner: string; isMe: boolean }) {
     listPieces({ owner, page }).then(
       (r) => {
         if (!live) return;
-        setItems((had) => [...(page ? (had ?? []) : []), ...r.items]);
+        // pages are by offset, so a piece published meanwhile can turn up again on the next one
+        setItems((had) => {
+          const keep = page ? (had ?? []) : [];
+          return [...keep, ...r.items.filter((p) => !keep.some((k) => k.id === p.id))];
+        });
         setMore(r.more);
       },
       () => live && setFailed(true),
@@ -41,6 +46,48 @@ function Pieces({ owner, isMe }: { owner: string; isMe: boolean }) {
     <>
       <div className="salon">{items.map((p, i) => <PlateCard key={p.id} piece={p} index={i} />)}</div>
       {more && <div className="gal-more"><button className="btn btn-line" onClick={() => setPage(page + 1)}>Show more pieces</button></div>}
+    </>
+  );
+}
+
+/* for mods: suspending bans the account from signing in and hides its pieces; lifting it
+   brings both back */
+function Suspend({ id, handle }: { id: string; handle: string }) {
+  const [suspended, setSuspended] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const dlg = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    call<{ suspended: boolean }[]>(`/rest/v1/profiles?id=eq.${id}&select=suspended`).then((r) => setSuspended(!!r[0]?.suspended), () => {});
+  }, [id]);
+  if (suspended === null) return null;
+  const act = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await moderate("members", id, suspended ? "unsuspend" : "suspend");
+      setSuspended(!suspended);
+      dlg.current!.close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't work.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button className="btn btn-quiet" onClick={() => dlg.current!.showModal()}>{suspended ? "Lift the suspension" : "Suspend"}</button>
+      <dialog ref={dlg} aria-labelledby="suspend-h">
+        <div className="small-sheet sheet">
+          <h2 id="suspend-h">{suspended ? `Lift @${handle}'s suspension?` : `Suspend @${handle}?`}</h2>
+          <p>{suspended ? "They can sign in again, and the pieces hidden by the suspension go back into the gallery." : "They can't sign in, and every piece of theirs leaves the gallery. Nothing is deleted, so this can be undone."}</p>
+          {error && <p className="field-note is-error" role="alert">{error}</p>}
+          <div className="row">
+            <button className="btn btn-quiet" onClick={() => dlg.current!.close()}>Cancel</button>
+            <button className="btn btn-ink" disabled={busy} onClick={act}>{suspended ? "Lift it" : "Suspend"}</button>
+          </div>
+        </div>
+      </dialog>
     </>
   );
 }
@@ -118,9 +165,13 @@ export function Profile() {
             {isMe ? (
               <Link to="/account" viewTransition className="btn btn-line">Edit your profile</Link>
             ) : session && mine ? (
-              <button className={`btn ${page.followed ? "btn-line" : "btn-ink"}`} aria-pressed={page.followed} disabled={busy} onClick={toggle}>
-                {page.followed ? "Following" : "Follow"}
-              </button>
+              <>
+                <button className={`btn ${page.followed ? "btn-line" : "btn-ink"}`} aria-pressed={page.followed} disabled={busy} onClick={toggle}>
+                  {page.followed ? "Following" : "Follow"}
+                </button>
+                <ReportButton target={{ profile: page.id }} label={`@${page.handle}`} />
+                {mine.role !== "member" && <Suspend id={page.id} handle={page.handle} />}
+              </>
             ) : (
               <Link to="/account" viewTransition className="btn btn-line">{session ? "Pick a handle to follow" : "Sign in to follow"}</Link>
             )}

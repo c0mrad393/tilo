@@ -73,7 +73,8 @@ function usePublished(sort: Sort, me?: string) {
     setState((s) => ({ ...s, status: "loading" }));
     let live = true;
     listPieces({ sort, subject: PROMPT.no, page, me }).then(
-      (r) => live && setState({ items: [...keep, ...r.items], more: r.more, page, status: "ready", none: "none" in r }),
+      // pages are by offset, so a piece published meanwhile can turn up again on the next one
+      (r) => live && setState({ items: [...keep, ...r.items.filter((p) => !keep.some((k) => k.id === p.id))], more: r.more, page, status: "ready", none: "none" in r }),
       () => live && setState((s) => ({ ...s, status: "failed" })),
     );
     return () => {

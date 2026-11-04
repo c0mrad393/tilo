@@ -1,6 +1,6 @@
-import { useEffect } from "react";
-import { NavLink, Outlet, ScrollRestoration, useLocation, useNavigation } from "react-router";
-import { ACCOUNTS, handleHint, useAccount } from "../data/account";
+import { useEffect, useState } from "react";
+import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigation } from "react-router";
+import { ACCOUNTS, call, handleHint, useAccount } from "../data/account";
 import { PROMPT } from "../data/samples";
 import { Logo } from "./Logo";
 
@@ -43,6 +43,28 @@ function AccountLink() {
   );
 }
 
+// for mods: the queue, with how much is waiting, looked up again on each page
+function QueueLink() {
+  const { profile } = useAccount();
+  const { pathname } = useLocation();
+  const [n, setN] = useState<number | null>(null);
+  const isMod = !!profile && profile.role !== "member";
+  useEffect(() => {
+    if (!isMod) return;
+    // what needs a mod: each held piece, and each other piece or profile with open reports
+    Promise.all([
+      call<{ id: string }[]>("/rest/v1/pieces?status=eq.held&why=neq.check&select=id&limit=100"),
+      call<{ piece: string | null; profile: string | null }[]>("/rest/v1/reports?status=eq.open&select=piece,profile&limit=200"),
+    ]).then(([held, reports]) => setN(new Set([...held.map((p) => p.id), ...reports.map((r) => r.piece ?? r.profile)]).size), () => {});
+  }, [isMod, pathname]);
+  if (!isMod) return null;
+  return (
+    <NavLink to="/mod" viewTransition className="nav-queue" aria-label={n ? `Queue, ${n} waiting` : "Queue"}>
+      Queue{n ? <b>{n}</b> : null}
+    </NavLink>
+  );
+}
+
 const today = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
 export function Layout() {
@@ -66,6 +88,7 @@ export function Layout() {
               <NavLink to="/library" viewTransition>Your sheets</NavLink>
               <a href="/#wall" className="opt">The wall</a>
               <a href="/#benches" className="opt">Benches</a>
+              {ACCOUNTS && <QueueLink />}
               {ACCOUNTS && <AccountLink />}
               <NavLink to="/studio" viewTransition className="btn btn-ink"><span className="nav-long">Open the studio</span><span className="nav-short">Studio</span></NavLink>
             </nav>
@@ -84,7 +107,7 @@ export function Layout() {
           <div className="colophon">
             <section>
               <h2 className="kicker">Colophon</h2>
-              <p className="serif">Tilo is set in Archivo and Newsreader and printed on your screen in two inks, blue and fluorescent pink. Every picture on it was drawn by a person, stroke by stroke.</p>
+              <p className="serif">Tilo is set in Archivo and Newsreader and printed on your screen in two inks, blue and fluorescent pink. Every picture on it was drawn by a person, stroke by stroke.{ACCOUNTS && <> <Link to="/proof">How proof works</Link></>}</p>
             </section>
             <section>
               <h2 className="kicker">Free, for good</h2>

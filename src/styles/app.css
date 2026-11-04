@@ -2331,3 +2331,188 @@ main[tabindex="-1"]:focus {
 .remix-switch {
   margin-top: var(--s-4);
 }
+
+/* ---------- moderation (2.5) ---------- */
+/* a sheet is always light paper, dark theme or not, so its native controls are drawn light */
+.sheet {
+  color-scheme: light;
+}
+.held-note {
+  padding: 12px 16px;
+  border-left: 4px solid var(--fluo);
+  background: var(--ground-2);
+  font-size: 17px;
+}
+.proof-box.is-plain {
+  border-style: dashed;
+}
+.proof-box a,
+.held-note a,
+.mod-tools a {
+  color: var(--blue);
+}
+.report-reasons {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.report-reasons legend {
+  margin-bottom: 6px;
+}
+.report-reasons .check {
+  align-items: flex-start;
+  font-size: 16px;
+}
+.report-reasons .check input {
+  flex: none;
+  margin-top: 2px;
+}
+.mod-tools {
+  display: grid;
+  gap: var(--s-3);
+  margin-top: var(--s-6);
+  padding-top: var(--s-4);
+  border-top: 3px solid var(--rule);
+}
+.mod-tools p {
+  font-size: 16px;
+}
+.mod-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.nav a.nav-queue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-queue b {
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: 11px;
+  background: var(--fluo);
+  color: #1d1b19;
+  font-size: 13px;
+  text-align: center;
+}
+.queue-page {
+  display: grid;
+  gap: var(--s-6);
+  max-width: 60rem;
+  padding-bottom: var(--s-9);
+}
+.queue-page h1 {
+  margin: 0;
+  font-size: var(--t-2xl);
+  line-height: 0.95;
+}
+.queue-lede {
+  max-width: 60ch;
+  font-size: 18px;
+}
+.queue-page section > h2 {
+  padding-bottom: var(--s-2);
+  border-bottom: 3px solid var(--rule);
+}
+.queue-list,
+.queue-reports,
+.queue-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.queue-item {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: var(--s-4);
+  padding: var(--s-4) 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.queue-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  overflow: hidden;
+}
+.queue-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.queue-body {
+  display: grid;
+  gap: var(--s-2);
+  align-content: start;
+}
+.queue-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 18px;
+}
+.queue-title a,
+.queue-log a {
+  color: var(--blue);
+}
+.queue-why,
+.queue-reports li,
+.queue-log li {
+  font-size: 16px;
+}
+.queue-reports li {
+  padding-left: 12px;
+  border-left: 3px solid var(--pink);
+}
+.queue-log li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.prose-page {
+  max-width: 44rem;
+  padding-block: var(--s-7) var(--s-9);
+}
+.prose-page h1 {
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-2xl);
+  line-height: 0.95;
+}
+.prose-page h2 {
+  margin: var(--s-6) 0 var(--s-2);
+}
+.prose-page p,
+.prose-page li {
+  max-width: 62ch;
+  font-size: 18px;
+}
+.prose-page ul {
+  padding-left: 1.2em;
+}
+.prose-page a {
+  color: var(--blue);
+}
+@media (max-width: 640px) {
+  .queue-item {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+}
+/* the queue link makes the nav one longer for mods: the logo keeps its size, and the
+   home page's section links give way first */
+.logo {
+  flex: none;
+}
+@media (max-width: 960px) {
+  .mast-row:has(.nav-queue) .nav .opt {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .mast-row:has(.nav-queue) .nav {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}

@@ -256,6 +256,11 @@ check(imgFile.ok && imgFile.headers.get("content-type") === "image/webp" && new 
 const remixed = await publish(token2, { title: "After smoke", remix_of: pid });
 check(remixed.status === 201 && remixed.body.remix_of === pid, "another member publishes a remix that credits it", remixed);
 check((await settled(remixed.body?.id)) === "live:", "a mod's own piece goes live after the check");
+check((await mod(`pieces/${remixed.body?.id}`, { action: "hide" })).status === 200, "a mod hides their own piece");
+check((await mod(`pieces/${remixed.body?.id}`, { action: "approve" })).status === 403, "but another mod has to let it back in");
+psql(`update public.profiles set role = 'admin' where id = '${other.id}'`);
+check((await mod(`pieces/${remixed.body?.id}`, { action: "approve" })).status === 200, "or an admin, who has nobody above them");
+psql(`update public.profiles set role = 'mod' where id = '${other.id}'`);
 check((await publish(token2, { remix_of: `held${tag}` })).status === 422, "a held piece can't be remixed");
 // remixing across accounts: the artist can switch it off, for others but not for themself
 const closedPiece = await publish(token, { title: "Not for remixing", remixable: false });
@@ -364,7 +369,8 @@ check(psql(`select count(*) from public.invites where used_by = '${userId}'`) ==
 check(psql(`select used_at is not null from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`) === "t", "their invite stays used up");
 psql(`delete from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`);
 
-// tidy up the second member
+// tidy up the second member, and what they did as a mod
+psql(`delete from public.mod_log where mod = '${other.id}'`);
 const removed = await fetch(`${BASE}/auth/v1/admin/users/${other.id}`, {
   method: "DELETE",
   headers: { apikey: env.SERVICE_ROLE_KEY, authorization: `Bearer ${env.SERVICE_ROLE_KEY}` },

@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { loadStrokes, type Published } from "../data/pieces";
 import { drawnCount, fmtMin, type Piece, type Stroke } from "../engine/stroke";
 import { STAMP_COLOR } from "../data/samples";
+import { usePicture } from "./Moderation";
 import { ReplayCanvas } from "./ReplayCanvas";
 
 export function Stamp({ name, count, tilt = -2 }: { name: string; count?: number; tilt?: number }) {
@@ -52,8 +53,9 @@ export function PinCard({ piece, index = 0, no, mode = "hover" as const }: { pie
    page of pictures. */
 export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: number; no?: number }) {
   const [strokes, setStrokes] = useState<Stroke[] | null>(null);
+  const picture = usePicture(piece);
   const want = () => {
-    if (!strokes) loadStrokes(piece.id).then(setStrokes, () => {});
+    if (!strokes) loadStrokes(piece.id, piece.status === "live").then(setStrokes, () => {});
   };
   const top = Object.entries(piece.stamps || {}).sort((a, b) => b[1] - a[1]).slice(0, 2);
   return (
@@ -71,9 +73,9 @@ export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: 
         {strokes ? (
           <ReplayCanvas strokes={strokes} layers={piece.layers} paper={piece.paper} shape={piece.shape} aspect={4 / 3} mode="hover" label={`${piece.title}, drawn by ${piece.by}`} />
         ) : (
-          <img className="card-picture" src={piece.picture} alt={`${piece.title}, drawn by ${piece.by}`} loading="lazy" decoding="async" />
+          picture && <img className="card-picture" src={picture} alt={`${piece.title}, drawn by ${piece.by}`} loading="lazy" decoding="async" />
         )}
-        {piece.status !== "live" && <span className="card-flag kicker">Held for review</span>}
+        {piece.status !== "live" && <span className="card-flag kicker">{piece.why === "check" ? "Being checked" : piece.status === "held" ? "Waiting for a mod" : "Out of the gallery"}</span>}
       </span>
       <span className="card-cap">
         {no !== undefined && <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>}

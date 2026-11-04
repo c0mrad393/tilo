@@ -88,11 +88,13 @@ export function moderation(sql: Sql, { member, move, authUrl, serviceKey }: Opti
     const id = c.req.param("id");
     const body = await c.req.json().catch(() => null);
     const action = body?.action;
-    const [p] = await sql`select p.status, pr.suspended from public.pieces p join public.profiles pr on pr.id = p.owner where p.id = ${id}`;
+    const [p] = await sql`select p.status, p.owner, pr.suspended from public.pieces p join public.profiles pr on pr.id = p.owner where p.id = ${id}`;
     if (!p) return c.json({ error: "No such piece." }, 404);
     if (p.status === "removed") return c.json({ error: "That piece was removed." }, 409);
     if (action === "approve") {
       if (p.suspended) return c.json({ error: "Its artist is suspended. Lift that first." }, 409);
+      // another mod looks at a mod's own piece; an admin has nobody above them
+      if (p.owner === me && c.get("role") !== "admin") return c.json({ error: "Another mod has to let your own piece in." }, 403);
       await move(id, { status: "live", by: me });
       await close(sql`piece = ${id}`, "dismissed", me);
     } else if (action === "hide" || action === "remove") {

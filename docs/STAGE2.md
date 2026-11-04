@@ -184,6 +184,33 @@ and remixed the other, and each one's Following tab showed only the other's piec
 - Done when: a report reaches the queue, a mod action hides the piece, and a recording
   with fake timestamps is refused.
 
+Progress (2026-11-04): done, with one addition asked for: Tilo is for all ages, so
+explicit drawings must not reach the gallery.
+- Every piece starts out held. tilo-api draws the recording itself (the studio's painter on
+  skia, in a worker thread) and runs up to 16 frames along the replay, the final picture and
+  each layer on its own through two nsfwjs models (MobileNetV2 and InceptionV3, on the wasm
+  backend; about 35 ms and 230 ms a frame on this Mac). Frames along the way catch something
+  drawn and then painted over, which the replay would show; layers alone catch what sits on
+  a hidden layer, which a remix would bring back. The server's render is the picture, so a
+  clean picture can't front a different recording.
+- Then the piece goes live, or waits for a mod: when the check flags it (explicit 25% or
+  suggestive 40% on any frame), and for each member's first three pieces (`TRUST_AFTER`).
+- Files of pieces that aren't live sit in `private/`, which Caddy doesn't serve, so a held
+  piece can't be shared by its file address. They move when the status changes, and leaving
+  the gallery purges the addresses from Cloudflare's edge (`CF_ZONE_ID`, `CF_API_TOKEN`).
+- Reports go through tilo-api: one "not for all ages" report holds a piece at once, three
+  people for any other reason. The queue at `/mod` has held pieces with what the checks said,
+  open reports, and the log; mods let in, hide or remove pieces, dismiss reports and suspend
+  members (Auth bans the account and their pieces are hidden; lifting it undoes both). Only
+  an admin lets in a mod's own piece.
+- Proof of hand v1 refuses recordings timed before 2026 or in the future, going back in time
+  by more than a minute, or with strokes faster than a hand (more than 2, or 1%). The badge
+  needs every stroke timed, three strokes over five seconds, and a pen's pressure that
+  changes. The samples by @tilo have no stroke times, so they don't get it. `/proof` says
+  what it means and what it doesn't.
+- Smoke test: 131 checks. Not measured: how well the image check catches explicit drawings,
+  since it was only tried on clean ones; the first-three rule and reports cover for it.
+
 ### 2.6 Legal (about half a week)
 - Terms: who may join (minimum age), what you may post, the licence you grant Tilo to
   show your work, your right to delete, remix rules.

@@ -35,6 +35,8 @@ const router = createBrowserRouter([
           { path: "/library", lazy: () => import("./pages/Library").then((m) => ({ Component: m.Library })) },
           { path: "/account", lazy: () => import("./pages/Account").then((m) => ({ Component: m.Account })) },
           { path: "/u/:handle", lazy: () => import("./pages/Profile").then((m) => ({ Component: m.Profile })) },
+          { path: "/mod", lazy: () => import("./pages/Queue").then((m) => ({ Component: m.Queue })) },
+          { path: "/proof", lazy: () => import("./pages/Proof").then((m) => ({ Component: m.Proof })) },
           { path: "*", Component: NotFound },
         ],
       },

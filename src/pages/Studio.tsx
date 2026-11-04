@@ -7,7 +7,7 @@ import { ACCOUNTS, useAccount } from "../data/account";
 import { pinPiece } from "../data/local";
 import { findPiece, getPiece, isPublished, publish } from "../data/pieces";
 import { PROMPT, publishedSample } from "../data/samples";
-import { download, fileName, pictureBlob, thumbnail, timelapse, videoType, webPicture } from "../engine/export";
+import { download, fileName, pictureBlob, thumbnail, timelapse, videoType } from "../engine/export";
 import { drawGuides, handleAt, snapDirection } from "../engine/guides";
 import { Painter } from "../engine/painter";
 import { PAPER_IDS, PAPERS, type PaperId } from "../engine/paper";
@@ -928,11 +928,11 @@ function Studio({ sheet }: { sheet: Sheet }) {
       setSending("busy");
       try {
         const all = [...base, ...strokes];
-        const id = await publish(
+        const id = await publish({
+          title: name, strokes: all, layers, paper, shape, minutes: Math.max(0.1, ms / 60000), subject, remixable,
           // a sample is credited as the copy the server publishes as @tilo
-          { title: name, strokes: all, layers, paper, shape, minutes: Math.max(0.1, ms / 60000), subject, remixable, remixOf: isPublished(remix) ? remix.id : remix?.sample ? publishedSample(remix.id) : undefined },
-          await webPicture(all, layers, paper, dims),
-        );
+          remixOf: isPublished(remix) ? remix.id : remix?.sample ? publishedSample(remix.id) : undefined,
+        });
         setSending("");
         pinDlg.current!.close();
         setSheetTitle(name);
@@ -1253,7 +1253,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
           <h2 id="pin-h">{publishing ? "Publish to the gallery" : "Pin to the gallery"}</h2>
           <p>
             {publishing
-              ? `Your piece goes up as @${profile!.handle}, with its full recording, so anyone can replay it from the first stroke.`
+              ? `Your piece goes up as @${profile!.handle}, with its full recording, so anyone can replay it from the first stroke. Tilo checks every piece before it goes into the gallery.`
               : ACCOUNTS
                 ? <>Your piece is pinned with its full recording, on this device only. <Link to="/account">Sign in</Link> to publish it for everyone.</>
                 : "Your piece goes up with its full recording. Until accounts open, it stays on this device."}

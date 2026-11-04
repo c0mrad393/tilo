@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { Icon } from "../components/Icon";
+import { ModTools, ReportButton, WHY_FOR_ARTIST } from "../components/Moderation";
 import { Trace } from "../components/Trace";
 import { ACCOUNTS, useAccount } from "../data/account";
 import { allPieces, pieceById, stampCount, toggleStamp, useLocal } from "../data/local";
-import { type Full, getPiece, listPieces, loadPiece, myStamps, type Published, setRemixable, setStamp, takeDown } from "../data/pieces";
+import { type Full, getPiece, listPieces, loadPiece, myStamps, type Published, reloadPiece, setRemixable, setStamp, takeDown } from "../data/pieces";
 import { publishedSample, STAMPS, STAMP_COLOR } from "../data/samples";
 import { Replayer, prefersReducedMotion } from "../engine/replay";
 import { drawnCount, fmtMin, paletteOf, SHAPES, sizeOf, toolsUsed, type Piece } from "../engine/stroke";
@@ -72,8 +73,9 @@ function Player({ piece }: { piece: Piece }) {
 
 type Loaded = Piece | Full | null | undefined | "failed";
 
-/** A piece from this device (a sample or a pin) at once, or a published one from the server. */
-function usePiece(id: string): Loaded {
+/** A piece from this device (a sample or a pin) at once, or a published one from the server,
+    with a way to fetch the published one again once its status has changed. */
+function usePiece(id: string): [Loaded, () => void] {
   const local = useLocal();
   const here = pieceById(id, local);
   const [remote, setRemote] = useState<Loaded>(undefined);
@@ -89,7 +91,15 @@ function usePiece(id: string): Loaded {
       live = false;
     };
   }, [id, !!here]);
-  return here ?? (ACCOUNTS ? remote : null);
+  const reload = () => void reloadPiece(id).then(setRemote, () => {});
+  // a piece just published is checked within seconds; its page follows along
+  const checking = remote && remote !== "failed" && "owner" in remote && remote.why === "check";
+  useEffect(() => {
+    if (!checking) return;
+    const t = setInterval(reload, 2500);
+    return () => clearInterval(t);
+  }, [checking, id]);
+  return [here ?? (ACCOUNTS ? remote : null), reload];
 }
 
 function StampRow({ on, count, toggle, disabled }: { on: (k: string) => boolean; count: (k: string) => number; toggle: (k: string) => void; disabled?: boolean }) {
@@ -114,7 +124,7 @@ function LocalStamps({ piece }: { piece: Piece }) {
 }
 
 /* stamps on a published piece, written to the server and shown before it answers */
-function ServerStamps({ piece }: { piece: Published }) {
+function ServerStamps({ piece, disabled }: { piece: Published; disabled?: boolean }) {
   const { profile } = useAccount();
   const [mine, setMine] = useState<Set<string>>(new Set());
   const [counts, setCounts] = useState(piece.stamps ?? {});
@@ -137,7 +147,7 @@ function ServerStamps({ piece }: { piece: Published }) {
   };
   return (
     <>
-      <StampRow on={(k) => mine.has(k)} count={(k) => counts[k] ?? 0} toggle={toggle} disabled={!profile} />
+      <StampRow on={(k) => mine.has(k)} count={(k) => counts[k] ?? 0} toggle={toggle} disabled={!profile || disabled} />
       {!profile && <p className="serif stamp-note"><Link to="/account">Sign in</Link> to stamp it.</p>}
     </>
   );
@@ -226,7 +236,7 @@ export function PiecePage() {
   const { id = "" } = useParams();
   const nav = useNavigate();
   const { profile } = useAccount();
-  const piece = usePiece(id);
+  const [piece, reload] = usePiece(id);
   // with accounts on, a sample lives in the shared gallery, with real stamps
   if (ACCOUNTS && piece && piece !== "failed" && piece.sample) return <Navigate to={`/piece/${publishedSample(piece.id)}`} replace />;
   if (piece === undefined)
@@ -252,7 +262,10 @@ export function PiecePage() {
     );
   const published = "owner" in piece ? piece : null;
   const yours = !!published && published.owner === profile?.id;
+  const out = !!published && published.status !== "live";
   const closed = !!published && !published.remixable && !yours;
+  const isMod = !!profile && profile.role !== "member";
+  const strokeCount = drawnCount(piece.strokes).toLocaleString();
   const sheet = sizeOf(piece);
   return (
     <main id="main" tabIndex={-1} className="wrap piece-page">
@@ -267,9 +280,18 @@ export function PiecePage() {
             {piece.prompt ? ` · Subject No. ${piece.prompt}` : ""}
             {piece.sample ? " · sample piece" : ""}
             {piece.mine ? " · pinned on this device" : ""}
-            {published && published.status !== "live" ? " · held for review, only you see it" : ""}
+            {out && yours ? " · only you see it" : ""}
           </p>
-          <div className="proof-box"><Icon name="proof" /><p className="serif"><b>Recorded on Tilo.</b> All {drawnCount(piece.strokes).toLocaleString()} strokes were saved as they were made. Press play to watch them in order.</p></div>
+          {out && yours && (
+            <p className="held-note serif" role="status">
+              {published.status === "removed" ? "A moderator removed this piece." : published.why ? WHY_FOR_ARTIST[published.why] : "This piece is out of the gallery."}
+            </p>
+          )}
+          {published && !published.proof ? (
+            <div className="proof-box is-plain"><p className="serif">All {strokeCount} strokes were saved as they were made. Press play to watch them in order. This recording doesn't carry the proof-of-hand badge. <Link to="/proof">How proof works</Link></p></div>
+          ) : (
+            <div className="proof-box"><Icon name="proof" /><p className="serif"><b>Recorded on Tilo.</b> All {strokeCount} strokes were saved as they were made. Press play to watch them in order.{published && <> <Link to="/proof">How proof works</Link></>}</p></div>
+          )}
           <dl className="facts">
             <dt>Time</dt><dd>{fmtMin(piece.minutes)} min{piece.prompt && piece.minutes <= 10 ? " · inside the 10:00 limit" : ""}</dd>
             <dt>Tools</dt><dd>{toolsUsed(piece.strokes).join(" · ")}</dd>
@@ -279,15 +301,17 @@ export function PiecePage() {
           </dl>
           <div>
             <p className="kicker stamp-head">Stamp it · pick any that fit</p>
-            {published ? <ServerStamps key={piece.id} piece={published} /> : <LocalStamps piece={piece} />}
+            {published ? <ServerStamps key={piece.id} piece={published} disabled={out} /> : <LocalStamps piece={piece} />}
           </div>
-          <Lineage key={piece.id} piece={piece} closed={closed} />
+          <Lineage key={piece.id} piece={piece} closed={closed || out} />
           <div className="piece-actions">
-            <button className="btn btn-ink" disabled={closed} onClick={() => nav(`/studio?remix=${piece.id}`, { viewTransition: true })}><Icon name="remix" />Remix in studio</button>
+            <button className="btn btn-ink" disabled={closed || out} onClick={() => nav(`/studio?remix=${piece.id}`, { viewTransition: true })}><Icon name="remix" />Remix in studio</button>
             {yours && <TakeDown piece={published!} />}
+            {published && !yours && !out && <ReportButton target={{ piece: published.id }} label="this piece" />}
           </div>
           {closed && <p className="serif stamp-note">The artist has turned remixing off for this piece.</p>}
           {yours && <RemixSwitch key={piece.id} piece={published!} />}
+          {published && isMod && <ModTools piece={published} onDone={reload} />}
         </section>
       </div>
     </main>

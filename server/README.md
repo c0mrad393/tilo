@@ -7,7 +7,7 @@ behind it is in [docs/STAGE2.md](../docs/STAGE2.md).
 Caddy :8000 ─┬─ /auth/v1/*  → auth (Supabase Auth)
              ├─ /rest/v1/*  → rest (PostgREST, row-level security)
              ├─ /api/*      → api  (tilo-api, Node + Hono)
-             ├─ /files/*    → recordings and pictures on disk
+             ├─ /files/*    → recordings and pictures of live pieces, on disk
              └─ everything else → the built app (dist/)
 ```
 
@@ -41,7 +41,7 @@ stays in Docker volumes). To start over with an empty database:
 | `db/init.sql` | runs once when the database is created: role passwords, the `tilo_api` role |
 | `db/migrate.sh` | applies `migrations/` in order, once each, then `seed/` when `SEED=true` |
 | `migrations/` | the schema and access rules; add new files, never edit applied ones |
-| `api/` | tilo-api; reads recordings with `src/engine/codec.ts` |
+| `api/` | tilo-api; reads recordings with `src/engine/codec.ts`, and draws them for the image check with the studio's painter (bundled into `api/dist/screen.mjs` by `npm run build` there) |
 | `scripts/` | secrets setup and the smoke test |
 | `seed/samples/` | the sample pieces published as @tilo: recordings, pictures and `samples.sql`, seeded once |
 | `mail/` | the sign-in, sign-up and email-change mails; Caddy serves them to Auth on `:8080` |
@@ -68,6 +68,29 @@ A link to a piece or a profile shared in a chat app is fetched by a crawler, whi
 run the app. Caddy recognises crawlers by user agent and hands them `/api/og/...` instead:
 a small page with the Open Graph title, description and picture. Try it with
 `curl -A facebookexternalhit/1.1 http://localhost:8000/piece/tilowindow`.
+
+## Moderation
+
+Every piece starts out held. tilo-api draws its recording itself (the studio's painter on
+skia, in a worker thread), runs frames along the replay, the final picture and each layer
+on its own through two nsfwjs models, and keeps its own render as the picture. Then the
+piece goes live, or waits in the queue (`/mod` in the app) when the check flagged it or its
+artist has had fewer than `TRUST_AFTER` pieces let in by a mod. One report that a piece
+isn't for all ages, or `REPORTS_TO_HOLD` reports of any kind, take it out of the gallery.
+
+A piece that isn't live keeps its files under `private/` in the files volume, which Caddy
+never serves; its artist and the mods read them through `/api/pieces/{id}/rec` and `/img`.
+The files move when the status does, so only tilo-api changes a piece's status.
+
+Make a mod by hand: `update public.profiles set role = 'mod' where handle = '...'` (or
+`admin`, who can also act on mods and on their own pieces). Behind Cloudflare, set
+`CF_ZONE_ID` and `CF_API_TOKEN` (a token with Zone > Cache Purge only), so a piece that
+leaves the gallery is purged from the edge too; without them its files stay cached there
+for up to a year.
+
+The image check is a filter, not a guarantee: it was tried here on clean drawings only, so
+how well it catches explicit drawings is unmeasured. The first-three-pieces rule and reports
+are what make up for it.
 
 ## Mail and Google on the server
 
