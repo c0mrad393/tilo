@@ -35,9 +35,11 @@ export class Painter {
     return c;
   }
 
-  /** The layer a stroke belongs on: its own if it still exists, otherwise the bottom one. */
+  /** The layer a stroke belongs on: its own (missing means layer 0) if it still exists,
+      otherwise the bottom one. */
   layerOf(s: Stroke) {
-    return this.layers.some((l) => l.id === s.l) ? s.l! : this.layers[0].id;
+    const id = s.l ?? 0;
+    return this.layers.some((l) => l.id === id) ? id : this.layers[0].id;
   }
 
   setLayers(layers: LayerDef[]) {

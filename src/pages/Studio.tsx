@@ -10,9 +10,33 @@ import { drawGuides, handleAt, snapDirection } from "../engine/guides";
 import { Painter } from "../engine/painter";
 import { PAPER_IDS, PAPERS, type PaperId } from "../engine/paper";
 import { SYMMETRY } from "../engine/symmetry";
+import { ColorPicker } from "../components/ColorPicker";
+import { remember } from "../engine/colour";
+import { anchor, matrix, toSheet as viewToSheet, type View } from "../engine/view";
 import { BASE_LAYER, fmtMin, layersOf, SHEET, TOOLS, type Blend, type LayerDef, type Stroke, type ToolGroup, type ToolId } from "../engine/stroke";
 
 const NO_STROKES: Stroke[] = [];
+const plural = (n: number, w: string) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
+
+/* colours you mixed or picked up, newest first, kept on this device */
+const recentColours = {
+  get: (): string[] => {
+    try {
+      const l = JSON.parse(localStorage.getItem("tilo.recent") || "[]");
+      return Array.isArray(l) ? l.filter((c) => typeof c === "string").slice(0, 10) : [];
+    } catch {
+      return [];
+    }
+  },
+  set: (l: string[]) => {
+    try {
+      localStorage.setItem("tilo.recent", JSON.stringify(l));
+    } catch {
+      // storage off: recent colours last until the page closes
+    }
+    return l;
+  },
+};
 const FREE = ["#1B1E1D", "#5B5F66", "#2B37D4", "#3FA7D6", "#3E7C6B", "#8DBF5A", "#F2C14E", "#E26D3D", "#C9392F", "#A1386B", "#7A4E2D", "#FFFFFF"];
 const GROUPS: [ToolGroup, string][] = [["draw", "Draw"], ["paint", "Paint"], ["shape", "Shape"], ["fix", "Fix"]];
 const BLENDS: [Blend, string][] = [["source-over", "Normal"], ["multiply", "Multiply"], ["screen", "Screen"], ["overlay", "Overlay"], ["soft-light", "Soft light"], ["darken", "Darken"], ["lighten", "Lighten"], ["color-burn", "Colour burn"]];
@@ -21,7 +45,6 @@ const NO_SNAP = new Set<ToolId>(["fill", "lasso", "smudge"]);
 const PERSPECTIVE = [[0, "Off"], [1, "1 point"], [2, "2 point"]] as const;
 const MAX_LAYERS = 8;
 
-type View = { s: number; ox: number; oy: number };
 
 /* ---------- which sheet the studio opens ---------- */
 
@@ -68,8 +91,11 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const [promptMode, setPromptMode] = useState(!!sheet.subject);
   const [tool, setTool] = useState<ToolId>("ink");
   const [color, setColor] = useState(promptMode ? PROMPT.palette[0] : FREE[0]);
+  const [recent, setRecent] = useState<string[]>(recentColours.get);
+  const [mixing, setMixing] = useState(false);
   const [size, setSize] = useState(8);
   const [opacity, setOpacity] = useState(1);
+  const [steady, setSteady] = useState(0);
   const [sym, setSym] = useState("");
   const [layers, setLayers] = useState<LayerDef[]>(() => (sheet.layers.length ? sheet.layers : [BASE_LAYER]));
   const [active, setActive] = useState(() => layers[layers.length - 1].id);
@@ -80,6 +106,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const [guides, setGuides] = useState<Guides>(sheet.guides);
   const [sheetTitle, setSheetTitle] = useState(sheet.title);
   const [zoom, setZoom] = useState(100);
+  const [turn, setTurn] = useState({ deg: 0, flip: false });
   const [toast, setToast] = useState("");
   const base = remix?.strokes ?? NO_STROKES;
   const baseLayers = useRef(new Set(base.map((s) => s.l ?? 0))).current;
@@ -90,16 +117,17 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const painter = useRef<Painter | null>(null);
   const applied = useRef<Stroke[] | null>(null); // the stroke list the painter currently holds
   const cur = useRef<Stroke | null>(null);
-  const view = useRef<View>({ s: 0.5, ox: 0, oy: 0 });
+  const view = useRef<View>({ s: 0.5, r: 0, f: 1, ox: 0, oy: 0 });
   const lastUp = useRef(0);
-  const cfg = useRef({ tool, color, size, opacity, sym, active, guides });
-  cfg.current = { tool, color, size, opacity, sym, active, guides };
+  const cfg = useRef({ tool, color, size, opacity, sym, active, guides, steady });
+  cfg.current = { tool, color, size, opacity, sym, active, guides, steady };
   const pinDlg = useRef<HTMLDialogElement>(null);
   const clearDlg = useRef<HTMLDialogElement>(null);
   const layerDlg = useRef<HTMLDialogElement>(null);
   const replayDlg = useRef<HTMLDialogElement>(null);
   const exportDlg = useRef<HTMLDialogElement>(null);
   const [doomed, setDoomed] = useState<LayerDef | null>(null);
+  const [naming, setNaming] = useState<number | null>(null);
   const [replayKey, setReplayKey] = useState(0);
   const [title, setTitle] = useState("");
   const [enter, setEnter] = useState(true);
@@ -121,10 +149,10 @@ function Studio({ sheet }: { sheet: Sheet }) {
     if (!c || !p) return;
     const ctx = c.getContext("2d")!;
     const dpr = c.width / Math.max(1, c.clientWidth);
-    const { s, ox, oy } = view.current;
+    const { s } = view.current;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, c.width, c.height);
-    ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+    ctx.setTransform(...matrix(view.current, dpr));
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.3)";
     ctx.shadowBlur = 22 * dpr;
@@ -165,18 +193,27 @@ function Studio({ sheet }: { sheet: Sheet }) {
     const b = box.current!;
     const pad = innerWidth < 860 ? 12 : 32;
     const s = Math.max(0.05, Math.min((b.clientWidth - pad * 2) / SHEET.w, (b.clientHeight - pad * 2) / SHEET.h));
-    view.current = { s, ox: (b.clientWidth - SHEET.w * s) / 2, oy: (b.clientHeight - SHEET.h * s) / 2 };
+    // fitting also straightens and unflips the view
+    view.current = { s, r: 0, f: 1, ox: (b.clientWidth - SHEET.w * s) / 2, oy: (b.clientHeight - SHEET.h * s) / 2 };
     setZoom(Math.round(s * 100));
+    setTurn({ deg: 0, flip: false });
     redraw();
   }, [redraw]);
-  const zoomAt = useCallback((f: number, cx: number, cy: number) => {
+  /** Changes the view while the sheet point under screen point (cx, cy) stays put. */
+  const reView = useCallback((change: (v: View) => Partial<View>, cx: number, cy: number) => {
     const v = view.current;
-    const s = Math.max(0.1, Math.min(8, v.s * f));
-    view.current = { s, ox: cx - (cx - v.ox) * (s / v.s), oy: cy - (cy - v.oy) * (s / v.s) };
-    setZoom(Math.round(s * 100));
+    const next = { ...v, ...change(v) };
+    next.s = Math.max(0.1, Math.min(8, next.s));
+    view.current = anchor(next, viewToSheet(v, cx, cy), cx, cy);
+    setZoom(Math.round(next.s * 100));
+    setTurn({ deg: Math.round((((next.r * 180) / Math.PI) % 360 + 540) % 360 - 180), flip: next.f < 0 });
     redraw();
   }, [redraw]);
-  const zoomCentre = (f: number) => zoomAt(f, box.current!.clientWidth / 2, box.current!.clientHeight / 2);
+  const zoomAt = useCallback((f: number, cx: number, cy: number) => reView((v) => ({ s: v.s * f }), cx, cy), [reView]);
+  const centre = (): [number, number] => [box.current!.clientWidth / 2, box.current!.clientHeight / 2];
+  const zoomCentre = (f: number) => zoomAt(f, ...centre());
+  const rotateBy = (deg: number) => reView((v) => ({ r: v.r + (deg * Math.PI) / 180 }), ...centre());
+  const flipView = () => reView((v) => ({ f: v.f > 0 ? -1 : 1 }), ...centre());
 
   // ---------- the painter follows the stroke list, the layer stack and the paper ----------
   if (!painter.current) painter.current = new Painter(SHEET.w, SHEET.h, 1, layers, paper);
@@ -210,6 +247,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
 
   const commit = useCallback((s: Stroke) => {
     s.t = Date.now();
+    if (s.tool !== "eraser" && s.tool !== "smudge" && !FREE.includes(s.c) && !PROMPT.palette.includes(s.c)) setRecent((r) => recentColours.set(remember(r, s.c)));
     painter.current!.apply(s);
     const next = [...(applied.current ?? []), s];
     applied.current = next;
@@ -300,7 +338,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
     const pts = new Map<number, { x: number; y: number; type: string }>();
     let drawing: number | null = null;
     let pan: { id: number; x: number; y: number; ox: number; oy: number } | null = null;
-    let pinch: { d: number; mx: number; my: number; v: View } | null = null;
+    let pinch: { d: number; a: number; pt: [number, number]; v: View } | null = null;
     let drag: { id: number; vp: number } | null = null;
     let penSeen = false;
     let last: [number, number] | null = null;
@@ -309,16 +347,17 @@ function Studio({ sheet }: { sheet: Sheet }) {
     // a straight stroke: "guide" snaps to the perspective, "free" (Shift) keeps its first heading
     let straight: "guide" | "free" | null = null;
     let lock: [number, number] | null = null;
+    // the stabilizer: the brush trails the pointer on a string and only moves when it pulls tight
+    let brush: [number, number] | null = null;
+    let rawLast: [number, number] | null = null;
+    let lastPr = 0.6;
+    let lastTilt: [number, number] = [0, 90];
 
     const local = (e: PointerEvent): [number, number] => {
       const r = b.getBoundingClientRect();
       return [e.clientX - r.left, e.clientY - r.top];
     };
-    const toSheet = (e: PointerEvent): [number, number] => {
-      const [x, y] = local(e);
-      const v = view.current;
-      return [(x - v.ox) / v.s, (y - v.oy) / v.s];
-    };
+    const toSheet = (e: PointerEvent): [number, number] => viewToSheet(view.current, ...local(e));
     // pen tilt in degrees; azimuthAngle where the browser has it, else worked out from tiltX/Y
     const tiltOf = (e: PointerEvent): [number, number] => {
       const pe = e as PointerEvent & { altitudeAngle?: number; azimuthAngle?: number };
@@ -336,6 +375,15 @@ function Studio({ sheet }: { sheet: Sheet }) {
       if (!s || s.p.length >= 12000) return;
       let [x, y] = toSheet(e);
       const t = e.timeStamp || performance.now();
+      rawLast = [x, y];
+      const string = (cfg.current.steady / 100) * 40 / view.current.s; // up to 40 screen pixels
+      if (!straight && string > 0) {
+        if (!brush) brush = [x, y];
+        const d = Math.hypot(x - brush[0], y - brush[1]);
+        if (s.p.length && d <= string) return;
+        if (d > string) brush = [brush[0] + ((x - brush[0]) * (d - string)) / d, brush[1] + ((y - brush[1]) * (d - string)) / d];
+        [x, y] = brush;
+      }
       if (straight && s.p.length >= 3) {
         const sx = s.p[0], sy = s.p[1];
         if (!lock) {
@@ -359,8 +407,20 @@ function Studio({ sheet }: { sheet: Sheet }) {
       }
       last = [x, y];
       lastT = t;
+      lastPr = pr;
       s.p.push(Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(pr * 99));
-      if (s.tl) s.tl.push(...tiltOf(e));
+      if (s.tl) s.tl.push(...(lastTilt = tiltOf(e)));
+    };
+    // a steadied stroke ends where the pen lifted, not a string's length behind it
+    const catchUp = (s: Stroke) => {
+      if (!brush || !rawLast || straight) return;
+      const [bx, by] = brush, [rx, ry] = rawLast;
+      const steps = Math.min(12, Math.ceil(Math.hypot(rx - bx, ry - by) / (4 / view.current.s)));
+      for (let i = 1; i <= steps && s.p.length < 12000; i++) {
+        const k = i / steps;
+        s.p.push(Math.round((bx + (rx - bx) * k) * 10) / 10, Math.round((by + (ry - by) * k) * 10) / 10, Math.round(lastPr * (1 - 0.5 * k) * 99));
+        if (s.tl) s.tl.push(...lastTilt);
+      }
     };
     const moveRing = (e: PointerEvent) => {
       const [x, y] = local(e);
@@ -370,10 +430,15 @@ function Studio({ sheet }: { sheet: Sheet }) {
       el.style.width = el.style.height = d + "px";
       el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
     };
-    const startPinch = () => {
+    // two fingers: spread to zoom, twist to turn, move to pan, all around the point between them
+    const twoFingers = () => {
       const [a, z] = [...pts.values()];
       const r = b.getBoundingClientRect();
-      pinch = { d: Math.hypot(a.x - z.x, a.y - z.y) || 1, mx: (a.x + z.x) / 2 - r.left, my: (a.y + z.y) / 2 - r.top, v: { ...view.current } };
+      return { d: Math.hypot(a.x - z.x, a.y - z.y) || 1, a: Math.atan2(z.y - a.y, z.x - a.x), mx: (a.x + z.x) / 2 - r.left, my: (a.y + z.y) / 2 - r.top };
+    };
+    const startPinch = () => {
+      const g = twoFingers();
+      pinch = { d: g.d, a: g.a, pt: viewToSheet(view.current, g.mx, g.my), v: { ...view.current } };
     };
 
     const down = (e: PointerEvent) => {
@@ -428,6 +493,8 @@ function Studio({ sheet }: { sheet: Sheet }) {
       if (e.pointerType === "pen") s.tl = [];
       straight = NO_SNAP.has(k.tool) ? null : k.guides.mode && k.guides.snap ? "guide" : e.shiftKey ? "free" : null;
       lock = null;
+      brush = null;
+      rawLast = null;
       cur.current = s;
       drawing = e.pointerId;
       last = null;
@@ -440,12 +507,14 @@ function Studio({ sheet }: { sheet: Sheet }) {
       if (e.pointerType !== "touch") moveRing(e);
       if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
       if (pinch && pts.size >= 2) {
-        const [a, z] = [...pts.values()];
-        const r = b.getBoundingClientRect();
-        const d = Math.hypot(a.x - z.x, a.y - z.y), mx = (a.x + z.x) / 2 - r.left, my = (a.y + z.y) / 2 - r.top;
-        const s = Math.max(0.1, Math.min(8, pinch.v.s * (d / pinch.d)));
-        view.current = { s, ox: mx - (pinch.mx - pinch.v.ox) * (s / pinch.v.s), oy: my - (pinch.my - pinch.v.oy) * (s / pinch.v.s) };
+        const g = twoFingers();
+        const s = Math.max(0.1, Math.min(8, pinch.v.s * (g.d / pinch.d)));
+        let r = pinch.v.r + g.a - pinch.a;
+        // a twist under 6 degrees stays straight, so zooming doesn't tilt the sheet by accident
+        if (Math.abs(r) < (6 * Math.PI) / 180 && Math.abs(pinch.v.r) < 1e-6) r = 0;
+        view.current = anchor({ ...pinch.v, s, r }, pinch.pt, g.mx, g.my);
         setZoom(Math.round(s * 100));
+        setTurn({ deg: Math.round((((r * 180) / Math.PI) % 360 + 540) % 360 - 180), flip: pinch.v.f < 0 });
         redraw();
         return;
       }
@@ -479,6 +548,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
         const s = cur.current;
         cur.current = null;
         // a pen that reports no tilt (or is held upright the whole way) records none
+        if (s && e.type !== "pointercancel") catchUp(s);
         if (s?.tl && s.tl.every((v, i) => i % 2 === 0 || v >= 88)) delete s.tl;
         if (s && s.p.length && (s.tool !== "lasso" || s.p.length >= 9) && e.type !== "pointercancel") commit(s);
         redraw();
@@ -548,6 +618,8 @@ function Studio({ sheet }: { sheet: Sheet }) {
       if (k === "[") setSize((s) => Math.max(1, s - (s > 20 ? 4 : 1)));
       if (k === "]") setSize((s) => Math.min(80, s + (s >= 20 ? 4 : 1)));
       if (k === "0") fit();
+      if (k === "r") rotateBy(e.shiftKey ? -15 : 15);
+      if (k === "h") flipView();
       if (k === "=" || k === "+") zoomCentre(1.25);
       if (k === "-") zoomCentre(0.8);
       if (k === "escape") nav("/", { viewTransition: true });
@@ -711,13 +783,18 @@ function Studio({ sheet }: { sheet: Sheet }) {
 
       <div className="studio-sheet" ref={box} data-tool={tool}>
         {remix && <p className="remix-banner">Remixing “{remix.title}” by @{remix.by}. Their strokes are the base and can't be undone.</p>}
-        <canvas ref={cv} className="studio-canvas" role="img" aria-label={`Your drawing sheet, ${strokes.length + base.length} strokes`} />
+        <canvas ref={cv} className="studio-canvas" role="img" aria-label={`Your drawing sheet, ${plural(strokes.length + base.length, "stroke")}`} />
         <div className="ring" ref={ring} />
         <div className="view-ctl" role="group" aria-label="Zoom">
           <button className="icon-btn" onClick={() => zoomCentre(0.8)} aria-label="Zoom out" title="Zoom out · −"><Icon name="minus" size={18} /></button>
           <button className="view-pct mono num" onClick={fit} title="Fit the sheet · 0">{zoom}%</button>
           <button className="icon-btn" onClick={() => zoomCentre(1.25)} aria-label="Zoom in" title="Zoom in · +"><Icon name="plus" size={18} /></button>
-          <button className="icon-btn" onClick={fit} aria-label="Fit the sheet to the screen" title="Fit · 0"><Icon name="fit" size={18} /></button>
+          <button className="icon-btn" onClick={fit} aria-label="Fit the sheet to the screen" title="Fit, straighten and unflip · 0"><Icon name="fit" size={18} /></button>
+          <span className="view-sep view-turn" aria-hidden="true" />
+          <button className="icon-btn view-turn" onClick={() => rotateBy(-15)} aria-label="Turn the view left" title="Turn left · ⇧R"><Icon name="rotl" size={18} /></button>
+          {turn.deg !== 0 && <button className="view-pct mono num" onClick={() => rotateBy(-turn.deg)} title="Straighten">{turn.deg}°</button>}
+          <button className="icon-btn view-turn" onClick={() => rotateBy(15)} aria-label="Turn the view right" title="Turn right · R"><Icon name="rotr" size={18} /></button>
+          <button className="icon-btn view-turn" onClick={flipView} aria-pressed={turn.flip} aria-label="Mirror the view" title="Mirror the view, to check proportions · H"><Icon name="flip" size={18} /></button>
         </div>
       </div>
 
@@ -734,7 +811,26 @@ function Studio({ sheet }: { sheet: Sheet }) {
           {!remix && (
             <label className="check"><input type="checkbox" checked={promptMode} onChange={(e) => setPromptMode(e.target.checked)} /> Use the inks of Subject No. {PROMPT.no} only</label>
           )}
-          {!promptMode && <div className="custom"><label>Mix your own <input type="color" value={color.length === 7 ? color : "#000000"} onChange={(e) => setColor(e.target.value.toUpperCase())} /></label><span className="hint">or hold Alt and click the sheet to pick one up</span></div>}
+          {!promptMode && (
+            <>
+              {recent.length > 0 && (
+                <div className="pal recent" role="group" aria-label="Recent colours">
+                  {recent.map((c) => (
+                    <button key={c} className="chip-btn" aria-pressed={c === color} aria-label={`Recent colour ${c}`} onClick={() => setColor(c)}>
+                      <span className="chip" style={{ ["--c" as string]: c }} />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button className="mix-btn" aria-expanded={mixing} onClick={() => setMixing((m) => !m)}>
+                <span className="chip" style={{ ["--c" as string]: color }} aria-hidden="true" />
+                Mix your own
+                <Icon name={mixing ? "up" : "down"} size={16} />
+              </button>
+              {mixing && <ColorPicker value={color} onChange={setColor} />}
+              <p className="hint">Hold Alt and click the sheet to pick a colour up.</p>
+            </>
+          )}
         </section>
 
         <section className="sheet panel-card">
@@ -751,6 +847,13 @@ function Studio({ sheet }: { sheet: Sheet }) {
             <input type="range" min={5} max={100} step={5} value={Math.round(opacity * 100)} onChange={(e) => setOpacity(+e.target.value / 100)} />
             <span className="mono num">{Math.round(opacity * 100)}</span>
           </label>
+          {tool !== "fill" && (
+            <label className="slider" title="The brush trails the pointer on a string, which smooths out shaky lines">
+              <span>Steady</span>
+              <input type="range" min={0} max={100} step={5} value={steady} onChange={(e) => setSteady(+e.target.value)} />
+              <span className="mono num">{steady}</span>
+            </label>
+          )}
           <span className="dot" aria-hidden="true" hidden={tool === "fill" || tool === "lasso"}><i style={{ width: dot, height: dot, background: color, opacity }} /></span>
         </section>
 
@@ -763,10 +866,31 @@ function Studio({ sheet }: { sheet: Sheet }) {
             {[...layers].reverse().map((l) => (
               <li key={l.id} className={l.id === active ? "is-active" : undefined}>
                 <button className="icon-btn" onClick={() => patchLayer(l.id, { hidden: !l.hidden })} aria-label={`${l.hidden ? "Show" : "Hide"} ${l.name}`} aria-pressed={!l.hidden}><Icon name={l.hidden ? "eyeoff" : "eye"} size={18} /></button>
-                <button className="layer-name" onClick={() => setActive(l.id)} aria-pressed={l.id === active}>
-                  {l.name}
-                  <small>{strokesOn(l.id) + (remix ? base.filter((s) => (s.l ?? 0) === l.id).length : 0)} strokes{l.blend !== "source-over" ? ` · ${BLENDS.find((b) => b[0] === l.blend)?.[1]}` : ""}{l.opacity < 1 ? ` · ${Math.round(l.opacity * 100)}%` : ""}</small>
-                </button>
+                {naming === l.id ? (
+                  <input
+                    className="layer-rename"
+                    defaultValue={l.name}
+                    maxLength={40}
+                    autoFocus
+                    aria-label="Layer name"
+                    onFocus={(e) => e.target.select()}
+                    onBlur={(e) => {
+                      const name = e.target.value.trim();
+                      if (name) patchLayer(l.id, { name });
+                      setNaming(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                      if (e.key === "Escape") setNaming(null);
+                      e.stopPropagation();
+                    }}
+                  />
+                ) : (
+                  <button className="layer-name" onClick={() => setActive(l.id)} onDoubleClick={() => setNaming(l.id)} aria-pressed={l.id === active} title="Double-click to rename">
+                    {l.name}
+                    <small>{plural(strokesOn(l.id) + (remix ? base.filter((s) => (s.l ?? 0) === l.id).length : 0), "stroke")}{l.blend !== "source-over" ? ` · ${BLENDS.find((b) => b[0] === l.blend)?.[1]}` : ""}{l.opacity < 1 ? ` · ${Math.round(l.opacity * 100)}%` : ""}</small>
+                  </button>
+                )}
               </li>
             ))}
           </ol>
@@ -783,6 +907,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
               </select>
             </label>
             <div className="row-btns">
+              <button className="icon-btn" onClick={() => setNaming(activeLayer.id)} aria-label="Rename the layer" title="Rename"><Icon name="rename" size={18} /></button>
               <button className="icon-btn" onClick={() => moveLayer(activeLayer.id, 1)} aria-label="Move the layer up" title="Move up"><Icon name="up" size={18} /></button>
               <button className="icon-btn" onClick={() => moveLayer(activeLayer.id, -1)} aria-label="Move the layer down" title="Move down"><Icon name="down" size={18} /></button>
               <button className="icon-btn" onClick={() => askDelete(activeLayer)} aria-label="Delete the layer" title="Delete the layer"><Icon name="trash" size={18} /></button>
@@ -835,7 +960,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
           <h3 className="kicker">Keys</h3>
           <p className="keys">
             {(Object.keys(TOOLS) as ToolId[]).map((t) => <span key={t}><kbd>{TOOLS[t].key.toUpperCase()}</kbd> {TOOLS[t].label.toLowerCase()} </span>)}
-            <span><kbd>[</kbd> <kbd>]</kbd> size </span><span><kbd>⌘Z</kbd> undo </span><span><kbd>Shift</kbd> straight line </span><span><kbd>Space</kbd> drag to move </span><span><kbd>⌘</kbd>+scroll or pinch to zoom </span><span><kbd>0</kbd> fit </span><span><kbd>Alt</kbd>+click pick colour</span>
+            <span><kbd>[</kbd> <kbd>]</kbd> size </span><span><kbd>⌘Z</kbd> undo </span><span><kbd>Shift</kbd> straight line </span><span><kbd>Space</kbd> drag to move </span><span><kbd>⌘</kbd>+scroll or pinch to zoom </span><span><kbd>0</kbd> fit </span><span><kbd>R</kbd> <kbd>⇧R</kbd> turn </span><span><kbd>H</kbd> mirror view </span><span><kbd>Alt</kbd>+click pick colour</span>
           </p>
         </section>
       </aside>
@@ -899,7 +1024,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
       <dialog ref={layerDlg} aria-labelledby="layer-h">
         <div className="small-sheet sheet">
           <h2 id="layer-h">Delete {doomed?.name}?</h2>
-          <p>Its {doomed ? strokesOn(doomed.id) : 0} strokes go with it, and they leave the recording too. Undo won't bring them back.</p>
+          <p>Its {plural(doomed ? strokesOn(doomed.id) : 0, "stroke")} go with it, and they leave the recording too. Undo won't bring them back.</p>
           <div className="row">
             <button className="btn btn-quiet" onClick={() => layerDlg.current!.close()}>Keep it</button>
             <button className="btn btn-ink" onClick={() => { if (doomed) deleteLayer(doomed.id); layerDlg.current!.close(); }}>Delete the layer</button>
@@ -910,7 +1035,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
       <dialog ref={replayDlg} className="replay-dlg" aria-label="Replay of your sheet" onClick={(e) => e.target === e.currentTarget && replayDlg.current!.close()}>
         <div className="replay-box sheet">
           <ReplayCanvas key={replayKey} strokes={allStrokes} layers={layers} paper={paper} mode="once" label="Your sheet, replaying" />
-          <div className="row"><span className="kicker">{strokes.length + base.length} strokes · {fmtMin(ms / 60000)}</span><button className="btn btn-quiet" onClick={() => replayDlg.current!.close()}>Close</button></div>
+          <div className="row"><span className="kicker">{plural(strokes.length + base.length, "stroke")} · {fmtMin(ms / 60000)}</span><button className="btn btn-quiet" onClick={() => replayDlg.current!.close()}>Close</button></div>
         </div>
       </dialog>
 

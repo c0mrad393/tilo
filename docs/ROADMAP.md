@@ -35,6 +35,17 @@ Progress, part 1 (v0.4): all thirteen tools, layers with blend and opacity, fill
 
 Progress, part 2 (v0.5): recorder v2 (a versioned binary log with delta and varint coding, about a third the size of JSON), a library of sheets in IndexedDB with autosave and pictures, six papers whose grain catches charcoal, pen tilt for the brush pen and pencil, one- and two-point perspective guides with snapping, Shift for straight lines, PNG export at 1× or 2× (with or without paper) and timelapse video export (MP4 or WebM) in the browser. Stage 1 is done.
 
+## Stage 1.5 — Studio and site, before any server
+
+Order from here: 1.5, then the pixel-art and animation part of Stage 3, then Stage 2. Everything in 1.5 runs in the browser alone.
+
+- A. Studio essentials: stroke stabilizer, turning and mirroring the view, a real colour mixer with recent colours, layer rename, tests that guard the recording format.
+- B. Sheet shapes and actions: portrait and square sheets, moving, scaling and turning a selection, duplicating and merging layers, all recorded so replays stay true.
+- C. Then Stage 3's pixel-art editor and frame animation with GIF export.
+- D. Technical: works offline as an installable app, faster first load (split the code by page), friendly error screens, an accessibility pass.
+
+Progress, part A (v0.6): Vitest with tests for the codec (a byte-layout snapshot and seeded round trips), symmetry, perspective snap, paper grain, the view maths and colour conversion; they caught a bug where strokes on the bottom layer could land on the wrong one. The stabilizer pulls the brush along on a string (Steady, 0–100) and catches up when the pen lifts. The view turns in 15° steps (R, Shift+R), mirrors (H), and turns with a two-finger twist on touch screens; Fit (0) straightens it. Colour has a saturation and brightness square, a hue strip, a hex field and the last ten colours used. Layers rename with a double-click or the rename button.
+
 ## Stage 2 — Accounts, publishing, closed beta
 
 Detailed plan, milestones and open decisions: [STAGE2.md](STAGE2.md).

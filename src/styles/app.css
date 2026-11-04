@@ -1340,6 +1340,16 @@ button.stamp[aria-pressed="true"] {
   background: none;
   color: inherit;
 }
+.view-sep {
+  width: 1px;
+  height: 24px;
+  margin: 0 4px;
+  background: rgba(29, 27, 25, 0.16);
+}
+.view-ctl .icon-btn[aria-pressed="true"] {
+  background: #1d1b19;
+  color: var(--paper);
+}
 .remix-banner {
   position: absolute;
   top: 12px;
@@ -1375,16 +1385,11 @@ button.stamp[aria-pressed="true"] {
   flex-wrap: wrap;
   gap: 2px;
 }
-.check,
-.custom label {
+.check {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 14px;
-}
-.custom {
-  display: grid;
-  gap: 2px;
 }
 .panel-card .hint {
   margin: 0;
@@ -1455,12 +1460,96 @@ button.stamp[aria-pressed="true"] {
   height: 18px;
   accent-color: #2d4bb3;
 }
-.custom input[type="color"] {
-  width: 44px;
-  height: 32px;
+.pal.recent {
+  padding-top: 8px;
+  border-top: 1px solid var(--paper-rule);
+}
+.mix-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
   padding: 0;
-  border: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  color: inherit;
   background: none;
+  border: 0;
+}
+.mix-btn .chip {
+  width: 20px;
+  height: 20px;
+}
+.picker {
+  display: grid;
+  gap: 10px;
+}
+.picker-sv {
+  position: relative;
+  height: 150px;
+  touch-action: none;
+  cursor: crosshair;
+  background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, var(--hue));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.16);
+}
+.picker-sv:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.picker-dot {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.picker-hue {
+  width: 100%;
+  height: 14px;
+  margin: 0;
+  appearance: none;
+  background: linear-gradient(to right, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.16);
+}
+.picker-hue::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 22px;
+  background: var(--paper);
+  border: 2px solid #1d1b19;
+}
+.picker-hue::-moz-range-thumb {
+  width: 6px;
+  height: 18px;
+  background: var(--paper);
+  border: 2px solid #1d1b19;
+  border-radius: 0;
+}
+.picker-hex {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.picker-hex input {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  font-size: 15px;
+  text-transform: uppercase;
+  color: inherit;
+  background: var(--paper);
+  border: 1.5px solid var(--paper-rule);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .slider {
   display: grid;
@@ -1528,6 +1617,18 @@ button.stamp[aria-pressed="true"] {
   color: inherit;
   background: none;
   border: 0;
+}
+.layer-rename {
+  min-width: 0;
+  height: 40px;
+  margin: 2px 4px 2px 0;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  color: inherit;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
 }
 .layer-name small {
   overflow: hidden;
@@ -1809,7 +1910,8 @@ dialog::backdrop {
   .hide-xs {
     display: none;
   }
-  .view-ctl .icon-btn:last-child {
+  /* on a phone the sheet turns with two fingers; the degree readout still straightens it */
+  .view-ctl .view-turn {
     display: none;
   }
   .nav {

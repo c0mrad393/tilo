@@ -80,7 +80,7 @@ export function Library() {
                 <span className="card-cap">
                   <span className="card-title">{s.title || "Untitled"}</span>
                   <span className="card-by serif">
-                    edited {edited(s.updated)} · {s.count.toLocaleString()} strokes · {fmtMin(s.ms / 60000)} · {PAPERS[paperOf(s.paper)].name.toLowerCase()}
+                    edited {edited(s.updated)} · {s.count.toLocaleString()} {s.count === 1 ? "stroke" : "strokes"} · {fmtMin(s.ms / 60000)} · {PAPERS[paperOf(s.paper)].name.toLowerCase()}
                   </span>
                 </span>
               </Link>

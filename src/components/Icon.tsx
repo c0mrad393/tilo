@@ -36,6 +36,10 @@ const PATHS: Record<string, string> = {
   download: "M12 4v11 M7 10.5l5 5 5-5 M5 20h14",
   sheets: "M7 3h10v14H7z M4 7v14h10 M10 7h4 M10 10h4",
   copy: "M9 9h11v11H9z M5 15H4V4h11v1",
+  rename: "M4 20h4L19 9l-4-4L4 16z M13 7l4 4",
+  rotl: "M4 12a8 8 0 1 0 2.4-5.7 M4 4v4h4",
+  rotr: "M20 12a8 8 0 1 1-2.4-5.7 M20 4v4h-4",
+  flip: "M12 3v18 M9 7l-5 10h5z M15 7l5 10h-5z",
 };
 const FILLED: Record<string, string> = {
   play: "M7 4.5v15l12-7.5z",
