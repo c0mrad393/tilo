@@ -37,7 +37,9 @@ Progress, part 2 (v0.5): recorder v2 (a versioned binary log with delta and vari
 
 ## Stage 2 — Accounts, publishing, closed beta
 
-- Auth and Postgres (Supabase), files in Cloudflare R2 through a Worker, Cloudflare Pages hosting.
+Detailed plan, milestones and open decisions: [STAGE2.md](STAGE2.md).
+
+- Self-hosted Supabase (Auth, Postgres) and a small publishing API on Tilo's own VPS, files on its disk, Cloudflare in front as DNS and proxy only.
 - Profiles, publish to gallery, stamps, follow, report.
 - Moderation v1: AI image check on publish plus a report queue.
 - Proof of hand v1: no image import in the hand-made category, "Recorded on Tilo" badge.
