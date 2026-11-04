@@ -1,5 +1,5 @@
 import type { Guides } from "../data/library";
-import { SHEET } from "./stroke";
+import { SHEET, type SheetSize } from "./stroke";
 
 /* Perspective guides for the studio. They are a drawing aid, never part of the picture or
    the recording: rays from one or two vanishing points, and a snap that holds a stroke to
@@ -35,10 +35,10 @@ export function snapDirection(g: Guides, sx: number, sy: number, x: number, y: n
 }
 
 /** Draws the guides in sheet units; `s` is screen pixels per unit, for hairlines. */
-export function drawGuides(ctx: CanvasRenderingContext2D, g: Guides, s: number) {
+export function drawGuides(ctx: CanvasRenderingContext2D, g: Guides, s: number, sheet: SheetSize = SHEET) {
   if (!g.mode) return;
   const vps = g.vp.slice(0, g.mode);
-  const W = SHEET.w, H = SHEET.h;
+  const W = sheet.w, H = sheet.h;
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, W, H);

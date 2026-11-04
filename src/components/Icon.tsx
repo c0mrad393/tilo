@@ -36,6 +36,8 @@ const PATHS: Record<string, string> = {
   download: "M12 4v11 M7 10.5l5 5 5-5 M5 20h14",
   sheets: "M7 3h10v14H7z M4 7v14h10 M10 7h4 M10 10h4",
   copy: "M9 9h11v11H9z M5 15H4V4h11v1",
+  select: "M4 7V4h3 M10 4h3 M4 10v3 M16 4h1 M4 16v1 M11 11l9 3.5-4 1.5-1.5 4z",
+  merge: "M6 4l6 6 6-6 M12 10v7 M5 20h14",
   rename: "M4 20h4L19 9l-4-4L4 16z M13 7l4 4",
   rotl: "M4 12a8 8 0 1 0 2.4-5.7 M4 4v4h4",
   rotr: "M20 12a8 8 0 1 1-2.4-5.7 M20 4v4h-4",

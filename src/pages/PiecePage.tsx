@@ -5,7 +5,7 @@ import { Trace } from "../components/Trace";
 import { allPieces, pieceById, stampCount, toggleStamp, useLocal } from "../data/local";
 import { STAMPS, STAMP_COLOR } from "../data/samples";
 import { Replayer, prefersReducedMotion } from "../engine/replay";
-import { fmtMin, paletteOf, toolsUsed, type Piece } from "../engine/stroke";
+import { drawnCount, fmtMin, paletteOf, sizeOf, toolsUsed, type Piece } from "../engine/stroke";
 
 function Player({ piece }: { piece: Piece }) {
   const cv = useRef<HTMLCanvasElement>(null);
@@ -19,9 +19,10 @@ function Player({ piece }: { piece: Piece }) {
 
   useEffect(() => {
     const c = cv.current!;
-    c.width = 1600;
-    c.height = 1200;
-    rep.current = new Replayer(c, piece.strokes, piece.paper ?? "smooth", 1600, piece.layers);
+    const { w, h } = sizeOf(piece);
+    c.width = w;
+    c.height = h;
+    rep.current = new Replayer(c, piece.strokes, piece.paper ?? "smooth", w, piece.layers);
     setIdx(rep.current.draw(posRef.current));
   }, [piece]);
 
@@ -50,7 +51,7 @@ function Player({ piece }: { piece: Piece }) {
   };
   return (
     <div className="player-wrap">
-      <div className="player-frame plate reg">
+      <div className="player-frame plate reg" style={{ ["--aspect" as string]: sizeOf(piece).w / sizeOf(piece).h }}>
         <canvas ref={cv} role="img" aria-label={`${piece.title}, replay at ${Math.round(pos * 100)} percent`} />
       </div>
       <Trace strokes={piece.strokes} pos={pos} onSeek={seek} />
@@ -89,7 +90,7 @@ export function PiecePage() {
         <section className="piece-info" aria-labelledby="p-title">
           <h1 id="p-title">{piece.title}</h1>
           <p className="who serif">@{piece.by}{piece.mine ? " (you)" : ""}{piece.prompt ? ` · Subject No. ${piece.prompt}` : ""}{piece.sample ? " · sample piece" : ""}</p>
-          <div className="proof-box"><Icon name="proof" /><p className="serif"><b>Recorded on Tilo.</b> All {piece.strokes.length.toLocaleString()} strokes were saved as they were made. Press play to watch them in order.</p></div>
+          <div className="proof-box"><Icon name="proof" /><p className="serif"><b>Recorded on Tilo.</b> All {drawnCount(piece.strokes).toLocaleString()} strokes were saved as they were made. Press play to watch them in order.</p></div>
           <dl className="facts">
             <dt>Time</dt><dd>{fmtMin(piece.minutes)} min{piece.prompt && piece.minutes <= 10 ? " · inside the 10:00 limit" : ""}</dd>
             <dt>Tools</dt><dd>{toolsUsed(piece.strokes).join(" · ")}</dd>

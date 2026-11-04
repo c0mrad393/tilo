@@ -1,7 +1,7 @@
 import { Painter } from "./painter";
 import type { PaperId } from "./paper";
 import { Replayer } from "./replay";
-import { BASE_LAYER, fmtMin, SHEET, type LayerDef, type Stroke } from "./stroke";
+import { BASE_LAYER, drawnCount, fmtMin, SHEET, type LayerDef, type SheetSize, type Stroke } from "./stroke";
 
 /* Files out of the studio: the finished picture as a PNG, and the recording as a timelapse
    video made in the browser with MediaRecorder. Nothing leaves the device. */
@@ -23,9 +23,9 @@ export function download(blob: Blob, name: string) {
 const toBlob = (c: HTMLCanvasElement, type = "image/png", q?: number) =>
   new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("The browser could not make the image"))), type, q));
 
-/** The finished picture at `scale` times the sheet's 1600 × 1200, on its paper or transparent. */
-export function picture(strokes: Stroke[], layers: LayerDef[], paper: PaperId | null, scale = 1) {
-  const W = SHEET.w * scale, H = SHEET.h * scale;
+/** The finished picture at `scale` times the sheet's size, on its paper or transparent. */
+export function picture(strokes: Stroke[], layers: LayerDef[], paper: PaperId | null, scale = 1, sheet: SheetSize = SHEET) {
+  const W = sheet.w * scale, H = sheet.h * scale;
   const p = new Painter(W, H, scale, layers.length ? layers : [BASE_LAYER], paper);
   strokes.forEach((s) => p.apply(s));
   const c = document.createElement("canvas");
@@ -35,13 +35,14 @@ export function picture(strokes: Stroke[], layers: LayerDef[], paper: PaperId | 
   return c;
 }
 
-export const pictureBlob = (strokes: Stroke[], layers: LayerDef[], paper: PaperId | null, scale = 1) => toBlob(picture(strokes, layers, paper, scale));
+export const pictureBlob = (strokes: Stroke[], layers: LayerDef[], paper: PaperId | null, scale = 1, sheet: SheetSize = SHEET) =>
+  toBlob(picture(strokes, layers, paper, scale, sheet));
 
 /** A small picture for the library page. */
 export function thumbnail(painter: Painter, w = 400) {
   const c = document.createElement("canvas");
   c.width = w;
-  c.height = Math.round((w * SHEET.h) / SHEET.w);
+  c.height = Math.round((w * painter.height) / painter.width);
   const ctx = c.getContext("2d")!;
   ctx.scale(w / painter.width, w / painter.width);
   painter.render(ctx);
@@ -64,22 +65,24 @@ export function timelapse(
   layers: LayerDef[],
   paper: PaperId,
   minutes: number,
-  { onProgress, signal }: { onProgress?: (p: number) => void; signal?: AbortSignal } = {},
+  { onProgress, signal, sheet = SHEET }: { onProgress?: (p: number) => void; signal?: AbortSignal; sheet?: SheetSize } = {},
 ): Promise<{ blob: Blob; ext: string }> {
   const type = videoType();
   if (!type) return Promise.reject(new Error("This browser can't record video"));
   const c = document.createElement("canvas");
-  c.width = 1280;
-  c.height = 960;
+  // the long side at 1280, both sides even, as video encoders want
+  const k = 1280 / Math.max(sheet.w, sheet.h);
+  c.width = Math.round((sheet.w * k) / 2) * 2;
+  c.height = Math.round((sheet.h * k) / 2) * 2;
   const ctx = c.getContext("2d")!;
-  const rep = new Replayer(c, strokes, paper, SHEET.w, layers);
+  const rep = new Replayer(c, strokes, paper, sheet.w, layers);
   const dur = Math.min(40000, Math.max(8000, 5000 + strokes.length * 60));
   const hold = 1800;
   const stream = c.captureStream(30);
   const rec = new MediaRecorder(stream, { mimeType: type[0], videoBitsPerSecond: 6_000_000 });
   const chunks: Blob[] = [];
   rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-  const caption = `Drawn by hand on Tilo · ${strokes.length.toLocaleString("en")} strokes · ${fmtMin(minutes)}`;
+  const caption = `Drawn by hand on Tilo · ${drawnCount(strokes).toLocaleString("en")} strokes · ${fmtMin(minutes)}`;
 
   return new Promise((res, rej) => {
     let raf = 0;

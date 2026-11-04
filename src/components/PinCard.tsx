@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { fmtMin, type Piece } from "../engine/stroke";
+import { drawnCount, fmtMin, type Piece } from "../engine/stroke";
 import { STAMP_COLOR } from "../data/samples";
 import { ReplayCanvas } from "./ReplayCanvas";
 
@@ -26,14 +26,14 @@ export function PinCard({ piece, index = 0, no, mode = "hover" as const }: { pie
       aria-label={`${piece.title} by ${piece.by}. Open the piece.`}
     >
       <span className="plate">
-        <ReplayCanvas strokes={piece.strokes} layers={piece.layers} paper={piece.paper} mode={mode} label={`${piece.title}, drawn by ${piece.by}`} />
+        <ReplayCanvas strokes={piece.strokes} layers={piece.layers} paper={piece.paper} shape={piece.shape} aspect={4 / 3} mode={mode} label={`${piece.title}, drawn by ${piece.by}`} />
         {piece.mine && <span className="card-flag kicker">Yours</span>}
       </span>
       <span className="card-cap">
         {no !== undefined && <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>}
         <span className="card-title">{piece.title}</span>
         <span className="card-by serif">
-          @{piece.by} · {fmtMin(piece.minutes)} min · {piece.strokes.length.toLocaleString()} strokes{piece.remixOf ? " · remix" : ""}
+          @{piece.by} · {fmtMin(piece.minutes)} min · {drawnCount(piece.strokes).toLocaleString()} strokes{piece.remixOf ? " · remix" : ""}
         </span>
       </span>
       {top.length > 0 && (

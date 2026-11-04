@@ -1,6 +1,6 @@
 import { decode, encode } from "../engine/codec";
 import type { PaperId } from "../engine/paper";
-import type { LayerDef, Stroke } from "../engine/stroke";
+import { drawnCount, type LayerDef, type ShapeId, type Stroke } from "../engine/stroke";
 
 /* Your sheets: every drawing you start, kept in IndexedDB on this device. Strokes are stored
    as a v2 recording (see engine/codec), with a small picture for the library page. */
@@ -21,6 +21,8 @@ export interface SheetMeta {
   ms: number;
   count: number;
   paper: PaperId;
+  /** missing means landscape */
+  shape?: ShapeId;
   remixOf?: string;
   /** drawing to the day's subject, with its six inks */
   subject?: boolean;
@@ -94,7 +96,7 @@ export const library = {
   },
   async put(sheet: Sheet) {
     const { strokes, ...rest } = sheet;
-    const row: Row = { ...rest, count: strokes.length, data: encode(strokes) };
+    const row: Row = { ...rest, count: drawnCount(strokes), data: encode(strokes) };
     await tx("readwrite", (s) => s.put(row));
     changed();
   },

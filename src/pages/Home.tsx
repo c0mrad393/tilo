@@ -10,7 +10,7 @@ import { DISCIPLINES } from "../data/disciplines";
 import { allPieces, stampTotal, useLocal } from "../data/local";
 import { PROMPT, SAMPLES } from "../data/samples";
 import { Sketch } from "../engine/sketch";
-import { fmtMin, toolsUsed, type Piece } from "../engine/stroke";
+import { drawnCount, fmtMin, toolsUsed, type Piece } from "../engine/stroke";
 
 const HIGHLIGHTER = "#FFD23F";
 
@@ -38,6 +38,8 @@ function LivePlate({ piece, no, className = "", children }: { piece: Piece; no: 
           strokes={piece.strokes}
           layers={piece.layers}
           paper={piece.paper}
+          shape={piece.shape}
+          aspect={4 / 3}
           mode="loop"
           label={`${piece.title} being drawn, stroke by stroke`}
           onProgress={(pos, idx) => {
@@ -50,7 +52,7 @@ function LivePlate({ piece, no, className = "", children }: { piece: Piece; no: 
       <span className="card-cap">
         <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>
         <span className="card-title">{piece.title}</span>
-        <span className="card-by serif">@{piece.by} · <span ref={counter}>{piece.strokes.length} strokes</span></span>
+        <span className="card-by serif">@{piece.by} · <span ref={counter}>{drawnCount(piece.strokes)} strokes</span></span>
         {children}
       </span>
     </Link>

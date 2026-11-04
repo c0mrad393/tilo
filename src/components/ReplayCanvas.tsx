@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Replayer, prefersReducedMotion } from "../engine/replay";
 import type { PaperId } from "../engine/paper";
-import type { LayerDef, Stroke } from "../engine/stroke";
+import { sizeOf, type LayerDef, type ShapeId, type Stroke } from "../engine/stroke";
 
 export type ReplayMode = "static" | "loop" | "once" | "hover";
 
@@ -13,6 +13,9 @@ interface Props {
   paper?: PaperId | null;
   /** Width of the drawing in sheet units (1600 for pieces, 2000 for the wall). */
   sheetWidth?: number;
+  /** A piece's sheet shape; sets the drawing's size instead of `sheetWidth`. */
+  shape?: ShapeId;
+  /** The box's width over height; a sheet of another shape is centred in it. Defaults to the sheet's own. */
   aspect?: number;
   label: string;
   className?: string;
@@ -21,7 +24,9 @@ interface Props {
 
 /* A canvas that shows a recording. It sizes itself to its box, plays only while it is on
    screen, and falls back to the finished picture when the viewer prefers less motion. */
-export function ReplayCanvas({ strokes, layers, mode = "static", paper = "smooth", sheetWidth = 1600, aspect = 4 / 3, label, className, onProgress }: Props) {
+export function ReplayCanvas({ strokes, layers, mode = "static", paper = "smooth", sheetWidth = 1600, shape, aspect: box, label, className, onProgress }: Props) {
+  const sheet = shape ? sizeOf({ shape }) : null;
+  const aspect = box ?? (sheet ? sheet.w / sheet.h : 4 / 3);
   const ref = useRef<HTMLCanvasElement>(null);
   const progress = useRef(onProgress);
   progress.current = onProgress;
@@ -45,7 +50,7 @@ export function ReplayCanvas({ strokes, layers, mode = "static", paper = "smooth
       if (rep && cv.width === W) return;
       cv.width = W;
       cv.height = Math.round(W / aspect);
-      rep = new Replayer(cv, strokes, paper, sheetWidth, layers);
+      rep = sheet ? new Replayer(cv, strokes, paper, sheet.w, layers, sheet.h) : new Replayer(cv, strokes, paper, sheetWidth, layers);
       rep.draw(reduced || mode === "static" || mode === "hover" ? 1 : pos);
     };
     const frame = (last: number) => (now: number) => {
@@ -107,7 +112,7 @@ export function ReplayCanvas({ strokes, layers, mode = "static", paper = "smooth
       host.removeEventListener("focusin", enter);
       host.removeEventListener("focusout", leave);
     };
-  }, [strokes, layers, mode, paper, sheetWidth, aspect]);
+  }, [strokes, layers, mode, paper, sheetWidth, shape, aspect]);
 
   return <canvas ref={ref} className={className} role="img" aria-label={label} style={{ display: "block", width: "100%", aspectRatio: String(aspect) }} />;
 }

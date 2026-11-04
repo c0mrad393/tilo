@@ -46,6 +46,8 @@ Order from here: 1.5, then the pixel-art and animation part of Stage 3, then Sta
 
 Progress, part A (v0.6): Vitest with tests for the codec (a byte-layout snapshot and seeded round trips), symmetry, perspective snap, paper grain, the view maths and colour conversion; they caught a bug where strokes on the bottom layer could land on the wrong one. The stabilizer pulls the brush along on a string (Steady, 0–100) and catches up when the pen lifts. The view turns in 15° steps (R, Shift+R), mirrors (H), and turns with a two-finger twist on touch screens; Fit (0) straightens it. Colour has a saturation and brightness square, a hue strip, a hex field and the last ten colours used. Layers rename with a double-click or the rename button.
 
+Progress, part B (v0.7): sheets come in landscape (1600 × 1200), portrait (1200 × 1600) and square (1400 × 1400), chosen before the first stroke; cards and the gallery centre other shapes on their plate, and pictures and timelapses keep the shape. The select tool (V) lassos part of a layer, then moves, scales, turns or flips it. Layers duplicate and merge down. All three are recorded as actions in the stroke list, so replays repeat them exactly; the recording is format 3 only when it holds them, and plain recordings are still byte-for-byte format 2. A merged layer stays in the recording out of sight. Undo and redo cover the actions too. Next: part D (offline, code split, error screens, accessibility), then Stage 3.
+
 ## Stage 2 — Accounts, publishing, closed beta
 
 Detailed plan, milestones and open decisions: [STAGE2.md](STAGE2.md).

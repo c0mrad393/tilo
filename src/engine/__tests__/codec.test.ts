@@ -38,6 +38,14 @@ const normal = (s: Stroke): Stroke => {
   return { ...rest, ...(l ? { l } : {}), ...(a !== undefined && a < 1 ? { a } : {}) };
 };
 
+// layer actions: a move of a lasso selection, a layer copy and a merge
+const OPS: Stroke[] = [
+  { tool: "ink", c: "#1B1E1D", w: 8, p: [100, 200, 50, 300, 260, 70], t: 1793735906754 },
+  { tool: "move", c: "", w: 0, p: [90, 190, 0, 320, 190, 0, 320, 280, 0, 90, 280, 0], t: 1793735907000, x: [205, 235, 1.25, -1.25, 0.5236, -40.5, 12] },
+  { tool: "dup", c: "", w: 0, p: [], l: 1, src: 0, t: 1793735907100 },
+  { tool: "merge", c: "", w: 0, p: [], src: 1, t: 1793735907200 },
+];
+
 describe("recording v2", () => {
   it("round-trips strokes exactly at its precision", () => {
     for (const seed of [1, 2, 3, 42, 1234]) {
@@ -51,8 +59,9 @@ describe("recording v2", () => {
   });
 
   it("starts with the magic bytes and its version", () => {
-    const b = encode(randomStrokes(7, 3));
-    expect([...b.subarray(0, 3)]).toEqual([84, 76, FORMAT]);
+    // plain strokes are still written as format 2, so older readers keep working
+    expect([...encode(randomStrokes(7, 3)).subarray(0, 3)]).toEqual([84, 76, 2]);
+    expect([...encode(OPS).subarray(0, 3)]).toEqual([84, 76, FORMAT]);
   });
 
   it("refuses data that isn't a recording, is cut short or is from a newer format", () => {
@@ -69,6 +78,17 @@ describe("recording v2", () => {
     expect(fromBase64(toBase64(b))).toEqual(b);
   });
 
+  it("round-trips layer actions (format 3)", () => {
+    expect(decode(encode(OPS))).toEqual(OPS);
+    // mixed in among ordinary strokes, everything after them still lines up
+    const mixed = [...randomStrokes(11, 40), ...OPS, ...randomStrokes(12, 40)];
+    expect(decode(encode(mixed))).toEqual(mixed.map(normal));
+  });
+
+  it("keeps a transform at the precision the studio rounds to", () => {
+    expect(decode(encode([{ tool: "move", c: "", w: 0, p: [], x: [1.04, -2.06, 0.9996, 1.0004, -3.14159, 0.05, -0.04] }]))[0].x).toEqual([1, -2.1, 1, 1, -3.1416, 0.1, 0]);
+  });
+
   // Published recordings must stay readable forever. If this snapshot changes, the format
   // changed: bump FORMAT and keep a decoder for the old version instead.
   it("keeps its byte layout", () => {
@@ -78,5 +98,9 @@ describe("recording v2", () => {
       { tool: "fill", c: "#FFFFFF", w: 1, p: [10, 10, 99], t: 1793735906700 },
     ];
     expect(toBase64(encode(strokes))).toMatchSnapshot();
+  });
+
+  it("keeps its format 3 byte layout", () => {
+    expect(toBase64(encode(OPS))).toMatchSnapshot();
   });
 });

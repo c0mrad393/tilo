@@ -8,11 +8,15 @@ import { mirrored } from "./symmetry";
 export type ToolId =
   | "pencil" | "ink" | "brushpen" | "charcoal"
   | "marker" | "wash" | "gouache" | "oil" | "spray"
-  | "fill" | "lasso"
+  | "fill" | "lasso" | "select"
   | "smudge" | "eraser";
 
+/** Recorded actions that aren't drawn with a brush: moving a selection, duplicating a layer,
+    merging one layer into another. They sit in the stroke list so a replay repeats them. */
+export type OpId = "move" | "dup" | "merge";
+
 export interface Stroke {
-  tool: ToolId;
+  tool: ToolId | OpId;
   c: string;
   w: number;
   p: number[];
@@ -28,7 +32,16 @@ export interface Stroke {
   r?: number;
   /** pen tilt per point, pairs of [azimuth 0-359, altitude 0-90] in degrees; only from a pen */
   tl?: number[];
+  /** move: the transform, [pivot x, pivot y, scale x, scale y, turn in radians, shift x, shift y];
+      the points are the outline of what was selected */
+  x?: number[];
+  /** dup and merge: the layer read from (the stroke's own layer is the one written to) */
+  src?: number;
 }
+
+export const isOp = (s: Stroke) => s.tool === "move" || s.tool === "dup" || s.tool === "merge";
+/** How many strokes were drawn, leaving out layer actions. */
+export const drawnCount = (strokes: Stroke[]) => strokes.reduce((n, s) => n + (isOp(s) ? 0 : 1), 0);
 
 export type Blend = "source-over" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "soft-light" | "color-burn";
 
@@ -38,6 +51,8 @@ export interface LayerDef {
   blend: Blend;
   opacity: number;
   hidden?: boolean;
+  /** merged into another layer: kept so the recording replays, but never shown */
+  gone?: boolean;
 }
 
 export interface Piece {
@@ -50,6 +65,8 @@ export interface Piece {
   layers?: LayerDef[];
   /** missing means smooth cartridge */
   paper?: PaperId;
+  /** missing means landscape */
+  shape?: ShapeId;
   prompt?: number;
   remixOf?: string;
   stamps?: Record<string, number>;
@@ -58,7 +75,20 @@ export interface Piece {
   tilt?: number;
 }
 
-export const SHEET = { w: 1600, h: 1200 } as const;
+export type ShapeId = "land" | "port" | "square";
+export interface SheetSize {
+  w: number;
+  h: number;
+}
+export const SHAPES: Record<ShapeId, SheetSize & { name: string }> = {
+  land: { w: 1600, h: 1200, name: "Landscape" },
+  port: { w: 1200, h: 1600, name: "Portrait" },
+  square: { w: 1400, h: 1400, name: "Square" },
+};
+export const SHAPE_IDS = Object.keys(SHAPES) as ShapeId[];
+export const sizeOf = (p: { shape?: ShapeId }) => SHAPES[p.shape ?? "land"] ?? SHAPES.land;
+/** The landscape sheet, which every piece used before shapes existed. */
+export const SHEET: SheetSize = SHAPES.land;
 export const BASE_LAYER: LayerDef = { id: 0, name: "Layer 1", blend: "source-over", opacity: 1 };
 export const layersOf = (p: { layers?: LayerDef[] }) => (p.layers?.length ? p.layers : [BASE_LAYER]);
 
@@ -75,6 +105,7 @@ export const TOOLS: Record<ToolId, { label: string; key: string; reach: number; 
   spray: { label: "Spray", key: "s", reach: 3.2, group: "paint" },
   fill: { label: "Fill", key: "f", reach: 0, group: "shape" },
   lasso: { label: "Lasso fill", key: "l", reach: 0, group: "shape" },
+  select: { label: "Select and move", key: "v", reach: 0, group: "shape" },
   smudge: { label: "Smudge", key: "u", reach: 2, group: "fix" },
   eraser: { label: "Eraser", key: "e", reach: 2.2, group: "fix" },
 };
@@ -86,20 +117,20 @@ export const pointsOf = (s: Stroke) => (s.p.length / 3) | 0;
 
 /** Draws one stroke, optionally only its first `upto` points (for replays). `k` scales
     sheet units to pixels. Symmetry is drawn as mirrored copies of the same stroke. */
-export function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke, k = 1, upto?: number, paper: PaperId = "smooth") {
+export function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke, k = 1, upto?: number, paper: PaperId = "smooth", sheet: SheetSize = SHEET) {
   const n = Math.min(upto ?? Infinity, pointsOf(s));
-  if (n < 1) return;
-  for (const copy of mirrored(s, SHEET.w, SHEET.h)) drawBrush(ctx, copy, k, n, paper);
+  if (n < 1 || isOp(s)) return;
+  for (const copy of mirrored(s, sheet.w, sheet.h)) drawBrush(ctx, copy, k, n, paper);
 }
 
 export const PAPER_COLOR = "#FBFAF5";
 
 export const toolsUsed = (strokes: Stroke[]) =>
-  [...new Set(strokes.map((s) => s.tool))].map((t) => TOOLS[t]?.label.split(" ")[0].toLowerCase() ?? t);
+  [...new Set(strokes.filter((s) => !isOp(s)).map((s) => s.tool as ToolId))].map((t) => TOOLS[t]?.label.split(" ")[0].toLowerCase() ?? t);
 
 export function paletteOf(strokes: Stroke[], max = 6) {
   const m = new Map<string, number>();
-  strokes.forEach((s) => s.tool !== "eraser" && s.tool !== "smudge" && m.set(s.c, (m.get(s.c) || 0) + pointsOf(s)));
+  strokes.forEach((s) => s.tool !== "eraser" && s.tool !== "smudge" && !isOp(s) && m.set(s.c, (m.get(s.c) || 0) + pointsOf(s)));
   return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map((e) => e[0]);
 }
 

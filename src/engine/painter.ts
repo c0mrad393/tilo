@@ -1,7 +1,8 @@
 import { floodFill } from "./brushes";
 import { PAPERS, shadeGrain, type PaperId } from "./paper";
+import { fromArr, partway, setOn } from "./select";
 import { mirrored } from "./symmetry";
-import { drawStroke, SHEET, type LayerDef, type Stroke } from "./stroke";
+import { drawStroke, pointsOf, type LayerDef, type SheetSize, type Stroke } from "./stroke";
 
 /* Holds one canvas per layer at a fixed pixel size and composites them, bottom to top, with
    each layer's blend mode and opacity. `k` is pixels per sheet unit. The studio and every
@@ -11,6 +12,7 @@ export class Painter {
   private canvases = new Map<number, HTMLCanvasElement>();
   private work: HTMLCanvasElement;
   private sample: HTMLCanvasElement | null = null;
+  private lift: HTMLCanvasElement | null = null;
   layers: LayerDef[];
 
   paper: PaperId | null;
@@ -20,6 +22,11 @@ export class Painter {
     this.paper = paper;
     this.work = this.blank();
     layers.forEach((l) => this.canvas(l.id));
+  }
+
+  /** The sheet's size in sheet units. */
+  get sheet(): SheetSize {
+    return { w: this.width / this.k, h: this.height / this.k };
   }
 
   private blank() {
@@ -53,16 +60,63 @@ export class Painter {
   }
 
   apply(s: Stroke) {
+    if (s.tool === "dup" || s.tool === "merge") return this.layerOp(s);
     const ctx = this.canvas(this.layerOf(s)).getContext("2d")!;
-    if (s.tool !== "fill") return drawStroke(ctx, s, this.k, undefined, this.paper ?? "smooth");
+    if (s.tool === "move") return this.move(ctx, s, 1);
+    if (s.tool !== "fill") return drawStroke(ctx, s, this.k, undefined, this.paper ?? "smooth", this.sheet);
     // fill looks at every visible layer, so it stops at lines drawn on other layers too
-    for (const copy of mirrored(s, SHEET.w, SHEET.h)) {
+    for (const copy of mirrored(s, this.sheet.w, this.sheet.h)) {
       const sample = (this.sample ??= this.blank());
       const sc = sample.getContext("2d")!;
       sc.clearRect(0, 0, this.width, this.height);
       this.render(sc, undefined, "sample");
       floodFill(ctx, sample, copy.p[0] * this.k, copy.p[1] * this.k, s.c, s.a ?? 1);
     }
+  }
+
+  /* dup copies the source layer onto the stroke's layer; merge draws it there with its own
+     blend and opacity, then empties it. As with strokes, a missing layer is layer 0. */
+  private layerOp(s: Stroke) {
+    const from = this.layers.find((l) => l.id === s.src), to = s.l ?? 0;
+    if (!from || to === from.id) return;
+    const src = this.canvas(from.id);
+    const ctx = this.canvas(to).getContext("2d")!;
+    ctx.save();
+    if (s.tool === "dup") {
+      ctx.globalCompositeOperation = "copy";
+      ctx.drawImage(src, 0, 0);
+    } else {
+      ctx.globalAlpha = from.opacity;
+      ctx.globalCompositeOperation = from.blend;
+      ctx.drawImage(src, 0, 0);
+      src.getContext("2d")!.clearRect(0, 0, this.width, this.height);
+    }
+    ctx.restore();
+  }
+
+  /* lifts what is inside the outline, clears it, and puts it back transformed (`k` of the way) */
+  private move(ctx: CanvasRenderingContext2D, s: Stroke, part: number) {
+    const n = pointsOf(s);
+    if (n < 3 || !s.x) return;
+    const k = this.k;
+    const outline = new Path2D();
+    for (let i = 0; i < n; i++) outline[i ? "lineTo" : "moveTo"](s.p[i * 3] * k, s.p[i * 3 + 1] * k);
+    outline.closePath();
+    const lift = (this.lift ??= this.blank());
+    const lc = lift.getContext("2d")!;
+    lc.globalCompositeOperation = "copy";
+    lc.drawImage(ctx.canvas, 0, 0);
+    lc.globalCompositeOperation = "destination-in";
+    lc.fill(outline);
+    lc.globalCompositeOperation = "source-over";
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fill(outline);
+    ctx.restore();
+    ctx.save();
+    setOn(ctx, partway(fromArr(s.x), part), k);
+    ctx.drawImage(lift, 0, 0);
+    ctx.restore();
   }
 
   /** Composites the paper and the layers into `ctx` at its current transform. A `live` stroke
@@ -79,15 +133,17 @@ export class Painter {
     const liveId = live ? this.layerOf(live.stroke) : null;
     ctx.save();
     for (const l of this.layers) {
-      if (l.hidden) continue;
+      if (l.hidden || l.gone) continue;
       let src = this.canvas(l.id);
       if (l.id === liveId && live) {
         const w = this.work.getContext("2d")!;
         w.globalCompositeOperation = "copy";
         w.drawImage(src, 0, 0);
         w.globalCompositeOperation = "source-over";
-        if (live.stroke.tool === "fill") this.previewFill(w, live.stroke);
-        else drawStroke(w, live.stroke, this.k, live.upto, this.paper ?? "smooth");
+        const ls = live.stroke;
+        if (ls.tool === "fill") this.previewFill(w, ls);
+        else if (ls.tool === "move") this.move(w, ls, live.upto === undefined ? 1 : live.upto / Math.max(1, pointsOf(ls)));
+        else drawStroke(w, ls, this.k, live.upto, this.paper ?? "smooth", this.sheet);
         src = this.work;
       }
       ctx.globalAlpha = l.opacity;

@@ -975,6 +975,7 @@ a.index-name::after {
   width: 100%;
   height: auto;
   aspect-ratio: 4 / 3;
+  object-fit: contain;
 }
 .sheet-actions {
   display: flex;
@@ -1058,11 +1059,17 @@ a.index-name::after {
   gap: 14px;
   padding: 18px;
 }
+.player-frame {
+  --aspect: 4 / 3;
+  /* a tall sheet stays within the window */
+  max-width: min(100%, calc(78vh * var(--aspect)));
+  margin-inline: auto;
+}
 .player-frame canvas {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: var(--aspect);
 }
 .player {
   display: flex;
@@ -1349,6 +1356,26 @@ button.stamp[aria-pressed="true"] {
 .view-ctl .icon-btn[aria-pressed="true"] {
   background: #1d1b19;
   color: var(--paper);
+}
+.sel-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  translate: -50% 0;
+  background: var(--paper);
+  color: #1d1b19;
+  box-shadow: 0 0 0 1px rgba(29, 27, 25, 0.16), 0 8px 18px -12px rgba(0, 0, 0, 0.5);
+}
+.sel-bar .btn {
+  min-height: 40px;
+  padding: 0 14px;
+}
+.studio-sheet[data-tool="select"] .ring {
+  display: none;
 }
 .remix-banner {
   position: absolute;
@@ -1772,6 +1799,11 @@ dialog::backdrop {
   display: grid;
   gap: 12px;
   padding: 16px;
+}
+/* a tall sheet is narrowed so all of it fits in the window */
+.replay-box > canvas {
+  max-width: min(100%, calc((100vh - 150px) * var(--aspect, 4 / 3)));
+  margin-inline: auto;
 }
 .replay-box .row {
   justify-content: space-between;
