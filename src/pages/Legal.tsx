@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { ACCOUNTS } from "../data/account";
-import { ANSWER_IN, type ClaimKind, CONTACT, LEGAL, MAIL_SERVICE, MIN_AGE, OPERATOR, runBy, sendClaim, UPDATED } from "../data/legal";
+import { ANSWER_IN, type ClaimKind, CONTACT, LEGAL, MAIL_SERVICE, MIN_AGE, OPERATOR, runBy, sendClaim, SUPPORT, UPDATED } from "../data/legal";
 
 /* /terms, /privacy and /takedown: what Tilo asks of members, what it keeps about them, and
    how to get something taken down. Written to be read, in plain words; the facts they rest
@@ -162,6 +162,7 @@ export function Privacy() {
         <li><b>Cloudflare, Inc.</b> carries every page and file between the server and you, and keeps copies of public pictures near you. It is in the USA and certified under the EU–US Data Privacy Framework.</li>
         <li><b>{MAIL_SERVICE || "A mail service"}</b> sends the sign-in emails, so it sees your email address.</li>
         <li><b>Google</b>, only if you choose to sign in with Google.</li>
+        {SUPPORT.via && <li><b>{SUPPORT.via}</b>, for gifts on the <Link to="/support">support page</Link>. Tilo only sees the name, message and amount the giver shares there, and keeps them as long as the law asks for records of money received.</li>}
       </ul>
       <p className="serif">No one else gets your data, unless the law makes us hand it over.</p>
 

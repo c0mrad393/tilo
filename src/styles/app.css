@@ -2729,6 +2729,36 @@ a.admin-tile:hover b {
 .legal-page ul li + li {
   margin-top: 6px;
 }
+.support-cta {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-2);
+  margin: var(--s-5) 0;
+}
+.support-soon {
+  margin: var(--s-5) 0;
+  padding: var(--s-4);
+  border-left: 3px solid var(--pink);
+  background: var(--ground-2);
+}
+.support-costs {
+  width: 100%;
+  max-width: 36rem;
+  margin-bottom: var(--s-4);
+  border-collapse: collapse;
+  font-size: 17px;
+}
+.support-costs th,
+.support-costs td {
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  text-align: left;
+  font-weight: 400;
+}
+.support-costs td {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .claim-form {
   display: grid;
   gap: var(--s-4);

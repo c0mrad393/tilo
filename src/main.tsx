@@ -40,6 +40,7 @@ const router = createBrowserRouter([
           { path: "/terms", lazy: () => import("./pages/Legal").then((m) => ({ Component: m.Terms })) },
           { path: "/privacy", lazy: () => import("./pages/Legal").then((m) => ({ Component: m.Privacy })) },
           { path: "/takedown", lazy: () => import("./pages/Legal").then((m) => ({ Component: m.Takedown })) },
+          { path: "/support", lazy: () => import("./pages/Support").then((m) => ({ Component: m.Support })) },
           { path: "/proof", lazy: () => import("./pages/Proof").then((m) => ({ Component: m.Proof })) },
           { path: "*", Component: NotFound },
         ],

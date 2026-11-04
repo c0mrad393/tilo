@@ -266,6 +266,17 @@ claims are answered within two working days.
   payouts for you here, then pick a platform that uses it (Ko-fi pays out to PayPal,
   for example).
 
+Progress (2.7, page done, route deferred). `/support` ("Keep the press running") is linked
+from the footer: what Tilo costs, what giving doesn't buy, and other ways to help. Until a
+route is set it says gifts open soon. What was found (November 2026): PayPal's own list now
+has Georgia under "send, receive and withdraw", though older guides still say send-only and
+withdrawing to a Georgian bank reportedly needs a Visa card; Stripe still doesn't serve
+Georgia, which rules out Buy Me a Coffee. The plan: you check that PayPal receives and
+withdraws (a small test payment), then Ko-fi (no fee on one-off gifts, pays out to PayPal)
+or a PayPal.me link. Turning it on is one change: `SUPPORT.url` and `SUPPORT.via` in
+`src/data/legal.ts`, which also adds the service to the privacy policy. Worth asking an
+accountant how gifts to a private person are taxed in Georgia.
+
 ### 2.8 Server, deploy and beta operations (about 1.5 weeks)
 - Server setup, as a script plus written steps you run on the VPS:
   - firewall open only for SSH, 80 and 443, with 80 and 443 limited to Cloudflare's addresses;

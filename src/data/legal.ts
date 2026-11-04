@@ -40,3 +40,20 @@ export interface Claim {
 }
 
 export const sendClaim = (claim: Claim) => call<{ id: number }>("/api/claims", { method: "POST", json: claim });
+
+/** Where donations go. Empty until the route is settled (2.7: PayPal receiving in Georgia
+    is to be confirmed, then Ko-fi or a PayPal.me link); /support says "opens soon" until
+    then, and the privacy policy names `via` once it is set. */
+export const SUPPORT = {
+  url: "",
+  /** the service that takes the money, e.g. "Ko-fi and PayPal" */
+  via: "",
+};
+
+/** what Tilo costs to run, shown on /support; the beta-size estimate in docs/STAGE2.md */
+export const COSTS: [string, string][] = [
+  ["The server, at netcup in Germany", "about €8 a month"],
+  ["Backups at a second provider", "€0–3 a month"],
+  ["The tiloart.com domain", "about $10 a year"],
+  ["Cloudflare and sign-in mail", "free tiers, for now"],
+];

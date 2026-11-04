@@ -115,7 +115,7 @@ export function Layout() {
             </section>
             <section>
               <h2 className="kicker">Free, for good</h2>
-              <p className="serif">Drawing, the wall, the gallery and stamps are free and stay free. Ways to support Tilo open with the beta.</p>
+              <p className="serif">Drawing, the wall, the gallery and stamps are free and stay free. <Link to="/support">Support Tilo</Link></p>
             </section>
             <section>
               <h2 className="kicker">The small print</h2>
