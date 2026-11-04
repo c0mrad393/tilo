@@ -2472,6 +2472,227 @@ main[tabindex="-1"]:focus {
   padding: 6px 0;
   border-bottom: 1px solid var(--rule-soft);
 }
+/* the admin panel: tabs over the queue and the admin pages, tiles, one chart, tables */
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--rule-soft);
+  font-weight: 700;
+  font-size: 14px;
+}
+.admin-tabs a {
+  padding: 6px 0;
+  color: var(--ground-soft);
+  text-decoration: none;
+}
+.admin-tabs a:hover {
+  color: var(--ground-ink);
+}
+.admin-tabs a.active {
+  color: var(--ground-ink);
+  box-shadow: inset 0 -3px 0 var(--blue);
+}
+.admin-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 1px;
+}
+.admin-tile {
+  display: grid;
+  gap: 4px;
+  padding: var(--s-4);
+  outline: 1px solid var(--rule-soft);
+  color: var(--ground-ink);
+  text-decoration: none;
+}
+a.admin-tile:hover b {
+  color: var(--blue);
+}
+.admin-tile b {
+  font-size: var(--t-xl);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.admin-tile .serif {
+  font-size: 14px;
+  color: var(--ground-soft);
+}
+.admin-chart {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+}
+.admin-bars {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  align-items: end;
+  gap: 2px;
+  height: 140px;
+  border-bottom: 1px solid var(--ground-soft);
+}
+.admin-bar {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  outline-offset: 2px;
+}
+.admin-bar i {
+  width: min(100%, 22px);
+  min-height: 1px;
+  border-radius: 4px 4px 0 0;
+  background: var(--blue);
+}
+.admin-bar:hover i,
+.admin-bar:focus-visible i {
+  opacity: 0.8;
+}
+.admin-bar:hover::after,
+.admin-bar:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  z-index: 2;
+  padding: 4px 8px;
+  white-space: nowrap;
+  background: var(--ground-ink);
+  color: var(--ground);
+  font-size: 13px;
+  pointer-events: none;
+}
+.admin-bar:first-child::after {
+  left: 0;
+}
+.admin-bar:last-child::after {
+  right: 0;
+}
+.admin-bars-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ground-soft);
+}
+.admin-card {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--rule-soft);
+}
+.queue-page .admin-card h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.admin-card .check {
+  font-size: 16px;
+}
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--s-3);
+}
+.admin-filters .field {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.admin-filters .field input {
+  width: 20rem;
+  max-width: 100%;
+}
+.admin-filters .field input[type="number"] {
+  width: 6rem;
+}
+.admin-page select {
+  min-height: 46px;
+  padding: 0 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  color-scheme: light;
+}
+.admin-table select {
+  min-height: 36px;
+}
+.admin-table-wrap {
+  overflow-x: auto;
+}
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.admin-table th {
+  padding: 8px 10px 8px 0;
+  border-bottom: 2px solid var(--rule);
+  text-align: left;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.admin-table td {
+  padding: 10px 10px 10px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+.admin-table a {
+  color: var(--blue);
+  font-weight: 700;
+}
+.admin-sub {
+  display: block;
+  font-family: var(--f-serif);
+  color: var(--ground-soft);
+}
+.admin-flag {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 0 6px;
+  background: var(--pink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.admin-email {
+  white-space: nowrap;
+}
+.admin-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.admin-made {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-2);
+}
+.admin-made p {
+  margin: 0;
+}
+.admin-made code {
+  white-space: pre;
+  padding: var(--s-3);
+  background: var(--ground-2);
+  font-family: var(--f-mono);
+  font-size: 14px;
+}
+.admin-table .mono {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.admin-pager {
+  align-items: center;
+}
+.queue-log li p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
 .prose-page {
   max-width: 44rem;
   padding-block: var(--s-7) var(--s-9);

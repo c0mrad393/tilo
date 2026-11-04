@@ -58,9 +58,11 @@ function QueueLink() {
     ]).then(([held, reports]) => setN(new Set([...held.map((p) => p.id), ...reports.map((r) => r.piece ?? r.profile)]).size), () => {});
   }, [isMod, pathname]);
   if (!isMod) return null;
+  // admins land on the queue too; the admin panel's other tabs sit beside it
+  const label = profile.role === "admin" ? "Admin" : "Queue";
   return (
-    <NavLink to="/mod" viewTransition className="nav-queue" aria-label={n ? `Queue, ${n} waiting` : "Queue"}>
-      Queue{n ? <b>{n}</b> : null}
+    <NavLink to="/mod" viewTransition className="nav-queue" aria-label={n ? `${label}, ${n} waiting` : label}>
+      {label}{n ? <b>{n}</b> : null}
     </NavLink>
   );
 }

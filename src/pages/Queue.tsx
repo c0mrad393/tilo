@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import { AdminTabs } from "../components/AdminTabs";
 import { ModButtons, screenLine, usePicture, WHY_FOR_MODS } from "../components/Moderation";
 import { ACCOUNTS, call, useAccount } from "../data/account";
 import { fromRow, moderate, type Published, type Reason, SELECT } from "../data/pieces";
@@ -38,7 +39,7 @@ interface LogRow {
 }
 type Held = Published & { screen: Parameters<typeof screenLine>[0] };
 
-const when = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+export const when = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 async function loadQueue() {
   const [held, reports, log] = await Promise.all([
@@ -94,7 +95,7 @@ function Dismiss({ reports, onDone }: { reports: Report[]; onDone: () => void })
   return <button className="btn btn-quiet" disabled={busy} onClick={go}>Dismiss {reports.length > 1 ? `the ${reports.length} reports` : "the report"}</button>;
 }
 
-function PieceItem({ piece, reports, onDone }: { piece: Published & { screen?: Held["screen"] }; reports: Report[]; onDone: () => void }) {
+export function PieceItem({ piece, reports, onDone }: { piece: Published & { screen?: Held["screen"] }; reports: Report[]; onDone: () => void }) {
   return (
     <li className="queue-item">
       <Thumb piece={piece} />
@@ -103,7 +104,7 @@ function PieceItem({ piece, reports, onDone }: { piece: Published & { screen?: H
           <Link to={`/piece/${piece.id}`}>{piece.title}</Link> <span className="serif">by <Link to={`/u/${piece.by}`}>@{piece.by}</Link></span>
         </p>
         <p className="serif queue-why">
-          {piece.status === "held" && piece.why ? `Waiting: ${WHY_FOR_MODS[piece.why]}.` : "In the gallery."} {piece.screen !== undefined && screenLine(piece.screen)}
+          {piece.status === "live" ? "In the gallery." : `${piece.status === "held" ? "Waiting" : piece.status === "hidden" ? "Hidden" : "Removed"}${piece.why ? `: ${WHY_FOR_MODS[piece.why]}` : ""}.`} {piece.screen !== undefined && screenLine(piece.screen)}
         </p>
         <ReportList reports={reports} />
         <div className="row row-start">
@@ -115,7 +116,7 @@ function PieceItem({ piece, reports, onDone }: { piece: Published & { screen?: H
   );
 }
 
-const LOGGED: Record<string, string> = { approve: "let in", hide: "hid", remove: "removed", dismiss: "dismissed a report on", suspend: "suspended", unsuspend: "lifted the suspension of" };
+export const LOGGED: Record<string, string> = { approve: "let in", hide: "hid", remove: "removed", dismiss: "dismissed a report on", suspend: "suspended", unsuspend: "lifted the suspension of" };
 
 export function Queue() {
   const { ready, profile } = useAccount();
@@ -150,6 +151,7 @@ export function Queue() {
 
   return (
     <main id="main" tabIndex={-1} className="wrap queue-page">
+      {profile?.role === "admin" && <AdminTabs />}
       <p className="kicker">For mods</p>
       <h1>The queue</h1>
       <p className="serif queue-lede">
