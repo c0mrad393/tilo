@@ -106,19 +106,85 @@ migration that updates `tilo_meta.settings` `terms_version` and change `TERMS_VE
 `src/data/legal.ts` in the same commit, or nobody can join.
 
 Takedown claims arrive at `POST /api/claims` from anyone and are answered under Admin >
-Claims. The per-address limit reads `CF-Connecting-IP`, which Cloudflare sets; that is only
-trustworthy while 80 and 443 accept Cloudflare's addresses alone (2.8).
+Claims. The per-address limit reads `X-Tilo-Client-Ip`, which the Worker sets from
+Cloudflare's `CF-Connecting-IP`; Caddy turns away anything that didn't come through the Worker
+(see The edge), so nobody can pick their own address. Auth's rate limits read it too.
 
 Once a day tilo-api calls `public.prune_sign_ins()`, which deletes Auth's sign-in log after
 30 days and sessions unused for 90, and deletes answered claims after three years.
 
-## Mail and Google on the server
+## The edge
 
-On the VPS, drop the `local` profile and point `SMTP_*` at the mail provider (Resend or
-Brevo), with `SMTP_ADMIN_EMAIL` on a domain whose SPF and DKIM records the provider has
-checked. For Google, make an OAuth client (type "Web application") with the redirect URI
+On tiloart.com, the Cloudflare Worker "tilo" (`worker/index.ts`, `wrangler.jsonc`) serves
+the built app itself, so the studio keeps working when the server is down. It sends
+`/auth/v1`, `/rest/v1`, `/api` and `/files`, and crawlers asking for `/piece/*` or `/u/*`,
+to the VPS through a Cloudflare Tunnel: `cloudflared` runs in the stack (the `server`
+profile) and dials out to Cloudflare, so the VPS has no web port open and needs no
+certificate. The tunnel's public hostname points at `http://caddy:8000`.
+
+```
+browser → tiloart.com (Worker) ─┬─ the app, from dist/ on Cloudflare
+                                └─ server paths → origin hostname → tunnel → Caddy → …
+```
+
+The Worker's settings (Workers & Pages > tilo > Settings):
+
+- `ORIGIN`: the tunnel's public hostname, like `https://origin.tiloart.com`. Until it's set,
+  the Worker serves only the app, as before accounts.
+- `EDGE_SECRET` (a secret): the same value as `EDGE_SECRET` in the server's `.env`. Caddy
+  answers 403 to any request without it, so the origin hostname is no way around the Worker.
+- Build variable `VITE_TILO_ANON_KEY`: `ANON_KEY` from the server's `.env`. The app shows
+  accounts only when it's built with it, so setting it is the switch that opens sign-in.
+
+`EDGE_ORIGIN` in the server's `.env` is the same as `ORIGIN`: Cloudflare caches the Worker's
+requests under that hostname, so a takedown purges both.
+
+## On the server
+
+Everything is run from this Mac, in the repository:
+
+```bash
+npm run server:deploy    # sends server/ and src/engine to the VPS, rebuilds, waits until healthy
+```
+
+The first time, it stops and says how to make the server's `.env` there (with
+`setup-env.mjs --server https://tiloart.com`, so the secrets never leave the VPS). Then fill
+in, on the server: `TUNNEL_TOKEN` (the tunnel's page), `SMTP_PASS` (a Resend API key with
+"Sending access" on tiloart.com), `EDGE_ORIGIN`, and `CF_ZONE_ID` and `CF_API_TOKEN` for
+purges. Deploy again, then once: `sudo bash ~/tilo/server/ops/install.sh`.
+
+Mail goes through Resend on port 2587 (netcup's Mail Block shuts the usual SMTP ports), from
+`hello@tiloart.com`, once Resend has checked the domain's SPF and DKIM records. For Google
+sign-in later, make an OAuth client (type "Web application") with the redirect URI
 `{PUBLIC_URL}/auth/v1/callback`, put its id and secret in `GOOGLE_CLIENT_ID` and
 `GOOGLE_SECRET`, and set `GOOGLE_ENABLED=true`. The button appears by itself.
+
+`/api/health` answers 503 when the database is unreachable or the disk is under 10% (or
+2 GB) free; an UptimeRobot monitor on `https://tiloart.com/api/health` emails when it fails.
+Docker's own health check uses `/api/health/live`, which doesn't look at the disk.
+
+## Backups
+
+`server/ops/backup.sh` runs every night at about 03:30 UTC (`tilo-backup.timer`): the whole
+database, the files volume and `server/.env`, in one archive encrypted with
+[age](https://age-encryption.org) to a public key, sent to the R2 bucket. `daily/` keeps
+8 days, `weekly/` (Sundays) 4 weeks. Settings are in `/etc/tilo/backup.env`
+(`server/ops/backup.env.example`). The private key is not on the server: a stolen server or
+bucket can't open a backup, and a lost key can't be replaced, so keep it in the password
+manager.
+
+```bash
+sudo systemctl start tilo-backup        # one now
+journalctl -u tilo-backup -n 20         # how the last ones went
+```
+
+To bring one back, copy the archive and the key to the server and run
+`server/ops/restore.sh tilo-2026-11-04.tar.age tilo-backup.key`. With
+`COMPOSE_PROJECT=tilo-restore` it restores beside the running site, with no port and no
+tunnel, to check a backup; remove that with
+`docker compose -p tilo-restore -f server/docker-compose.yml down -v`. With the default
+project it is the real thing, for a new server: it puts the backup's `.env` in place and
+refuses a database that already has Tilo in it. Delete the key from the server afterwards.
 
 ## The VPS
 
@@ -127,7 +193,8 @@ netcup VPS 500 G12.5 (2 vCPU, 4 GB, 64 GB), Debian 13, `62.83.82.133`, set up on
 - Only the user `tilo` (sudo without a password, in the `docker` group) can log in, with an SSH
   key; root and password logins are off (`/etc/ssh/sshd_config.d/10-tilo.conf`). On the Mac,
   `~/.ssh/config` has a `tilo` host, so `ssh tilo` is enough.
-- `ufw` allows 22 (rate-limited), 80, 443 and 443/udp, nothing else. Docker writes its own
+- `ufw` allows only 22 (rate-limited); `install.sh` closed 80 and 443, as the tunnel needs
+  neither. fail2ban bans an address for an hour after 5 failed SSH logins. Docker writes its own
   firewall rules for published ports and goes around `ufw`, so a compose port that isn't
   meant for the world binds to `127.0.0.1`.
 - Debian security and stable updates install by themselves (`unattended-upgrades`); Docker

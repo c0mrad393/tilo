@@ -1,0 +1,11 @@
+# Starts tilo-backup.service every night; a night the server was off runs at the next boot.
+[Unit]
+Description=Nightly Tilo backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,14 @@
+# The nightly backup (backup.sh). install.sh puts this in /etc/systemd/system.
+# Run one now with: sudo systemctl start tilo-backup; see how it went: journalctl -u tilo-backup
+[Unit]
+Description=Tilo backup to R2
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=tilo
+Group=tilo
+ExecStart=/home/tilo/tilo/server/ops/backup.sh /etc/tilo/backup.env
+Nice=10
+IOSchedulingClass=idle

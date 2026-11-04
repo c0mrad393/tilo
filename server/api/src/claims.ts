@@ -20,7 +20,8 @@ export function claims(sql: Sql, { jwtSecret, site }: { jwtSecret: string; site:
   const sent = new Map<string, number[]>();
 
   app.post("/", async (c) => {
-    const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0].trim() ?? "?";
+    // the Worker passes the visitor's address on; Caddy lets nothing else in on the server
+    const ip = c.req.header("x-tilo-client-ip") || c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0].trim() || "?";
     const now = Date.now();
     const recent = (sent.get(ip) ?? []).filter((t) => now - t < 3600_000);
     if (recent.length >= PER_HOUR) return c.json({ error: "Too many claims from here in an hour. Write to legal@tiloart.com instead." }, 429);

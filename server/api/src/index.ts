@@ -1,3 +1,4 @@
+import { statfs } from "node:fs/promises";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -29,16 +30,27 @@ const sql = postgres(env("DATABASE_URL"), { max: 5, idle_timeout: 30 });
 const member = signedIn(env("JWT_SECRET"));
 const filesDir = env("FILES_DIR");
 const site = env("PUBLIC_URL").replace(/\/$/, "");
-const purge = purger(process.env.CF_ZONE_ID, process.env.CF_API_TOKEN);
+// the Worker fetches files from the tunnel's address, so the edge caches them under that
+// address as well as under the site's; a purge covers both
+const edgeOrigin = process.env.EDGE_ORIGIN?.replace(/\/$/, "");
+const purgeOne = purger(process.env.CF_ZONE_ID, process.env.CF_API_TOKEN);
+const purge = (urls: string[]) => purgeOne(edgeOrigin ? [...urls, ...urls.map((u) => edgeOrigin + u.slice(site.length))] : urls);
 const move = statuses(sql, { filesDir, site, purge });
 const screen = screener(sql, { filesDir, move, trustAfter: Number(process.env.TRUST_AFTER ?? 3) });
 const admin = { authUrl: env("AUTH_URL"), serviceKey: env("SERVICE_ROLE_KEY") };
 
 const app = new Hono<AuthEnv>().basePath("/api");
 
+// Docker's check: the process answers (a full disk mustn't stop the stack from starting)
+app.get("/health/live", (c) => c.json({ ok: true }));
+
+// the uptime check reads this: the database answers, and the disk isn't filling up
 app.get("/health", async (c) => {
   await sql`select 1`;
-  return c.json({ ok: true, format: FORMAT });
+  const disk = await statfs(filesDir);
+  const free = disk.bavail / disk.blocks;
+  const roomy = free > 0.1 && disk.bavail * disk.bsize > 2 ** 31;
+  return c.json({ ok: roomy, format: FORMAT, disk_free: Math.round(free * 100) / 100 }, roomy ? 200 : 503);
 });
 
 app.route(

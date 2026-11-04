@@ -2,10 +2,18 @@
 # SITE_ADDRESS is ":8000" on this computer; on the server it becomes the domain.
 {
 	admin off
+	# a site-level respond (the edge check below) runs before any handle block
+	order respond first
 }
 
 {$SITE_ADDRESS::8000} {
 	encode zstd gzip
+
+	# on the server only the Worker reaches Caddy, through the tunnel, and it sends
+	# EDGE_SECRET; anything else that finds the tunnel's address is turned away. Locally
+	# EDGE_SECRET is empty and this lets everything through.
+	@outside expression `{env.EDGE_SECRET} != "" && {http.request.header.X-Tilo-Edge} != {env.EDGE_SECRET}`
+	respond @outside 403
 
 	handle_path /auth/v1/* {
 		reverse_proxy auth:9999

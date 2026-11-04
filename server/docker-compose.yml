@@ -63,6 +63,8 @@ services:
       GOTRUE_SMTP_PASS: ${SMTP_PASS}
       GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME}
       GOTRUE_RATE_LIMIT_EMAIL_SENT: ${MAIL_RATE_LIMIT}
+      # behind the Worker every request comes from Cloudflare; this header says who asked
+      GOTRUE_RATE_LIMIT_HEADER: X-Tilo-Client-Ip
       # a sign-in link works once, for an hour
       GOTRUE_MAILER_OTP_EXP: 3600
       # links in emails are the site's origin plus these paths (not API_EXTERNAL_URL's path)
@@ -154,6 +156,7 @@ services:
       # purges the edge cache when a piece leaves the gallery; empty on this computer
       CF_ZONE_ID: ${CF_ZONE_ID:-}
       CF_API_TOKEN: ${CF_API_TOKEN:-}
+      EDGE_ORIGIN: ${EDGE_ORIGIN:-}
       # absolute links in link previews
       PUBLIC_URL: ${PUBLIC_URL}
       # for deleting accounts, through Auth's admin API
@@ -162,7 +165,7 @@ services:
     volumes:
       - files:/srv/files
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8787/api/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8787/api/health/live"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -181,12 +184,27 @@ services:
       - ${CADDY_BIND}:8000
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS}
+      EDGE_SECRET: ${EDGE_SECRET:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./mail:/srv/mail:ro
       - files:/srv/files:ro
       - ../dist:/srv/app:ro
       - caddy-data:/data
+
+  # on the server: the outbound tunnel the Cloudflare Worker reaches Caddy through, so the
+  # VPS needs no open web ports and no certificate. COMPOSE_PROFILES=server turns it on;
+  # the tunnel's public hostname (dashboard) points at http://caddy:8000.
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.0
+    profiles: ["server"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      caddy:
+        condition: service_started
 
   # catches Auth's email on this computer; COMPOSE_PROFILES=local turns it on
   mail:

@@ -3,7 +3,10 @@
 // An existing .env keeps its values (new secrets would lock you out of the database); only
 // settings added to .env.example since are appended. --force starts over with new secrets.
 // Also writes the app's .env.local with the public anon key, which turns accounts on in dev.
-// Usage, from the repository root or server/: node server/scripts/setup-env.mjs [--force]
+// With --server https://tiloart.com it writes the server's settings instead: that address,
+// the tunnel and Resend in place of Mailpit, no local seed data, a fresh EDGE_SECRET, and no
+// .env.local. Run it on the server, so the secrets never leave it.
+// Usage, from the repository root or server/: node server/scripts/setup-env.mjs [--force] [--server URL]
 import { createHmac, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -48,12 +51,33 @@ if (existsSync(target) && !process.argv.includes("--force")) {
     ANON_KEY: jwt({ role: "anon", iss: "supabase", iat, exp }, secret),
     SERVICE_ROLE_KEY: jwt({ role: "service_role", iss: "supabase", iat, exp }, secret),
   };
-  const text = example.replace(/^([A-Z_]+)=$/gm, (line, key) => (key in values ? `${key}=${values[key]}` : line));
+  const at = process.argv.indexOf("--server");
+  const site = at > 0 ? process.argv[at + 1]?.replace(/\/$/, "") : null;
+  if (at > 0 && !/^https:\/\/[a-z0-9.-]+$/.test(site ?? "")) throw new Error("--server needs the site's address, like https://tiloart.com");
+  const server = site
+    ? {
+        PUBLIC_URL: site,
+        SITE_URL: site,
+        REDIRECT_URLS: `${site}/**`,
+        COMPOSE_PROFILES: "server",
+        // Resend, on a port netcup's mail block leaves open; SMTP_PASS is its API key
+        SMTP_HOST: "smtp.resend.com",
+        SMTP_PORT: "2587",
+        SMTP_USER: "resend",
+        SEED: "false",
+        EDGE_SECRET: randomBytes(32).toString("base64url"),
+      }
+    : {};
+  const text = example
+    .replace(/^([A-Z_]+)=(.*)$/gm, (line, key) => (key in server ? `${key}=${server[key]}` : line))
+    .replace(/^([A-Z_]+)=$/gm, (line, key) => (key in values ? `${key}=${values[key]}` : line));
   writeFileSync(target, text, { mode: 0o600 });
   env = parse(text);
   console.log("Wrote server/.env with new secrets.");
 }
 
-// the app reads VITE_* settings from .env.local (git-ignored); the anon key is public anyway
+// the app reads VITE_* settings from .env.local (git-ignored); the anon key is public anyway.
+// On the server there is no app to build: the Worker's build gets the key from its settings.
+if (process.argv.includes("--server")) process.exit(0);
 writeFileSync(join(dir, "..", ".env.local"), `# written by server/scripts/setup-env.mjs\nVITE_TILO_ANON_KEY=${env.ANON_KEY}\n`);
 console.log("Wrote .env.local for the app.");
