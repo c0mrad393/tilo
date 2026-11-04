@@ -6,6 +6,7 @@ set -euo pipefail
 until pg_isready -q; do sleep 1; done
 
 psql -v ON_ERROR_STOP=1 -q <<'SQL'
+set client_min_messages = warning;
 create schema if not exists tilo_meta;
 create table if not exists tilo_meta.migrations (name text primary key, applied timestamptz not null default now());
 SQL

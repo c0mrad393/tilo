@@ -22,6 +22,11 @@ npm run server:smoke                # signs up a test member and checks the rule
 npm run dev                         # the app on :4640, which proxies to Caddy on :8000
 ```
 
+Mail doesn't leave this computer: `COMPOSE_PROFILES=local` starts Mailpit, which catches
+every sign-in link at http://localhost:8025. Accounts show in the app once
+`setup-env.mjs` has written `VITE_TILO_ANON_KEY` to `.env.local` (restart `npm run dev`);
+the seed adds invite codes `LOCAL-0001` to `LOCAL-0003`.
+
 `npm run server:logs` follows the logs, `npm run server:down` stops everything (the data
 stays in Docker volumes). To start over with an empty database:
 `docker compose -f server/docker-compose.yml down -v`.
@@ -38,6 +43,7 @@ stays in Docker volumes). To start over with an empty database:
 | `migrations/` | the schema and access rules; add new files, never edit applied ones |
 | `api/` | tilo-api; reads recordings with `src/engine/codec.ts` |
 | `scripts/` | secrets setup and the smoke test |
+| `mail/` | the sign-in, sign-up and email-change mails; Caddy serves them to Auth on `:8080` |
 
 ## Keys
 
@@ -45,3 +51,11 @@ stays in Docker volumes). To start over with an empty database:
 row-level security rules allow a signed-out visitor. `SERVICE_ROLE_KEY` bypasses every rule;
 it stays on the server. Both are signed with `JWT_SECRET`, which also signs every session,
 so changing it signs everyone out.
+
+## Mail and Google on the server
+
+On the VPS, drop the `local` profile and point `SMTP_*` at the mail provider (Resend or
+Brevo), with `SMTP_ADMIN_EMAIL` on a domain whose SPF and DKIM records the provider has
+checked. For Google, make an OAuth client (type "Web application") with the redirect URI
+`{PUBLIC_URL}/auth/v1/callback`, put its id and secret in `GOOGLE_CLIENT_ID` and
+`GOOGLE_SECRET`, and set `GOOGLE_ENABLED=true`. The button appears by itself.

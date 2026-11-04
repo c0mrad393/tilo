@@ -34,3 +34,9 @@
 		file_server
 	}
 }
+
+# inside the compose network only (no published port): the email templates Auth fetches
+http://:8080 {
+	root * /srv/mail
+	file_server
+}

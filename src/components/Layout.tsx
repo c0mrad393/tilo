@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { NavLink, Outlet, ScrollRestoration, useLocation, useNavigation } from "react-router";
+import { ACCOUNTS, handleHint, useAccount } from "../data/account";
 import { PROMPT } from "../data/samples";
 import { Logo } from "./Logo";
 
@@ -31,6 +32,17 @@ function usePress() {
   }, [pathname]);
 }
 
+// signed in: your handle (remembered on the device, so it shows before the session check)
+function AccountLink() {
+  const { ready, session, profile } = useAccount();
+  const handle = profile?.handle ?? (ready ? null : handleHint());
+  return (
+    <NavLink to={handle ? `/u/${handle}` : "/account"} viewTransition className="nav-account">
+      {handle ? `@${handle}` : session ? "Your account" : "Sign in"}
+    </NavLink>
+  );
+}
+
 const today = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
 export function Layout() {
@@ -54,7 +66,8 @@ export function Layout() {
               <NavLink to="/library" viewTransition>Your sheets</NavLink>
               <a href="/#wall" className="opt">The wall</a>
               <a href="/#benches" className="opt">Benches</a>
-              <NavLink to="/studio" viewTransition className="btn btn-ink">Open the studio</NavLink>
+              {ACCOUNTS && <AccountLink />}
+              <NavLink to="/studio" viewTransition className="btn btn-ink"><span className="nav-long">Open the studio</span><span className="nav-short">Studio</span></NavLink>
             </nav>
           </div>
           <p className="mast-line serif">
@@ -79,7 +92,11 @@ export function Layout() {
             </section>
             <section>
               <h2 className="kicker">This edition</h2>
-              <p className="serif">Version {__APP_VERSION__}, before accounts open. Your sheets and pins live on this device; the other pieces and artists are samples.</p>
+              <p className="serif">
+                {ACCOUNTS
+                  ? `Version ${__APP_VERSION__}, closed beta. Your sheets live on this device until you publish them; the sample pieces and artists are still samples.`
+                  : `Version ${__APP_VERSION__}, before accounts open. Your sheets and pins live on this device; the other pieces and artists are samples.`}
+              </p>
             </section>
           </div>
         </footer>

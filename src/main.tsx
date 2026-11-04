@@ -11,6 +11,7 @@ import "./styles/base.css";
 import "./styles/materials.css";
 import "./styles/app.css";
 import { Layout } from "./components/Layout";
+import { startAccounts } from "./data/account";
 import { NotFound, PageError } from "./pages/Errors";
 
 /* Each page is its own file, fetched when it is first opened, so the first visit only loads
@@ -32,6 +33,8 @@ const router = createBrowserRouter([
             lazy: () => import("./pages/Studio").then((m) => ({ Component: m.StudioRoute, loader: m.studioLoader, shouldRevalidate: m.studioShouldRevalidate })),
           },
           { path: "/library", lazy: () => import("./pages/Library").then((m) => ({ Component: m.Library })) },
+          { path: "/account", lazy: () => import("./pages/Account").then((m) => ({ Component: m.Account })) },
+          { path: "/u/:handle", lazy: () => import("./pages/Profile").then((m) => ({ Component: m.Profile })) },
           { path: "*", Component: NotFound },
         ],
       },
@@ -49,3 +52,6 @@ createRoot(document.getElementById("root")!).render(
     <RouterProvider router={router} />
   </StrictMode>,
 );
+
+// checks for a saved session once the page is up (only when accounts are on)
+startAccounts();

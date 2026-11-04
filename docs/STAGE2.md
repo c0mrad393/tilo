@@ -93,6 +93,17 @@ which signs up a member and checks 22 things end to end. The whole stack idles a
 - Settings: change handle and name, sign out everywhere, export my data, delete my account.
 - Done when: sign up, sign in, profile edit and account deletion work end to end.
 
+Progress (2026-11-04): done, except that Google sign-in is wired but untested until there
+is an OAuth client (it shows only when `GOOGLE_ENABLED=true`). Migration 0003 adds
+`claim_handle` (the invite gate; a used code stays used even after its account is deleted),
+`handle_problem` (format, reserved words, taken) and `profile_page`. tilo-api gained
+`/api/me`, `/api/me/export` and `DELETE /api/me`, which removes the Auth user and lets the
+foreign keys take the rest. Locally the mail goes to Mailpit (:8025) with Tilo's own
+templates in `server/mail/`. In the app: `/account` (sign in, pick a handle, settings,
+export, delete) and `/u/:handle`; all of it stays off unless the build has
+`VITE_TILO_ANON_KEY`, so tiloart.com shows no accounts yet. Until 2.3 the avatar is the
+handle's letter in one of six inks. The smoke test now checks 47 things.
+
 ### 2.3 Publishing and the real gallery (about 2 weeks)
 - "Pin to gallery" becomes "Publish". Without an account it stays a local pin, as now.
 - `POST /api/pieces`: checks size (2 MB at most), format version and proof of hand,
