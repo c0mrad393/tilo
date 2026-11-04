@@ -118,7 +118,7 @@ export function Home() {
   const proof = SAMPLES.find((p) => p.id === "balcony")!;
 
   return (
-    <main>
+    <main id="main" tabIndex={-1}>
       <section className="hero wrap" aria-labelledby="hero-h">
         <Annotate build={heroMarks} delay={700} ms={900} />
         <h1 id="hero-h" className="hero-h">
@@ -157,7 +157,7 @@ export function Home() {
           <h2 id="feed-h">On the press</h2>
           <p className="serif">Pieces are stored as recordings, so this row plays how they were made, not only how they ended. The strip under each one is its trace: every stroke in order, with its pressure.</p>
         </header>
-        <div className="feed" tabIndex={0} aria-label="Pieces being replayed">
+        <div className="feed" tabIndex={0} role="region" aria-label="Pieces being replayed">
           {feed.map((p, i) => <LivePlate key={p.id} piece={p} no={i + 2} className="feed-card" />)}
         </div>
       </section>

@@ -75,7 +75,7 @@ export function PiecePage() {
   const piece = pieceById(id, local);
   if (!piece)
     return (
-      <main className="wrap piece-missing">
+      <main id="main" tabIndex={-1} className="wrap piece-missing">
         <h1>This piece isn't on the board</h1>
         <p className="serif">It may have been pinned on another device. <Link to="/gallery">Back to the gallery</Link></p>
       </main>
@@ -83,7 +83,7 @@ export function PiecePage() {
   const src = piece.remixOf ? pieceById(piece.remixOf, local) : undefined;
   const kids = allPieces(local).filter((q) => q.remixOf === piece.id);
   return (
-    <main className="wrap piece-page">
+    <main id="main" tabIndex={-1} className="wrap piece-page">
       <Link to="/gallery" viewTransition className="back-link"><Icon name="back" size={18} />Gallery</Link>
       <div className="piece-grid">
         <Player key={piece.id} piece={piece} />

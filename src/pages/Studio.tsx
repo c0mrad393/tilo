@@ -979,13 +979,13 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const subtitle = remix ? `Remix of “${remix.title}” by @${remix.by}` : promptMode ? `Subject No. ${PROMPT.no} · ${PROMPT.title} · 6 inks, 10:00 on the clock` : `${PAPERS[paper].name} · no clock`;
 
   return (
-    <div className="studio">
+    <main className="studio" id="main">
       <div className="studio-top">
         <button className="icon-btn" onClick={() => nav("/", { viewTransition: true })} aria-label="Back to Tilo"><Icon name="back" /></button>
-        <div className="studio-title">
+        <h1 className="studio-title">
           {sheetTitle || (promptMode ? PROMPT.title : "Blank sheet")}
           <small>{subtitle}</small>
-        </div>
+        </h1>
         <span className="sp" />
         {promptMode && <span className={`timer mono num${timeLeft < 60000 ? " is-warn" : ""}`}>{timeLeft > 0 ? fmtMin(timeLeft / 60000) : "Time's up"}</span>}
         <button className="icon-btn" onClick={undo} disabled={!strokes.length} aria-label="Undo" title="Undo · ⌘Z"><Icon name="undo" /></button>
@@ -1038,7 +1038,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
 
       <aside className="studio-panel" aria-label="Sheet settings">
         <section className="sheet panel-card">
-          <h3 className="kicker">Colour</h3>
+          <h2 className="kicker">Colour</h2>
           <div className="pal">
             {palette.map((c, i) => (
               <button key={c} className="chip-btn" aria-pressed={c === color} aria-label={`Colour ${promptMode ? PROMPT.names[i] : c}`} onClick={() => setColor(c)}>
@@ -1072,7 +1072,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
         </section>
 
         <section className="sheet panel-card">
-          <h3 className="kicker">{TOOLS[tool].label}</h3>
+          <h2 className="kicker">{TOOLS[tool].label}</h2>
           {tool === "select" ? (
             <p className="hint">Draw around part of {activeLayer.name}. Drag inside it to move it, a corner to scale it, the round handle to turn it (Shift for 15° steps). Enter puts it down, Esc puts it back.</p>
           ) : (
@@ -1103,7 +1103,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
 
         <section className="sheet panel-card">
           <div className="card-head">
-            <h3 className="kicker">Layers</h3>
+            <h2 className="kicker">Layers</h2>
             <button className="icon-btn" onClick={addLayer} aria-label="Add a layer" title="Add a layer"><Icon name="plus" size={18} /></button>
           </div>
           <ol className="layers">
@@ -1162,7 +1162,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
         </section>
 
         <section className="sheet panel-card">
-          <h3 className="kicker">Paper</h3>
+          <h2 className="kicker">Paper</h2>
           <div className="papers" role="group" aria-label="Paper">
             {PAPER_IDS.map((id) => (
               <button key={id} className="paper-btn" aria-pressed={paper === id} aria-label={PAPERS[id].name} title={PAPERS[id].name} onClick={() => setPaper(id)}>
@@ -1174,14 +1174,14 @@ function Studio({ sheet }: { sheet: Sheet }) {
         </section>
 
         <section className="sheet panel-card">
-          <h3 className="kicker">Symmetry</h3>
+          <h2 className="kicker">Symmetry</h2>
           <div className="seg" role="group" aria-label="Symmetry">
             {SYMMETRY.map(([v, n]) => <button key={v || "off"} aria-pressed={sym === v} onClick={() => setSym(v)}>{n}</button>)}
           </div>
         </section>
 
         <section className="sheet panel-card">
-          <h3 className="kicker">Perspective</h3>
+          <h2 className="kicker">Perspective</h2>
           <div className="seg" role="group" aria-label="Perspective guides">
             {PERSPECTIVE.map(([v, n]) => <button key={v} aria-pressed={guides.mode === v} onClick={() => setGuides((g) => ({ ...g, mode: v }))}>{n}</button>)}
           </div>
@@ -1190,7 +1190,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
         </section>
 
         <section className="sheet panel-card">
-          <h3 className="kicker">This sheet</h3>
+          <h2 className="kicker">This sheet</h2>
           <div className="field">
             <label htmlFor="sheet-title">Title</label>
             <input type="text" id="sheet-title" maxLength={60} placeholder="Untitled" autoComplete="off" value={sheetTitle} onChange={(e) => setSheetTitle(e.target.value)} />
@@ -1209,7 +1209,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
         </section>
 
         <section className="sheet panel-card opt">
-          <h3 className="kicker">Keys</h3>
+          <h2 className="kicker">Keys</h2>
           <p className="keys">
             {(Object.keys(TOOLS) as ToolId[]).map((t) => <span key={t}><kbd>{TOOLS[t].key.toUpperCase()}</kbd> {TOOLS[t].label.toLowerCase()} </span>)}
             <span><kbd>[</kbd> <kbd>]</kbd> size </span><span><kbd>⌘Z</kbd> undo </span><span><kbd>Shift</kbd> straight line </span><span><kbd>Space</kbd> drag to move </span><span><kbd>⌘</kbd>+scroll or pinch to zoom </span><span><kbd>0</kbd> fit </span><span><kbd>R</kbd> <kbd>⇧R</kbd> turn </span><span><kbd>H</kbd> mirror view </span><span><kbd>Alt</kbd>+click pick colour </span><span><kbd>Enter</kbd> <kbd>Esc</kbd> put a selection down or back</span>
@@ -1292,6 +1292,6 @@ function Studio({ sheet }: { sheet: Sheet }) {
       </dialog>
 
       <div className="toast" role="status" data-show={toast ? "" : undefined}>{toast}</div>
-    </div>
+    </main>
   );
 }

@@ -48,6 +48,8 @@ Progress, part A (v0.6): Vitest with tests for the codec (a byte-layout snapshot
 
 Progress, part B (v0.7): sheets come in landscape (1600 × 1200), portrait (1200 × 1600) and square (1400 × 1400), chosen before the first stroke; cards and the gallery centre other shapes on their plate, and pictures and timelapses keep the shape. The select tool (V) lassos part of a layer, then moves, scales, turns or flips it. Layers duplicate and merge down. All three are recorded as actions in the stroke list, so replays repeat them exactly; the recording is format 3 only when it holds them, and plain recordings are still byte-for-byte format 2. A merged layer stays in the recording out of sight. Undo and redo cover the actions too. Next: part D (offline, code split, error screens, accessibility), then Stage 3.
 
+Progress, part D (v0.8): Tilo installs as an app and works offline. A service worker, written at build time, keeps the pages, fonts and icons; pages come from the network first and from the cache after four seconds without an answer. Each page loads on its own, so the first download is a quarter smaller and the studio arrives only when opened, with a thin bar while a page loads. Addresses that lead nowhere get a 404 page; a page that fails to load or breaks says why and offers a reload, and in the studio it says the sheet is saved. Accessibility: a skip link, one heading per page and panel headings in order, a stronger orange for the colour label, and axe reports no problems on any page in light or dark, the studio dialogs included. Next: Stage 3 (pixel art and animation).
+
 ## Stage 2 — Accounts, publishing, closed beta
 
 Detailed plan, milestones and open decisions: [STAGE2.md](STAGE2.md).

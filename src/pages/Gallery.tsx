@@ -60,7 +60,7 @@ export function Gallery() {
   if (sort === "remix") list = list.filter((p) => p.remixOf);
 
   return (
-    <main className="wrap gallery-page">
+    <main id="main" tabIndex={-1} className="wrap gallery-page">
       <header className="page-head">
         <h1>The gallery</h1>
         <p className="serif">Everything here was drawn on Tilo and can be replayed from its first stroke. The pieces and artists are samples for the prototype; what you pin stays on this device until accounts open.</p>

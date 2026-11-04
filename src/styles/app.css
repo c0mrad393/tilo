@@ -1233,6 +1233,7 @@ button.stamp[aria-pressed="true"] {
 .studio-title {
   display: grid;
   min-width: 0;
+  margin: 0;
   font-stretch: 75%;
   font-weight: 760;
   font-size: 19px;
@@ -1996,4 +1997,83 @@ dialog::backdrop {
   .expo-nav .kicker {
     display: none;
   }
+}
+
+/* ---------- skip link, page loading, error pages ---------- */
+.skip {
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  z-index: 60;
+  padding: 10px 14px;
+  font-weight: 650;
+  color: var(--on-poster);
+  background: var(--poster);
+  translate: 0 -200%;
+}
+.skip:focus-visible {
+  translate: 0 0;
+}
+/* the page itself takes focus after the skip link, without a ring around everything */
+main[tabindex="-1"]:focus {
+  outline: none;
+}
+.nav-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 70;
+  height: 3px;
+  pointer-events: none;
+  background: var(--pink);
+  transform: scaleX(0);
+  transform-origin: left;
+  opacity: 0;
+}
+.nav-progress[data-on] {
+  opacity: 1;
+  /* waits a moment, so a page that is already loaded doesn't flash it */
+  animation: nav-progress 4s var(--ease-out) 150ms forwards;
+}
+@keyframes nav-progress {
+  from { transform: scaleX(0.05); }
+  to { transform: scaleX(0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress[data-on] {
+    animation: none;
+    transform: scaleX(1);
+    opacity: 0.6;
+  }
+}
+.error-page {
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+  max-width: 44rem;
+  padding-block: clamp(48px, 10vh, 120px);
+}
+.error-page h1 {
+  margin: 0;
+  font-size: var(--t-2xl);
+  line-height: 0.95;
+}
+.error-page p {
+  margin: 0;
+  font-size: var(--t-lg);
+}
+.error-page .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.error-detail summary {
+  cursor: pointer;
+  color: var(--ground-soft);
+}
+.error-detail code {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  font-family: var(--f-mono);
+  font-size: var(--t-xs);
 }

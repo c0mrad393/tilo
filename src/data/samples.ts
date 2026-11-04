@@ -148,6 +148,6 @@ export const SAMPLES: Piece[] = DEFS.map(({ gen, ...d }, i) => {
 
 export const STAMPS = ["Bold", "Moody", "Calm", "Colour", "Clean line", "Patient", "Funny", "Remix me"] as const;
 export const STAMP_COLOR: Record<string, string> = {
-  Bold: "#B23A2E", Moody: "#3B3F8F", Calm: "#2F6B5A", Colour: "#B5651D",
+  Bold: "#B23A2E", Moody: "#3B3F8F", Calm: "#2F6B5A", Colour: "#99520F",
   "Clean line": "#1B1E1D", Patient: "#6B4C2E", Funny: "#A1386B", "Remix me": "#2B37D4",
 };

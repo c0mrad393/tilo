@@ -54,7 +54,7 @@ export function Library() {
   };
 
   return (
-    <main className="wrap library-page">
+    <main id="main" tabIndex={-1} className="wrap library-page">
       <header className="page-head">
         <h1>Your sheets</h1>
         <p className="serif">Every drawing you start is kept here, on this device, with its whole recording. Pin one to put it in the gallery; the sheet stays here either way.</p>

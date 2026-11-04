@@ -11,25 +11,38 @@ import "./styles/base.css";
 import "./styles/materials.css";
 import "./styles/app.css";
 import { Layout } from "./components/Layout";
-import { Home } from "./pages/Home";
-import { Gallery } from "./pages/Gallery";
-import { PiecePage } from "./pages/PiecePage";
-import { Library } from "./pages/Library";
-import { StudioRoute, studioLoader, studioShouldRevalidate } from "./pages/Studio";
+import { NotFound, PageError } from "./pages/Errors";
 
+/* Each page is its own file, fetched when it is first opened, so the first visit only loads
+   what it shows. The studio, the heaviest, never loads for someone who only browses. */
 const router = createBrowserRouter([
   {
     element: <Layout />,
+    // the error screen sits inside the layout, so the masthead stays when a page fails
     children: [
-      { path: "/", element: <Home /> },
-      { path: "/gallery", element: <Gallery /> },
-      { path: "/piece/:id", element: <PiecePage /> },
-      { path: "/studio", element: <StudioRoute />, loader: studioLoader, shouldRevalidate: studioShouldRevalidate, HydrateFallback: () => null },
-      { path: "/library", element: <Library /> },
-      { path: "*", element: <main className="wrap piece-missing"><h1>Nothing printed here</h1><p className="serif"><a href="/">Back to Tilo</a></p></main> },
+      {
+        ErrorBoundary: PageError,
+        HydrateFallback: () => null,
+        children: [
+          { path: "/", lazy: () => import("./pages/Home").then((m) => ({ Component: m.Home })) },
+          { path: "/gallery", lazy: () => import("./pages/Gallery").then((m) => ({ Component: m.Gallery })) },
+          { path: "/piece/:id", lazy: () => import("./pages/PiecePage").then((m) => ({ Component: m.PiecePage })) },
+          {
+            path: "/studio",
+            lazy: () => import("./pages/Studio").then((m) => ({ Component: m.StudioRoute, loader: m.studioLoader, shouldRevalidate: m.studioShouldRevalidate })),
+          },
+          { path: "/library", lazy: () => import("./pages/Library").then((m) => ({ Component: m.Library })) },
+          { path: "*", Component: NotFound },
+        ],
+      },
     ],
   },
 ]);
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  // keeps Tilo working offline; see sw.js, which the build writes with the list of files
+  addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
