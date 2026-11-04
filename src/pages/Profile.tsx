@@ -1,13 +1,51 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { Avatar } from "../components/Avatar";
+import { PlateCard } from "../components/PinCard";
 import { ACCOUNTS, auth, type ProfilePage, profilePage, setFollow, useAccount } from "../data/account";
+import { listPieces, type Published } from "../data/pieces";
 import { NotFound } from "./Errors";
 
 const joined = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
 const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
-/* /u/:handle, a member's page: who they are, and (from 2.3) what they have published. */
+/* the member's published pieces, newest first, a page at a time */
+function Pieces({ owner, isMe }: { owner: string; isMe: boolean }) {
+  const [items, setItems] = useState<Published[] | null>(null);
+  const [more, setMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    listPieces({ owner, page }).then(
+      (r) => {
+        if (!live) return;
+        setItems((had) => [...(page ? (had ?? []) : []), ...r.items]);
+        setMore(r.more);
+      },
+      () => live && setFailed(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, [owner, page]);
+  if (failed && !items) return <p className="empty serif" role="alert">The pieces didn't load. Reload to try again.</p>;
+  if (!items) return <p className="serif page-wait">Hanging the plates…</p>;
+  if (!items.length)
+    return (
+      <p className="empty serif">
+        {isMe ? <>Nothing published yet. Pieces you publish from the <Link to="/studio" viewTransition>studio</Link> show here.</> : "Nothing published yet."}
+      </p>
+    );
+  return (
+    <>
+      <div className="salon">{items.map((p, i) => <PlateCard key={p.id} piece={p} index={i} />)}</div>
+      {more && <div className="gal-more"><button className="btn btn-line" onClick={() => setPage(page + 1)}>Show more pieces</button></div>}
+    </>
+  );
+}
+
+/* /u/:handle, a member's page: who they are and what they have published. */
 export function Profile() {
   const { handle = "" } = useParams();
   const { ready, session, profile: mine } = useAccount();
@@ -92,12 +130,7 @@ export function Profile() {
 
       <section className="profile-pieces" aria-labelledby="pieces-h">
         <h2 id="pieces-h" className="kicker">Pieces</h2>
-        <p className="empty serif">
-          {isMe
-            ? "Pieces you publish from the studio will show here. Publishing opens later in the beta; until then your sheets wait in "
-            : `Nothing published yet. Publishing opens later in the beta.`}
-          {isMe && <><Link to="/library" viewTransition>your sheets</Link>.</>}
-        </p>
+        <Pieces key={page.id} owner={page.id} isMe={isMe} />
       </section>
     </main>
   );

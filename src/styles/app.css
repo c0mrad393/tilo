@@ -2273,3 +2273,30 @@ main[tabindex="-1"]:focus {
   font-size: 18px;
   color: var(--ground-soft);
 }
+
+/* ---------- published pieces (2.3) ---------- */
+.card-picture {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+}
+.stamp-note {
+  margin-top: var(--s-2);
+  font-size: 15px;
+}
+.gal-section {
+  margin-top: var(--s-8);
+}
+.gal-section > h2 {
+  margin-bottom: var(--s-2);
+}
+.gal-section > p {
+  max-width: 60ch;
+  margin-bottom: var(--s-5);
+}
+.gal-more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--s-6);
+}

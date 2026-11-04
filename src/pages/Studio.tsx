@@ -3,9 +3,11 @@ import { Link, useLoaderData, useNavigate, type LoaderFunctionArgs, type ShouldR
 import { Icon } from "../components/Icon";
 import { ReplayCanvas } from "../components/ReplayCanvas";
 import { blankSheet, lastSheet, library, migrateDraft, type Guides, type Sheet } from "../data/library";
-import { pieceById, pinPiece } from "../data/local";
+import { ACCOUNTS, useAccount } from "../data/account";
+import { pinPiece } from "../data/local";
+import { findPiece, getPiece, isPublished, publish } from "../data/pieces";
 import { PROMPT } from "../data/samples";
-import { download, fileName, pictureBlob, thumbnail, timelapse, videoType } from "../engine/export";
+import { download, fileName, pictureBlob, thumbnail, timelapse, videoType, webPicture } from "../engine/export";
 import { drawGuides, handleAt, snapDirection } from "../engine/guides";
 import { Painter } from "../engine/painter";
 import { PAPER_IDS, PAPERS, type PaperId } from "../engine/paper";
@@ -83,7 +85,8 @@ let openSheet = "";
 export async function studioLoader({ request }: LoaderFunctionArgs): Promise<Sheet> {
   await migrateDraft();
   const q = new URL(request.url).searchParams;
-  const remix = q.get("remix") && pieceById(q.get("remix")!);
+  // a published piece is fetched here, so the studio below can find it without waiting
+  const remix = q.get("remix") && (await getPiece(q.get("remix")!));
   if (remix) {
     const own = layersOf(remix);
     const top: LayerDef = { id: Math.max(...own.map((l) => l.id)) + 1, name: "Your layer", blend: "source-over", opacity: 1 };
@@ -94,6 +97,7 @@ export async function studioLoader({ request }: LoaderFunctionArgs): Promise<She
   if (id) {
     try {
       const s = await library.get(id);
+      if (s?.remixOf) await getPiece(s.remixOf);
       if (s) return { ...s, thumb: undefined }; // the studio makes its own picture
     } catch {
       // no IndexedDB here: start fresh, and the studio says it can't keep sheets
@@ -115,7 +119,11 @@ export function StudioRoute() {
    shows it through a zoomable view. The sheet saves itself to the library as you work. */
 function Studio({ sheet }: { sheet: Sheet }) {
   const nav = useNavigate();
-  const remix = sheet.remixOf ? pieceById(sheet.remixOf) : undefined;
+  const remix = sheet.remixOf ? findPiece(sheet.remixOf) : undefined;
+  // signed in with a handle, "Pin" becomes "Publish": the piece goes to the shared gallery
+  const { profile } = useAccount();
+  const publishing = ACCOUNTS && !!profile;
+  const [sending, setSending] = useState<"" | "busy" | string>("");
   const [promptMode, setPromptMode] = useState(!!sheet.subject);
   const [tool, setTool] = useState<ToolId>("ink");
   const [color, setColor] = useState(promptMode ? PROMPT.palette[0] : FREE[0]);
@@ -908,12 +916,34 @@ function Studio({ sheet }: { sheet: Sheet }) {
     if (!strokes.length) return say("The sheet is empty. Draw something first.");
     setTitle(sheetTitle);
     setEnter(promptMode && timeLeft > 0);
+    setSending("");
     pinDlg.current!.showModal();
   };
   const doPin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = "mine-" + Date.now().toString(36);
     const name = title.trim() || "Untitled";
+    const subject = promptMode && enter && timeLeft > 0 ? PROMPT.no : undefined;
+    if (publishing) {
+      setSending("busy");
+      try {
+        const all = [...base, ...strokes];
+        const id = await publish(
+          // a remix of a sample stays uncredited until the samples are published (2.3 part B)
+          { title: name, strokes: all, layers, paper, shape, minutes: Math.max(0.1, ms / 60000), subject, remixOf: isPublished(remix) ? remix.id : undefined },
+          await webPicture(all, layers, paper, dims),
+        );
+        setSending("");
+        pinDlg.current!.close();
+        setSheetTitle(name);
+        await save({ title: name, pinned: id });
+        lastSheet.set(null);
+        nav(`/piece/${id}`, { viewTransition: true });
+      } catch (err) {
+        setSending(err instanceof Error ? err.message : "Publishing didn't work. Try again.");
+      }
+      return;
+    }
+    const id = "mine-" + Date.now().toString(36);
     pinPiece({
       id,
       title: name,
@@ -925,7 +955,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
       shape: shape === "land" ? undefined : shape,
       mine: true,
       stamps: {},
-      prompt: promptMode && enter && timeLeft > 0 ? PROMPT.no : undefined,
+      prompt: subject,
       remixOf: remix?.id,
     });
     pinDlg.current!.close();
@@ -993,7 +1023,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
         <Link className="icon-btn hide-xs" to="/library" viewTransition aria-label="Your sheets" title="Your sheets"><Icon name="sheets" /></Link>
         <button className="icon-btn" onClick={() => { applySel(); if (!strokes.length && !base.length) return say("Draw something first, then save it out"); exportDlg.current!.showModal(); }} aria-label="Export" title="Export a PNG or a timelapse"><Icon name="download" /></button>
         <button className="btn btn-line" onClick={() => { applySel(); if (!strokes.length && !base.length) return say("Draw something first, then watch it back"); setReplayKey((k) => k + 1); replayDlg.current!.showModal(); }} aria-label="Replay your sheet"><Icon name="replay" /><span className="hide-s">Replay</span></button>
-        <button className="btn btn-ink" onClick={openPin}><Icon name="pin" /><span className="hide-s">Pin to gallery</span><span className="show-s">Pin</span></button>
+        <button className="btn btn-ink" onClick={openPin}><Icon name="pin" /><span className="hide-s">{publishing ? "Publish" : "Pin to gallery"}</span><span className="show-s">{publishing ? "Publish" : "Pin"}</span></button>
       </div>
 
       <div className="studio-tools" role="toolbar" aria-label="Brushes and tools">
@@ -1219,13 +1249,20 @@ function Studio({ sheet }: { sheet: Sheet }) {
 
       <dialog ref={pinDlg} aria-labelledby="pin-h">
         <form className="small-sheet sheet" onSubmit={doPin}>
-          <h2 id="pin-h">Pin to the gallery</h2>
-          <p>Your piece goes up with its full recording. Until accounts open, it stays on this device.</p>
+          <h2 id="pin-h">{publishing ? "Publish to the gallery" : "Pin to the gallery"}</h2>
+          <p>
+            {publishing
+              ? `Your piece goes up as @${profile!.handle}, with its full recording, so anyone can replay it from the first stroke.`
+              : ACCOUNTS
+                ? <>Your piece is pinned with its full recording, on this device only. <Link to="/account">Sign in</Link> to publish it for everyone.</>
+                : "Your piece goes up with its full recording. Until accounts open, it stays on this device."}
+          </p>
           <div className="field"><label htmlFor="pin-title">Title</label><input type="text" id="pin-title" maxLength={60} placeholder="Untitled" autoComplete="off" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
           {promptMode && (
             <label className="check"><input type="checkbox" checked={enter} disabled={timeLeft <= 0} onChange={(e) => setEnter(e.target.checked)} /> {timeLeft > 0 ? `Enter it for Subject No. ${PROMPT.no}` : "Over the 10:00 limit, so it can't be entered"}</label>
           )}
-          <div className="row"><button type="button" className="btn btn-quiet" onClick={() => pinDlg.current!.close()}>Keep drawing</button><button type="submit" className="btn btn-ink">Pin it</button></div>
+          {sending && sending !== "busy" && <p className="field-note is-error" role="alert">{sending}</p>}
+          <div className="row"><button type="button" className="btn btn-quiet" onClick={() => pinDlg.current!.close()}>Keep drawing</button><button type="submit" className="btn btn-ink" disabled={sending === "busy"}>{publishing ? (sending === "busy" ? "Publishing…" : "Publish it") : "Pin it"}</button></div>
         </form>
       </dialog>
 

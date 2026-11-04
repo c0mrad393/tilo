@@ -173,10 +173,58 @@ check(filed.status === 201, "a member files a report", filed);
 const reports = await call("/rest/v1/reports?select=id", { token: token2 });
 check(reports.status === 200 && Array.isArray(reports.body) && reports.body.length === 0, "only mods read reports", reports);
 
+// publishing through tilo-api: a form with the recording, a picture and what the studio knows
+const WEBP = new Uint8Array([...new TextEncoder().encode("RIFF"), 0, 0, 0, 0, ...new TextEncoder().encode("WEBPVP8 "), 0, 0, 0, 0]);
+const LAYERS = [0, 1, 2].map((id) => ({ id, name: `Layer ${id + 1}`, blend: "source-over", opacity: 1 }));
+const publish = (as: string | undefined, meta: Record<string, unknown>, recording: Uint8Array = encode(strokes), picture: Uint8Array = WEBP) => {
+  const form = new FormData();
+  form.set("meta", JSON.stringify({ title: "Smoke piece", paper: "cold", shape: "square", layers: LAYERS, minutes: 1.5, ...meta }));
+  form.set("rec", new Blob([recording as Uint8Array<ArrayBuffer>]), "piece.tl");
+  form.set("img", new Blob([picture as Uint8Array<ArrayBuffer>]), "piece.webp");
+  return call("/api/pieces", { method: "POST", token: as, body: form });
+};
+const anonymous = await publish(undefined, {});
+check(anonymous.status === 401, "publishing needs a session", anonymous);
+check((await publish(token, { layers: LAYERS.slice(0, 2) })).status === 422, "a stroke on a layer the piece doesn't have is refused");
+check((await publish(token, {}, encode(strokes), new TextEncoder().encode("<svg/>"))).status === 422, "a picture that isn't WebP or JPEG is refused");
+check((await publish(token, { subject: 312, minutes: 14 })).status === 422, "a piece past the 10:00 clock can't be entered for a subject");
+check((await publish(token, {}, new Uint8Array([84, 76, 3, 9, 9]))).status === 422, "a broken recording is refused");
+const published = await publish(token, { title: "  Smoke   piece  ", subject: 312 });
+const pid: string = published.body?.id ?? "";
+check(
+  published.status === 201 && /^[a-z0-9]{10}$/.test(pid) && published.body.title === "Smoke piece" && published.body.strokes === 4 && published.body.subject === 312 && published.body.minutes === 1.5,
+  "a member publishes a piece",
+  published,
+);
+// what another device sees: the row through PostgREST, the files through Caddy
+const listed = await call(`/rest/v1/pieces?id=eq.${pid}&select=id,title,shape,paper,layers,picture,owner:profiles!pieces_owner_fkey(handle)`);
+check(listed.body?.[0]?.owner?.handle === handle && listed.body[0].layers.length === 3 && listed.body[0].shape === "square", "anyone reads the published piece with its artist", listed);
+const recFile = await fetch(`${BASE}/files/rec/${pid}.tl`);
+const recBack = new Uint8Array(await recFile.arrayBuffer());
+check(recFile.ok && recBack.length === encode(strokes).length && recBack.every((b, i) => b === encode(strokes)[i]), "the recording comes back byte for byte");
+check(/immutable/.test(recFile.headers.get("cache-control") ?? ""), "recordings are cached for good");
+const imgFile = await fetch(`${BASE}/files/img/${pid}.webp`);
+check(imgFile.ok && imgFile.headers.get("content-type") === "image/webp", "the picture is served as WebP", imgFile.headers.get("content-type"));
+const remixed = await publish(token2, { title: "After smoke", remix_of: pid });
+check(remixed.status === 201 && remixed.body.remix_of === pid, "another member publishes a remix that credits it", remixed);
+check((await publish(token2, { remix_of: `held${tag}` })).status === 422, "a held piece can't be remixed");
+check((await call(`/api/pieces/${pid}`, { method: "DELETE", token: token2 })).status === 404, "nobody else can take a piece down");
+const retitle = await call(`/rest/v1/pieces?id=eq.${pid}`, { method: "PATCH", token, headers: { prefer: "return=representation" }, json: { title: "Smoke, retitled" } });
+check(retitle.body?.[0]?.title === "Smoke, retitled", "the artist retitles it", retitle);
+// the daily limit counts every piece of the last 24 hours: one published above, two from the stamp checks
+psql(`insert into public.pieces (id, owner, title, strokes, format, bytes)
+  select 'fill${tag}' || n, '${userId}', 'Filler', 1, 3, 1 from generate_series(1, 17) n`);
+const limited = await publish(token, {});
+check(limited.status === 429, "the 21st piece in a day waits until tomorrow", limited);
+psql(`delete from public.pieces where id like 'fill${tag}%'`);
+const tidy = await publish(token, { title: "To take down" });
+check((await call(`/api/pieces/${tidy.body?.id}`, { method: "DELETE", token })).status === 204, "the artist takes a piece down");
+check((await fetch(`${BASE}/files/rec/${tidy.body?.id}.tl`)).status === 404, "its files go with it");
+
 // export, then delete the account for good
 const exported = await call("/api/me/export", { token });
 check(
-  exported.status === 200 && exported.body.profile?.handle === handle && exported.body.pieces.length === 2 && exported.body.followers[0]?.handle === `smoke_${tag}_b`,
+  exported.status === 200 && exported.body.profile?.handle === handle && exported.body.pieces.length === 3 && exported.body.followers[0]?.handle === `smoke_${tag}_b`,
   "the member exports everything Tilo keeps about them",
   exported.status,
 );
@@ -187,6 +235,8 @@ check(gone.status === 204, "the member deletes their account", gone);
 check((await call("/rest/v1/rpc/profile_page", { method: "POST", json: { handle } })).body === null, "their profile is gone");
 check(psql(`select count(*) from public.pieces where owner = '${userId}'`) === "0", "their pieces are gone");
 check(psql(`select count(*) from public.follows where followee = '${userId}'`) === "0", "follows of them are gone");
+check((await fetch(`${BASE}/files/img/${pid}.webp`)).status === 404, "their published files are gone");
+check(psql(`select remix_of is null from public.pieces where id = '${remixed.body?.id}'`) === "t", "a remix of theirs stays, without the link");
 check(psql(`select count(*) from public.invites where used_by = '${userId}'`) === "0", "the invite no longer points at them");
 check(psql(`select used_at is not null from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`) === "t", "their invite stays used up");
 psql(`delete from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`);

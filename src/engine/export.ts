@@ -38,6 +38,14 @@ export function picture(strokes: Stroke[], layers: LayerDef[], paper: PaperId | 
 export const pictureBlob = (strokes: Stroke[], layers: LayerDef[], paper: PaperId | null, scale = 1, sheet: SheetSize = SHEET) =>
   toBlob(picture(strokes, layers, paper, scale, sheet));
 
+/** The picture a published piece is shown by before its replay loads, and in link previews:
+    half size, WebP where the browser can encode it, JPEG where it can't (Safari). */
+export async function webPicture(strokes: Stroke[], layers: LayerDef[], paper: PaperId, sheet: SheetSize = SHEET) {
+  const c = picture(strokes, layers, paper, 0.5, sheet);
+  const webp = await toBlob(c, "image/webp", 0.82);
+  return webp.type === "image/webp" ? webp : toBlob(c, "image/jpeg", 0.86);
+}
+
 /** A small picture for the library page. */
 export function thumbnail(painter: Painter, w = 400) {
   const c = document.createElement("canvas");

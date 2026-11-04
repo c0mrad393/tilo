@@ -124,7 +124,8 @@ export class ServerError extends Error {
   }
 }
 
-async function request(path: string, init: RequestInit & { json?: unknown } = {}, token?: string) {
+/** A request to Tilo's server, signed in when there is a session. Throws ServerError when refused. */
+export async function request(path: string, init: RequestInit & { json?: unknown } = {}, token?: string) {
   token ??= (await (await auth()).getSession()).data.session?.access_token;
   const headers = new Headers(init.headers);
   headers.set("apikey", KEY!);
@@ -137,7 +138,7 @@ async function request(path: string, init: RequestInit & { json?: unknown } = {}
   }
   return res;
 }
-const call = async <T>(path: string, init: RequestInit & { json?: unknown } = {}, token?: string) => {
+export const call = async <T>(path: string, init: RequestInit & { json?: unknown } = {}, token?: string) => {
   const res = await request(path, init, token);
   const text = await res.text();
   return (text ? JSON.parse(text) : null) as T;

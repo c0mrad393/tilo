@@ -103,6 +103,8 @@ export function ReplayCanvas({ strokes, layers, mode = "static", paper = "smooth
     host.addEventListener("pointerleave", leave);
     host.addEventListener("focusin", enter);
     host.addEventListener("focusout", leave);
+    // a canvas that mounts under the pointer (its recording arrived during the hover) starts at once
+    if (mode === "hover" && host.matches(":hover, :focus-within")) enter();
     return () => {
       stop();
       ro.disconnect();

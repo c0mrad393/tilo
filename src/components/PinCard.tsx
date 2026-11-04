@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Link } from "react-router";
-import { drawnCount, fmtMin, type Piece } from "../engine/stroke";
+import { loadStrokes, type Published } from "../data/pieces";
+import { drawnCount, fmtMin, type Piece, type Stroke } from "../engine/stroke";
 import { STAMP_COLOR } from "../data/samples";
 import { ReplayCanvas } from "./ReplayCanvas";
 
@@ -34,6 +36,50 @@ export function PinCard({ piece, index = 0, no, mode = "hover" as const }: { pie
         <span className="card-title">{piece.title}</span>
         <span className="card-by serif">
           @{piece.by} · {fmtMin(piece.minutes)} min · {drawnCount(piece.strokes).toLocaleString()} strokes{piece.remixOf ? " · remix" : ""}
+        </span>
+      </span>
+      {top.length > 0 && (
+        <span className="card-stamps">
+          {top.map(([k, v], j) => <Stamp key={k} name={k} count={v} tilt={j ? 2.5 : -2} />)}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/* A published piece as a plate. It shows the picture the server keeps, and fetches the
+   recording only when someone points at it or tabs to it, so a page of the gallery costs a
+   page of pictures. */
+export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: number; no?: number }) {
+  const [strokes, setStrokes] = useState<Stroke[] | null>(null);
+  const want = () => {
+    if (!strokes) loadStrokes(piece.id).then(setStrokes, () => {});
+  };
+  const top = Object.entries(piece.stamps || {}).sort((a, b) => b[1] - a[1]).slice(0, 2);
+  return (
+    <Link
+      to={`/piece/${piece.id}`}
+      viewTransition
+      data-replay-host
+      className="card lift press"
+      style={{ ["--press-delay" as string]: `${(index % 4) * 90}ms` }}
+      aria-label={`${piece.title} by ${piece.by}. Open the piece.`}
+      onPointerEnter={want}
+      onFocus={want}
+    >
+      <span className="plate">
+        {strokes ? (
+          <ReplayCanvas strokes={strokes} layers={piece.layers} paper={piece.paper} shape={piece.shape} aspect={4 / 3} mode="hover" label={`${piece.title}, drawn by ${piece.by}`} />
+        ) : (
+          <img className="card-picture" src={piece.picture} alt={`${piece.title}, drawn by ${piece.by}`} loading="lazy" decoding="async" />
+        )}
+        {piece.status !== "live" && <span className="card-flag kicker">Held for review</span>}
+      </span>
+      <span className="card-cap">
+        {no !== undefined && <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>}
+        <span className="card-title">{piece.title}</span>
+        <span className="card-by serif">
+          @{piece.by} · {fmtMin(piece.minutes)} min · {piece.count.toLocaleString()} strokes{piece.remixOf ? " · remix" : ""}
         </span>
       </span>
       {top.length > 0 && (

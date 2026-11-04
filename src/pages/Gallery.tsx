@@ -1,17 +1,35 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Icon } from "../components/Icon";
-import { PinCard } from "../components/PinCard";
+import { PinCard, PlateCard } from "../components/PinCard";
 import { ReplayCanvas } from "../components/ReplayCanvas";
+import { ACCOUNTS } from "../data/account";
 import { allPieces, stampTotal, useLocal } from "../data/local";
-import { PROMPT } from "../data/samples";
+import { listPieces, loadStrokes, type Published, type Sort } from "../data/pieces";
+import { PROMPT, SAMPLES } from "../data/samples";
 import { PAPERS, paperOf } from "../engine/paper";
-import { drawnCount, fmtMin, toolsUsed, type Piece } from "../engine/stroke";
+import { drawnCount, fmtMin, toolsUsed, type Piece, type Stroke } from "../engine/stroke";
 
-const FILTERS = [["stamped", "Most stamped"], ["new", "Newest"], ["prompt", `Subject No. ${PROMPT.no}`], ["remix", "Remixes"]] as const;
-type Sort = (typeof FILTERS)[number][0];
+const FILTERS: [Sort, string][] = ACCOUNTS
+  ? [["new", "Newest"], ["stamped", "Most stamped this week"], ["prompt", `Subject No. ${PROMPT.no}`], ["remix", "Remixes"]]
+  : [["stamped", "Most stamped"], ["new", "Newest"], ["prompt", `Subject No. ${PROMPT.no}`], ["remix", "Remixes"]];
 
-function Exhibition({ list }: { list: Piece[] }) {
+type Shown = Piece | Published;
+
+/* the plate on the exhibition wall; a published piece's recording is fetched when it comes up */
+function ExpoPlate({ p }: { p: Shown }) {
+  const [strokes, setStrokes] = useState<Stroke[] | null>("strokes" in p ? p.strokes : null);
+  useEffect(() => {
+    if (!strokes) loadStrokes(p.id).then(setStrokes, () => {});
+  }, [p.id]);
+  return strokes ? (
+    <ReplayCanvas strokes={strokes} layers={p.layers} paper={p.paper} shape={p.shape} aspect={4 / 3} mode="loop" label={`${p.title} by ${p.by}, replaying`} />
+  ) : (
+    <img className="card-picture" src={(p as Published).picture} alt={`${p.title} by ${p.by}`} />
+  );
+}
+
+function Exhibition({ list }: { list: Shown[] }) {
   const [i, setI] = useState(0);
   const p = list[Math.min(i, list.length - 1)];
   const go = (d: number) => setI((n) => (n + d + list.length) % list.length);
@@ -24,17 +42,18 @@ function Exhibition({ list }: { list: Piece[] }) {
     return () => removeEventListener("keydown", key);
   });
   if (!p) return null;
+  const count = "strokes" in p ? drawnCount(p.strokes) : p.count;
   return (
     <section className="expo" aria-roledescription="carousel" aria-label="Exhibition view">
       <div className="expo-wall">
         <div className="expo-frame plate reg">
-          <ReplayCanvas key={p.id} strokes={p.strokes} layers={p.layers} paper={p.paper} shape={p.shape} aspect={4 / 3} mode="loop" label={`${p.title} by ${p.by}, replaying`} />
+          <ExpoPlate key={p.id} p={p} />
         </div>
         <aside className="expo-label" aria-live="polite">
           <span className="kicker num">Plate {String(i + 1).padStart(2, "0")} of {String(list.length).padStart(2, "0")}</span>
           <h2>{p.title}</h2>
           <p className="serif expo-by">@{p.by}{p.mine ? " (you)" : ""}</p>
-          <p className="serif">{toolsUsed(p.strokes).join(", ")} on {PAPERS[paperOf(p.paper)].name.toLowerCase()}.<br />{drawnCount(p.strokes)} strokes, {fmtMin(p.minutes)} min.</p>
+          <p className="serif">{"strokes" in p ? `${toolsUsed(p.strokes).join(", ")} on ` : "On "}{PAPERS[paperOf(p.paper)].name.toLowerCase()}.<br />{count.toLocaleString()} strokes, {fmtMin(p.minutes)} min.</p>
           <Link to={`/piece/${p.id}`} viewTransition className="expo-open">Open the piece<Icon name="arrow" size={16} /></Link>
         </aside>
       </div>
@@ -47,23 +66,57 @@ function Exhibition({ list }: { list: Piece[] }) {
   );
 }
 
+/* the shared gallery: published pieces from the server, a page at a time */
+function usePublished(sort: Sort) {
+  const [state, setState] = useState<{ items: Published[]; more: boolean; page: number; status: "loading" | "ready" | "failed" }>({ items: [], more: false, page: 0, status: "loading" });
+  const load = (page: number, keep: Published[]) => {
+    setState((s) => ({ ...s, status: "loading" }));
+    let live = true;
+    listPieces({ sort, subject: PROMPT.no, page }).then(
+      (r) => live && setState({ items: [...keep, ...r.items], more: r.more, page, status: "ready" }),
+      () => live && setState((s) => ({ ...s, status: "failed" })),
+    );
+    return () => {
+      live = false;
+    };
+  };
+  useEffect(() => {
+    if (ACCOUNTS) return load(0, []);
+  }, [sort]);
+  return { ...state, next: () => load(state.page + 1, state.items) };
+}
+
 export function Gallery() {
   const local = useLocal();
   const [params, setParams] = useSearchParams();
-  const sort = (params.get("sort") as Sort) || "stamped";
+  const sort = (params.get("sort") as Sort) || FILTERS[0][0];
   const view = params.get("view") === "exhibition" ? "exhibition" : "board";
   const set = (k: string, v: string) => setParams((p) => { p.set(k, v); return p; }, { replace: true });
+  const shared = usePublished(sort);
 
-  let list = allPieces(local);
+  // pieces of this device: the samples, and what was pinned here before (or without) an account
+  let list: Piece[] = ACCOUNTS ? [...local.mine, ...SAMPLES] : allPieces(local);
   if (sort === "stamped") list = [...local.mine, ...list.filter((p) => !p.mine).sort((a, b) => stampTotal(b, local) - stampTotal(a, local))];
   if (sort === "prompt") list = list.filter((p) => p.prompt === PROMPT.no);
   if (sort === "remix") list = list.filter((p) => p.remixOf);
+  const mine = list.filter((p) => p.mine);
+  const samples = list.filter((p) => !p.mine);
+
+  const board = (items: Shown[]) => (
+    <div className="salon is-wide">
+      {items.map((p, i) => ("owner" in p ? <PlateCard key={p.id} piece={p} index={i} no={i + 1} /> : <PinCard key={p.id} piece={p} index={i} no={i + 1} />))}
+    </div>
+  );
 
   return (
     <main id="main" tabIndex={-1} className="wrap gallery-page">
       <header className="page-head">
         <h1>The gallery</h1>
-        <p className="serif">Everything here was drawn on Tilo and can be replayed from its first stroke. The pieces and artists are samples for the prototype; what you pin stays on this device until accounts open.</p>
+        <p className="serif">
+          {ACCOUNTS
+            ? "Everything here was drawn on Tilo and can be replayed from its first stroke. Tilo is in a closed beta, so the gallery is small for now."
+            : "Everything here was drawn on Tilo and can be replayed from its first stroke. The pieces and artists are samples for the prototype; what you pin stays on this device until accounts open."}
+        </p>
         <div className="gal-controls">
           <div className="filters" role="group" aria-label="Sort the gallery">
             {FILTERS.map(([k, l]) => (
@@ -76,12 +129,36 @@ export function Gallery() {
           </div>
         </div>
       </header>
-      {list.length === 0 ? (
-        <p className="empty serif">Nothing here yet. <Link to="/studio">Start a sheet</Link> and pin it.</p>
-      ) : view === "board" ? (
-        <div className="salon is-wide">{list.map((p, i) => <PinCard key={p.id} piece={p} index={i} no={i + 1} />)}</div>
+      {!ACCOUNTS ? (
+        list.length === 0 ? (
+          <p className="empty serif">Nothing here yet. <Link to="/studio">Start a sheet</Link> and pin it.</p>
+        ) : view === "board" ? board(list) : <Exhibition list={list} />
       ) : (
-        <Exhibition list={list} />
+        <>
+          {shared.status === "failed" && !shared.items.length ? (
+            <p className="empty serif" role="alert">The gallery didn't load: Tilo's server didn't answer. Check your connection and reload.</p>
+          ) : shared.status === "ready" && !shared.items.length ? (
+            <p className="empty serif">{sort === "stamped" ? "Nothing has been stamped this week yet." : "Nothing published here yet."} <Link to="/studio">Start a sheet</Link> and publish it.</p>
+          ) : view === "board" ? board(shared.items) : shared.items.length ? <Exhibition list={shared.items} /> : null}
+          {shared.status === "loading" && <p className="serif page-wait" aria-live="polite">Hanging the next plates…</p>}
+          {shared.more && shared.status !== "loading" && (
+            <div className="gal-more"><button className="btn btn-line" onClick={shared.next}>Show more pieces</button></div>
+          )}
+          {mine.length > 0 && view === "board" && (
+            <section className="gal-section" aria-labelledby="gal-mine">
+              <h2 id="gal-mine" className="kicker">Pinned on this device</h2>
+              <p className="serif">Only you see these. Open one in your sheets and publish it to put it up for everyone.</p>
+              {board(mine)}
+            </section>
+          )}
+          {samples.length > 0 && view === "board" && (
+            <section className="gal-section" aria-labelledby="gal-samples">
+              <h2 id="gal-samples" className="kicker">Samples</h2>
+              <p className="serif">Pieces made for the prototype, with sample artists and stamps.</p>
+              {board(samples)}
+            </section>
+          )}
+        </>
       )}
     </main>
   );

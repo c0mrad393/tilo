@@ -116,6 +116,23 @@ handle's letter in one of six inks. The smoke test now checks 47 things.
 - Sample pieces move to a seeded `tilo` account.
 - Done when: a piece published on one device replays correctly on another.
 
+Progress (2026-11-04), part A done: `POST /api/pieces` (multipart: meta, recording, picture)
+reads the recording with the shared codec, checks every stroke's layer, the 10:00 clock for
+subject entries and a live source for remixes, allows 20 a day (`PUBLISH_PER_DAY`), writes
+the files and then the row; `DELETE /api/pieces/:id` takes your own piece down with its files.
+Migration 0004 adds `stamp_total`, `picture` (WebP, or JPEG from Safari) and minutes to the
+second. In the app, signed in with a handle, "Pin" becomes "Publish"; the gallery lists
+published pieces a page at a time (newest, most stamped this week, subject, remixes) from
+their pictures and fetches a recording only when a card is pointed at; the piece page,
+stamps, remixes of published pieces, take-down and the profile's pieces work against the
+server. The smoke test checks that a recording comes back byte for byte (65 checks).
+Part B is left: samples to a seeded `tilo` account, link previews for crawlers, and offering
+to publish this device's pins after the first sign-in.
+
+Watch for 2.5 and 2.8: /files are cached as immutable for a year, so behind Cloudflare a
+taken-down or removed piece keeps being served from the edge. Moderation has to purge its
+URLs through Cloudflare's API, or /files need a shorter edge cache.
+
 ### 2.4 Stamps, follows, remix across accounts (about 1 week)
 - Stamps written through PostgREST with optimistic UI; counts from the trigger.
 - Following tab in the gallery.

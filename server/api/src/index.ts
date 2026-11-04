@@ -4,6 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import postgres from "postgres";
 import { account } from "./account.ts";
 import { type AuthEnv, signedIn } from "./auth.ts";
+import { pieces } from "./pieces.ts";
 import { FORMAT, MAX_BYTES, summarise } from "./recording.ts";
 
 /* tilo-api: the part of the server that has to read what members send before it is stored.
@@ -31,7 +32,9 @@ app.route(
   account(sql, { member, filesDir: env("FILES_DIR"), authUrl: env("AUTH_URL"), serviceKey: env("SERVICE_ROLE_KEY") }),
 );
 
-// reads a recording and says what is in it; publishing (2.3) runs the same check first
+app.route("/pieces", pieces(sql, { member, filesDir: env("FILES_DIR"), perDay: Number(process.env.PUBLISH_PER_DAY ?? 20) }));
+
+// reads a recording and says what is in it
 app.post(
   "/check",
   member,

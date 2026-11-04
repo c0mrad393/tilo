@@ -143,6 +143,7 @@ services:
       DATABASE_URL: postgres://tilo_api:${POSTGRES_PASSWORD}@db:5432/postgres
       JWT_SECRET: ${JWT_SECRET}
       FILES_DIR: /srv/files
+      PUBLISH_PER_DAY: ${PUBLISH_PER_DAY:-20}
       # for deleting accounts, through Auth's admin API
       AUTH_URL: http://auth:9999
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}

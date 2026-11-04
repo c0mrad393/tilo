@@ -1,8 +1,8 @@
 import { rm } from "node:fs/promises";
-import { join } from "node:path";
 import { Hono, type MiddlewareHandler } from "hono";
 import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
+import { pieceFiles } from "./pieces.ts";
 
 /* /api/me: the signed-in member's own account. Everything here acts only on whoever the
    session belongs to, so there is no id in any path. */
@@ -66,12 +66,7 @@ export function account(sql: Sql, { member, filesDir, authUrl, serviceKey }: Opt
     const pieces = await sql<{ id: string }[]>`select id from public.pieces where owner = ${id}`;
     const res = await admin(id, { method: "DELETE" });
     if (!res.ok && res.status !== 404) throw new Error(`Auth didn't delete the user: ${res.status} ${await res.text()}`);
-    await Promise.all(
-      pieces.flatMap((p) => [
-        rm(join(filesDir, "rec", `${p.id}.tl`), { force: true }),
-        rm(join(filesDir, "img", `${p.id}.webp`), { force: true }),
-      ]),
-    );
+    await Promise.all(pieces.flatMap((p) => pieceFiles(filesDir, p.id).map((f) => rm(f, { force: true }))));
     return c.body(null, 204);
   });
 

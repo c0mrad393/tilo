@@ -29,4 +29,4 @@ export function summarise(bytes: Uint8Array): Summary {
   };
 }
 
-export { FORMAT };
+export { decode, FORMAT };
