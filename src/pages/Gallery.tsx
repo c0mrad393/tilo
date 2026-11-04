@@ -67,13 +67,13 @@ function Exhibition({ list }: { list: Shown[] }) {
 }
 
 /* the shared gallery: published pieces from the server, a page at a time */
-function usePublished(sort: Sort) {
-  const [state, setState] = useState<{ items: Published[]; more: boolean; page: number; status: "loading" | "ready" | "failed" }>({ items: [], more: false, page: 0, status: "loading" });
+function usePublished(sort: Sort, me?: string) {
+  const [state, setState] = useState<{ items: Published[]; more: boolean; page: number; status: "loading" | "ready" | "failed"; none?: boolean }>({ items: [], more: false, page: 0, status: "loading" });
   const load = (page: number, keep: Published[]) => {
     setState((s) => ({ ...s, status: "loading" }));
     let live = true;
-    listPieces({ sort, subject: PROMPT.no, page }).then(
-      (r) => live && setState({ items: [...keep, ...r.items], more: r.more, page, status: "ready" }),
+    listPieces({ sort, subject: PROMPT.no, page, me }).then(
+      (r) => live && setState({ items: [...keep, ...r.items], more: r.more, page, status: "ready", none: "none" in r }),
       () => live && setState((s) => ({ ...s, status: "failed" })),
     );
     return () => {
@@ -81,19 +81,23 @@ function usePublished(sort: Sort) {
     };
   };
   useEffect(() => {
-    if (ACCOUNTS) return load(0, []);
-  }, [sort]);
+    // Following waits for the session (the gallery falls back to Newest once it's known to be none)
+    if (ACCOUNTS && (sort !== "following" || me)) return load(0, []);
+  }, [sort, me]);
   return { ...state, next: () => load(state.page + 1, state.items) };
 }
 
 export function Gallery() {
   const local = useLocal();
   const [params, setParams] = useSearchParams();
-  const sort = (params.get("sort") as Sort) || FILTERS[0][0];
+  const { ready, profile } = useAccount();
+  // Following needs someone to follow from; until the session is known it waits as Newest
+  const filters: [Sort, string][] = profile ? [...FILTERS.slice(0, 1), ["following", "Following"], ...FILTERS.slice(1)] : FILTERS;
+  const asked = (params.get("sort") as Sort) || FILTERS[0][0];
+  const sort = asked === "following" && !profile && ready ? FILTERS[0][0] : asked;
   const view = params.get("view") === "exhibition" ? "exhibition" : "board";
   const set = (k: string, v: string) => setParams((p) => { p.set(k, v); return p; }, { replace: true });
-  const shared = usePublished(sort);
-  const { profile } = useAccount();
+  const shared = usePublished(sort, profile?.id);
 
   // pieces of this device: what was pinned here, and without accounts the samples (with
   // accounts they are published as @tilo, so they come with the shared gallery)
@@ -120,7 +124,7 @@ export function Gallery() {
         </p>
         <div className="gal-controls">
           <div className="filters" role="group" aria-label="Sort the gallery">
-            {FILTERS.map(([k, l]) => (
+            {filters.map(([k, l]) => (
               <button key={k} className="filter" aria-pressed={sort === k} onClick={() => set("sort", k)}>{l}</button>
             ))}
           </div>
@@ -139,7 +143,15 @@ export function Gallery() {
           {shared.status === "failed" && !shared.items.length ? (
             <p className="empty serif" role="alert">The gallery didn't load: Tilo's server didn't answer. Check your connection and reload.</p>
           ) : shared.status === "ready" && !shared.items.length ? (
-            <p className="empty serif">{sort === "stamped" ? "Nothing has been stamped this week yet." : "Nothing published here yet."} <Link to="/studio">Start a sheet</Link> and publish it.</p>
+            sort === "following" ? (
+              <p className="empty serif">
+                {shared.none
+                  ? <>You don't follow anyone yet. Open an artist's page from any piece and follow them; their new pieces show up here.</>
+                  : "Nobody you follow has published anything yet."}
+              </p>
+            ) : (
+              <p className="empty serif">{sort === "stamped" ? "Nothing has been stamped this week yet." : "Nothing published here yet."} <Link to="/studio">Start a sheet</Link> and publish it.</p>
+            )
           ) : view === "board" ? board(shared.items) : shared.items.length ? <Exhibition list={shared.items} /> : null}
           {shared.status === "loading" && <p className="serif page-wait" aria-live="polite">Hanging the next plates…</p>}
           {shared.more && shared.status !== "loading" && (

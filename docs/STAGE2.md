@@ -152,6 +152,18 @@ URLs through Cloudflare's API, or /files need a shorter edge cache.
   links back with credit. The original's owner can turn remixing off.
 - Done when: two test accounts can stamp, follow and remix each other.
 
+Progress (2026-11-04): done. Tried with two accounts in the browser: each stamped, followed
+and remixed the other, and each one's Following tab showed only the other's pieces.
+- Migration 0005 adds `pieces.remixable` (default on). Its owner, and only its owner, can
+  switch it through PostgREST (a column grant plus the existing update policy). The studio's
+  publish dialog has "Others may remix it", and the piece page has the same switch.
+- `POST /api/pieces` refuses a remix of a piece whose artist has turned remixing off, unless
+  it is the artist's own piece. Remixes made before the switch stay. On a closed piece,
+  others see the Remix button disabled with a note saying why.
+- The gallery's Following tab (members only) lists live pieces by the people you follow,
+  newest first, with its own empty states for following nobody and for nothing published yet.
+- Smoke test: 78 checks.
+
 ### 2.5 Moderation and proof of hand v1 (about 1 week)
 - Report button on pieces and profiles; a queue page for mods (hide, restore, remove,
   suspend the account).

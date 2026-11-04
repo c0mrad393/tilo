@@ -210,6 +210,23 @@ check(imgFile.ok && imgFile.headers.get("content-type") === "image/webp", "the p
 const remixed = await publish(token2, { title: "After smoke", remix_of: pid });
 check(remixed.status === 201 && remixed.body.remix_of === pid, "another member publishes a remix that credits it", remixed);
 check((await publish(token2, { remix_of: `held${tag}` })).status === 422, "a held piece can't be remixed");
+// remixing across accounts: the artist can switch it off, for others but not for themself
+const closedPiece = await publish(token, { title: "Not for remixing", remixable: false });
+check(closedPiece.status === 201 && closedPiece.body.remixable === false, "an artist publishes a piece others may not remix", closedPiece);
+const refusedRemix = await publish(token2, { remix_of: closedPiece.body?.id });
+check(refusedRemix.status === 422 && /remixing off/.test(refusedRemix.body.error), "remixing it is refused for anyone else", refusedRemix);
+const ownRemix = await publish(token, { title: "My own remix", remix_of: closedPiece.body?.id });
+check(ownRemix.status === 201, "the artist can still remix their own piece", ownRemix);
+await call(`/rest/v1/pieces?id=eq.${closedPiece.body?.id}`, { method: "PATCH", token: token2, json: { remixable: true } });
+check(psql(`select remixable from public.pieces where id = '${closedPiece.body?.id}'`) === "f", "nobody else can switch remixing back on");
+const reopened = await call(`/rest/v1/pieces?id=eq.${closedPiece.body?.id}`, { method: "PATCH", token, headers: { prefer: "return=representation" }, json: { remixable: true } });
+check(reopened.body?.[0]?.remixable === true, "the artist switches remixing back on", reopened);
+check((await publish(token2, { remix_of: closedPiece.body?.id })).status === 201, "and then others can remix it");
+// the gallery's Following tab: who the second member follows, then their pieces
+const followees = (await call(`/rest/v1/follows?follower=eq.${other.id}&select=followee`)).body.map((f: { followee: string }) => f.followee);
+const feed = await call(`/rest/v1/pieces?owner=in.(${followees.join(",")})&status=eq.live&select=id&order=created.desc`);
+check(followees.includes(userId) && feed.body?.some((p: { id: string }) => p.id === pid), "the second member's Following feed has the first member's pieces", feed.body?.length);
+check((await call("/rest/v1/follows", { method: "POST", token, json: { followee: userId } })).status >= 400, "nobody can follow themself");
 check((await call(`/api/pieces/${pid}`, { method: "DELETE", token: token2 })).status === 404, "nobody else can take a piece down");
 const retitle = await call(`/rest/v1/pieces?id=eq.${pid}`, { method: "PATCH", token, headers: { prefer: "return=representation" }, json: { title: "Smoke, retitled" } });
 check(retitle.body?.[0]?.title === "Smoke, retitled", "the artist retitles it", retitle);
@@ -219,9 +236,9 @@ check(asCrawler.includes(`<meta property="og:title" content="Smoke, retitled by 
 const asBrowser = await fetch(`${BASE}/piece/${pid}`, { headers: { "user-agent": "Mozilla/5.0 Safari/605" } }).then((r) => r.text());
 check(asBrowser.includes('id="root"') && !asBrowser.includes("og:title"), "a browser still gets the app");
 check((await fetch(`${BASE}/piece/held${tag}`, { headers: { "user-agent": "Slackbot" } })).status === 404, "a held piece has no preview");
-// the daily limit counts every piece of the last 24 hours: one published above, two from the stamp checks
+// the daily limit counts every piece of the last 24 hours: three published above, two from the stamp checks
 psql(`insert into public.pieces (id, owner, title, strokes, format, bytes)
-  select 'fill${tag}' || n, '${userId}', 'Filler', 1, 3, 1 from generate_series(1, 17) n`);
+  select 'fill${tag}' || n, '${userId}', 'Filler', 1, 3, 1 from generate_series(1, 15) n`);
 const limited = await publish(token, {});
 check(limited.status === 429, "the 21st piece in a day waits until tomorrow", limited);
 psql(`delete from public.pieces where id like 'fill${tag}%'`);
@@ -232,7 +249,7 @@ check((await fetch(`${BASE}/files/rec/${tidy.body?.id}.tl`)).status === 404, "it
 // export, then delete the account for good
 const exported = await call("/api/me/export", { token });
 check(
-  exported.status === 200 && exported.body.profile?.handle === handle && exported.body.pieces.length === 3 && exported.body.followers[0]?.handle === `smoke_${tag}_b`,
+  exported.status === 200 && exported.body.profile?.handle === handle && exported.body.pieces.length === 5 && exported.body.followers[0]?.handle === `smoke_${tag}_b`,
   "the member exports everything Tilo keeps about them",
   exported.status,
 );

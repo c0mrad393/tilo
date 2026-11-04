@@ -4,7 +4,7 @@ import { Icon } from "../components/Icon";
 import { Trace } from "../components/Trace";
 import { ACCOUNTS, useAccount } from "../data/account";
 import { allPieces, pieceById, stampCount, toggleStamp, useLocal } from "../data/local";
-import { type Full, getPiece, listPieces, loadPiece, myStamps, type Published, setStamp, takeDown } from "../data/pieces";
+import { type Full, getPiece, listPieces, loadPiece, myStamps, type Published, setRemixable, setStamp, takeDown } from "../data/pieces";
 import { publishedSample, STAMPS, STAMP_COLOR } from "../data/samples";
 import { Replayer, prefersReducedMotion } from "../engine/replay";
 import { drawnCount, fmtMin, paletteOf, SHAPES, sizeOf, toolsUsed, type Piece } from "../engine/stroke";
@@ -144,7 +144,7 @@ function ServerStamps({ piece }: { piece: Published }) {
 }
 
 /* where a published piece came from, and what grew out of it */
-function Lineage({ piece }: { piece: Piece }) {
+function Lineage({ piece, closed }: { piece: Piece; closed: boolean }) {
   const local = useLocal();
   const published = "owner" in piece;
   const [src, setSrc] = useState<Piece | undefined>(() => (piece.remixOf ? pieceById(piece.remixOf, local) : undefined));
@@ -162,8 +162,28 @@ function Lineage({ piece }: { piece: Piece }) {
     <p className="lineage serif">
       {src && <>Remix of <Link to={`/piece/${src.id}`} viewTransition>{src.title}</Link> by @{src.by}. </>}
       {kids.length > 0 && <>{kids.length} remix{kids.length > 1 ? "es" : ""} grew out of this: {kids.map((k, i) => <span key={k.id}>{i ? ", " : ""}<Link to={`/piece/${k.id}`} viewTransition>{k.title}</Link></span>)}.</>}
-      {!src && !kids.length && "No remixes yet. Start one and the credit links back here."}
+      {!src && !kids.length && (closed ? "No remixes yet." : "No remixes yet. Start one and the credit links back here.")}
     </p>
+  );
+}
+
+/* the artist's switch: may others remix this piece? Remixes already made stay either way */
+function RemixSwitch({ piece }: { piece: Published }) {
+  const [on, setOn] = useState(piece.remixable);
+  const [error, setError] = useState("");
+  const flip = (next: boolean) => {
+    setOn(next);
+    setError("");
+    setRemixable(piece.id, next).catch(() => {
+      setOn(!next);
+      setError("That didn't save. Try again.");
+    });
+  };
+  return (
+    <div className="remix-switch">
+      <label className="check"><input type="checkbox" checked={on} onChange={(e) => flip(e.target.checked)} /> Others may remix it</label>
+      {error && <p className="field-note is-error" role="alert">{error}</p>}
+    </div>
   );
 }
 
@@ -232,6 +252,7 @@ export function PiecePage() {
     );
   const published = "owner" in piece ? piece : null;
   const yours = !!published && published.owner === profile?.id;
+  const closed = !!published && !published.remixable && !yours;
   const sheet = sizeOf(piece);
   return (
     <main id="main" tabIndex={-1} className="wrap piece-page">
@@ -260,11 +281,13 @@ export function PiecePage() {
             <p className="kicker stamp-head">Stamp it · pick any that fit</p>
             {published ? <ServerStamps key={piece.id} piece={published} /> : <LocalStamps piece={piece} />}
           </div>
-          <Lineage key={piece.id} piece={piece} />
+          <Lineage key={piece.id} piece={piece} closed={closed} />
           <div className="piece-actions">
-            <button className="btn btn-ink" onClick={() => nav(`/studio?remix=${piece.id}`, { viewTransition: true })}><Icon name="remix" />Remix in studio</button>
+            <button className="btn btn-ink" disabled={closed} onClick={() => nav(`/studio?remix=${piece.id}`, { viewTransition: true })}><Icon name="remix" />Remix in studio</button>
             {yours && <TakeDown piece={published!} />}
           </div>
+          {closed && <p className="serif stamp-note">The artist has turned remixing off for this piece.</p>}
+          {yours && <RemixSwitch key={piece.id} piece={published!} />}
         </section>
       </div>
     </main>

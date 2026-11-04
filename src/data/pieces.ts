@@ -20,6 +20,8 @@ export interface Published extends Omit<Piece, "strokes"> {
   /** how many strokes the recording holds, known before it is fetched */
   count: number;
   stampTotal: number;
+  /** whether others may remix it; the artist can switch it */
+  remixable: boolean;
 }
 export type Full = Published & { strokes: Stroke[] };
 
@@ -33,6 +35,7 @@ interface Row {
   minutes: number;
   subject: number | null;
   remix_of: string | null;
+  remixable: boolean;
   status: Published["status"];
   stamps: Record<string, number>;
   stamp_total: number;
@@ -42,7 +45,7 @@ interface Row {
 }
 
 // pieces has two links to profiles (its owner, and profiles.avatar_piece), so the embed names one
-const SELECT = "id,title,paper,shape,layers,strokes,minutes,subject,remix_of,status,stamps,stamp_total,picture,created,owner:profiles!pieces_owner_fkey(id,handle)";
+const SELECT = "id,title,paper,shape,layers,strokes,minutes,subject,remix_of,remixable,status,stamps,stamp_total,picture,created,owner:profiles!pieces_owner_fkey(id,handle)";
 
 const fromRow = (r: Row): Published => ({
   id: r.id,
@@ -55,6 +58,7 @@ const fromRow = (r: Row): Published => ({
   shape: r.shape === "land" ? undefined : r.shape,
   prompt: r.subject ?? undefined,
   remixOf: r.remix_of ?? undefined,
+  remixable: r.remixable,
   stamps: r.stamps,
   stampTotal: r.stamp_total,
   picture: `/files/img/${r.id}.${r.picture}`,
@@ -63,13 +67,20 @@ const fromRow = (r: Row): Published => ({
   count: r.strokes,
 });
 
-export type Sort = "new" | "stamped" | "prompt" | "remix";
+export type Sort = "new" | "stamped" | "prompt" | "remix" | "following";
 export const PAGE = 24;
 
 /** One page of the gallery, newest first unless sorted otherwise. */
-export async function listPieces(q: { sort?: Sort; subject?: number; owner?: string; remixOf?: string; page?: number; size?: number }) {
+export async function listPieces(q: { sort?: Sort; subject?: number; owner?: string; remixOf?: string; page?: number; size?: number; me?: string }) {
   const size = q.size ?? PAGE;
   const p = new URLSearchParams({ select: SELECT, limit: String(size + 1), offset: String((q.page ?? 0) * size) });
+  if (q.sort === "following") {
+    // the people `me` follows, then their pieces; fine at beta size (a few hundred at most)
+    if (!q.me) return { items: [], more: false };
+    const ids = (await call<{ followee: string }[]>(`/rest/v1/follows?follower=eq.${q.me}&select=followee&limit=500`)).map((f) => f.followee);
+    if (!ids.length) return { items: [], more: false, none: true };
+    p.set("owner", `in.(${ids.join(",")})`);
+  }
   // someone looking at their own profile also sees pieces held for review
   if (!q.owner) p.set("status", "eq.live");
   if (q.owner) p.set("owner", `eq.${q.owner}`);
@@ -126,6 +137,8 @@ export interface Draft {
   minutes: number;
   subject?: number;
   remixOf?: string;
+  /** missing means yes */
+  remixable?: boolean;
 }
 
 /** Sends a piece to the gallery. The server reads the recording before it keeps anything. */
@@ -133,7 +146,7 @@ export async function publish(d: Draft, picture: Blob) {
   const form = new FormData();
   form.set(
     "meta",
-    JSON.stringify({ title: d.title, paper: d.paper, shape: d.shape, layers: d.layers, minutes: d.minutes, subject: d.subject ?? null, remix_of: d.remixOf ?? null }),
+    JSON.stringify({ title: d.title, paper: d.paper, shape: d.shape, layers: d.layers, minutes: d.minutes, subject: d.subject ?? null, remix_of: d.remixOf ?? null, remixable: d.remixable ?? true }),
   );
   form.set("rec", new Blob([encode(d.strokes) as Uint8Array<ArrayBuffer>], { type: "application/octet-stream" }), "piece.tl");
   form.set("img", picture, picture.type === "image/webp" ? "piece.webp" : "piece.jpg");
@@ -164,6 +177,13 @@ export async function publishPin(p: Piece) {
     // no library on this device: nothing points at the pin
   }
   return id;
+}
+
+/** Lets others remix your piece, or stops them (remixes already made stay). */
+export async function setRemixable(id: string, on: boolean) {
+  await call(`/rest/v1/pieces?id=eq.${id}`, { method: "PATCH", json: { remixable: on } });
+  const had = loaded.get(id);
+  if (had) loaded.set(id, { ...had, remixable: on });
 }
 
 /** Takes your own piece down for good. */

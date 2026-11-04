@@ -76,6 +76,7 @@ export interface Draft {
   minutes: number;
   subject: number | null;
   remix_of: string | null;
+  remixable: boolean;
   format: number;
   bytes: number;
   strokes: number;
@@ -123,10 +124,12 @@ export function check(meta: Record<string, unknown>, rec: Uint8Array, img: Uint8
       throw new Refused("This piece went past the 10:00 clock, so it can't be entered for the subject.");
   }
 
+  const remixable = meta.remixable !== false;
+
   const picture = (Object.keys(PICTURES) as (keyof typeof PICTURES)[]).find((k) => PICTURES[k](img));
   if (!picture) throw new Refused("The picture has to be WebP or JPEG.");
 
-  return { title, paper, shape, layers, minutes: Math.round(minutes * 100) / 100, subject, remix_of, format, bytes: rec.length, strokes: strokes.length, picture };
+  return { title, paper, shape, layers, minutes: Math.round(minutes * 100) / 100, subject, remix_of, remixable, format, bytes: rec.length, strokes: strokes.length, picture };
 }
 
 /** a piece's id: ten letters and digits, too many to guess (52 bits) */
@@ -170,8 +173,10 @@ export function pieces(sql: Sql, { member, filesDir, perDay }: Options) {
         const imgBytes = new Uint8Array(await img.arrayBuffer());
         const d = check(fields, recBytes, imgBytes);
         if (d.remix_of) {
-          const [src] = await sql`select 1 from public.pieces where id = ${d.remix_of} and status = 'live'`;
+          const [src] = await sql`select owner, remixable from public.pieces where id = ${d.remix_of} and status = 'live'`;
           if (!src) throw new Refused("The piece this remixes isn't in the gallery any more.");
+          // an artist may always remix their own piece
+          if (!src.remixable && src.owner !== owner) throw new Refused("The artist has turned remixing off for that piece.");
         }
 
         const id = newId();
@@ -186,9 +191,9 @@ export function pieces(sql: Sql, { member, filesDir, perDay }: Options) {
         await rename(`${imgPath}.part`, imgPath);
         try {
           const [row] = await sql`
-            insert into public.pieces (id, owner, title, paper, shape, layers, strokes, minutes, format, bytes, subject, remix_of, picture)
+            insert into public.pieces (id, owner, title, paper, shape, layers, strokes, minutes, format, bytes, subject, remix_of, remixable, picture)
             values (${id}, ${owner}, ${d.title}, ${d.paper}, ${d.shape}, ${sql.json(d.layers as never)}, ${d.strokes}, ${d.minutes},
-                    ${d.format}, ${d.bytes}, ${d.subject}, ${d.remix_of}, ${d.picture})
+                    ${d.format}, ${d.bytes}, ${d.subject}, ${d.remix_of}, ${d.remixable}, ${d.picture})
             returning *`;
           return c.json(row, 201);
         } catch (e) {

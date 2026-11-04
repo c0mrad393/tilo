@@ -2328,3 +2328,6 @@ main[tabindex="-1"]:focus {
 .pin-list small {
   font-size: 15px;
 }
+.remix-switch {
+  margin-top: var(--s-4);
+}

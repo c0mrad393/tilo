@@ -124,6 +124,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const { profile } = useAccount();
   const publishing = ACCOUNTS && !!profile;
   const [sending, setSending] = useState<"" | "busy" | string>("");
+  const [remixable, setRemixable] = useState(true);
   const [promptMode, setPromptMode] = useState(!!sheet.subject);
   const [tool, setTool] = useState<ToolId>("ink");
   const [color, setColor] = useState(promptMode ? PROMPT.palette[0] : FREE[0]);
@@ -929,7 +930,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
         const all = [...base, ...strokes];
         const id = await publish(
           // a sample is credited as the copy the server publishes as @tilo
-          { title: name, strokes: all, layers, paper, shape, minutes: Math.max(0.1, ms / 60000), subject, remixOf: isPublished(remix) ? remix.id : remix?.sample ? publishedSample(remix.id) : undefined },
+          { title: name, strokes: all, layers, paper, shape, minutes: Math.max(0.1, ms / 60000), subject, remixable, remixOf: isPublished(remix) ? remix.id : remix?.sample ? publishedSample(remix.id) : undefined },
           await webPicture(all, layers, paper, dims),
         );
         setSending("");
@@ -1261,6 +1262,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
           {promptMode && (
             <label className="check"><input type="checkbox" checked={enter} disabled={timeLeft <= 0} onChange={(e) => setEnter(e.target.checked)} /> {timeLeft > 0 ? `Enter it for Subject No. ${PROMPT.no}` : "Over the 10:00 limit, so it can't be entered"}</label>
           )}
+          {publishing && <label className="check"><input type="checkbox" checked={remixable} onChange={(e) => setRemixable(e.target.checked)} /> Others may remix it</label>}
           {sending && sending !== "busy" && <p className="field-note is-error" role="alert">{sending}</p>}
           <div className="row"><button type="button" className="btn btn-quiet" onClick={() => pinDlg.current!.close()}>Keep drawing</button><button type="submit" className="btn btn-ink" disabled={sending === "busy"}>{publishing ? (sending === "busy" ? "Publishing…" : "Publish it") : "Pin it"}</button></div>
         </form>
