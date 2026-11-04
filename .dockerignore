@@ -1,0 +1,9 @@
+# tilo-api is built from the repository root; it only needs server/api and src/engine
+node_modules
+server/api/node_modules
+server/.env
+dist
+.git
+design
+docs
+prototype

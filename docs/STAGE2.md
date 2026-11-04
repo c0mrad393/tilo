@@ -22,7 +22,7 @@ browser ── Cloudflare proxy ── VPS
                                └─ Caddy (HTTPS, routing, static files)
                                     ├─ /               the built app (dist/)
                                     ├─ /files/…        recordings and pictures on disk, cached for a year
-                                    ├─ /auth/v1, /rest/v1 ── Kong ── Supabase Auth, PostgREST
+                                    ├─ /auth/v1, /rest/v1 ── Supabase Auth, PostgREST
                                     └─ /api/…          tilo-api (Node + Hono)
                                                          ├─ checks the Supabase session
                                                          ├─ decodes the v2 recording (src/engine/codec.ts)
@@ -34,7 +34,9 @@ browser ── Cloudflare proxy ── VPS
 
 Everything is on one origin, so there's no CORS to configure.
 
-From the self-hosted Supabase stack Tilo runs only Postgres, Auth, PostgREST and Kong.
+From the self-hosted Supabase stack Tilo runs only Postgres, Auth and PostgREST. Caddy
+routes to them directly, so there is no Kong (Supabase's own compose file has since moved
+from Kong to Envoy; Tilo needs neither).
 Realtime, Storage, image proxy, edge functions, analytics and logging stay off. Studio
 (the dashboard) runs only when needed and is reached through an SSH tunnel, never from
 the internet.
@@ -54,11 +56,11 @@ hundred thousand pieces.
 |---|---|---|
 | profiles | id (= auth user), handle unique, name, bio, avatar_piece, role, created | role: member, mod, admin. The avatar is a small drawing made in the studio, so no photo uploads to moderate |
 | pieces | id, owner, title, paper, layers jsonb, strokes, minutes, format, subject, remix_of, status, created | status: live, held, hidden, removed. Files at /files/rec/{id}.tl and /files/img/{id}.webp |
-| stamps | piece, user, kind, created | primary key (piece, user, kind); counts kept by trigger on pieces |
+| stamps | piece, member, kind, created | primary key (piece, member, kind); counts kept by trigger on pieces |
 | follows | follower, followee, created | |
-| reports | id, piece or profile, by, reason, note, status, created | |
+| reports | id, piece or profile, reporter, reason, note, status, created | |
 | invites | code, made_by, used_by, used_at | closed beta gate |
-| feedback | id, user, page, text, created | |
+| feedback | id, member, page, text, created | |
 
 RLS: anyone reads live pieces and profiles; owners edit their own rows; only mods read
 reports and change piece status. The service key lives only in tilo-api's environment.
@@ -76,6 +78,12 @@ Sizes are rough, in weeks of focused work for one person.
 - The Vite dev server proxies /auth, /rest, /api and /files to the local stack.
 - Done when: the whole stack runs on this computer under Docker, a test user signs up,
   and tilo-api accepts an authenticated request.
+
+Progress (2026-11-04): done. `server/` holds the compose file (Postgres, Auth, PostgREST,
+a one-shot migrate step, tilo-api, Caddy), migrations 0001 (tables) and 0002 (grants, RLS,
+stamp counts), the local seed, `scripts/setup-env.mjs` for secrets and `scripts/smoke.ts`,
+which signs up a member and checks 22 things end to end. The whole stack idles at about
+210 MB of memory. See server/README.md.
 
 ### 2.2 Accounts and profiles (about 1 week)
 - Sign in with an email link and Google. Mail goes out through an SMTP provider with a

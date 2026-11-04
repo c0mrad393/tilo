@@ -51,9 +51,13 @@ class Writer {
   }
 }
 
+// plain fields rather than a parameter property, so Node can run this file as it is (tilo-api)
 class Reader {
   i = 0;
-  constructor(private b: Uint8Array) {}
+  b: Uint8Array;
+  constructor(b: Uint8Array) {
+    this.b = b;
+  }
   byte() {
     if (this.i >= this.b.length) throw new Error("Recording ends early");
     return this.b[this.i++];

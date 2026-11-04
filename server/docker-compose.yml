@@ -1,0 +1,160 @@
+# Tilo's server: Postgres, Supabase Auth, PostgREST, tilo-api and Caddy.
+# Run from server/: `node scripts/setup-env.mjs` once, then `docker compose up -d --build`.
+# Only Caddy is reachable from outside; everything else talks on the compose network.
+# Versions follow Supabase's own self-hosting compose file, so Auth and Postgres match.
+
+name: tilo
+
+services:
+  db:
+    image: supabase/postgres:17.6.1.136
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      POSTGRES_PORT: 5432
+      PGPORT: 5432
+      POSTGRES_DB: postgres
+      PGDATABASE: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/setup-env.mjs first}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      JWT_EXP: ${JWT_EXPIRY}
+    volumes:
+      # runs once, when the data volume is first created
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init-scripts/99-tilo.sql:ro
+      - db-data:/var/lib/postgresql/data
+      - db-config:/etc/postgresql-custom
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "log_min_messages=fatal"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth:
+    image: supabase/gotrue:v2.197.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      # the address people reach Auth at, through Caddy; links in emails start with it
+      API_EXTERNAL_URL: ${PUBLIC_URL}/auth/v1
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_URI_ALLOW_LIST: ${REDIRECT_URLS}
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: ${JWT_EXPIRY}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_ISSUER: ${PUBLIC_URL}/auth/v1
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
+      # true only on this computer, where no mail is sent
+      GOTRUE_MAILER_AUTOCONFIRM: ${MAIL_AUTOCONFIRM}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
+      GOTRUE_SMTP_HOST: ${SMTP_HOST}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT}
+      GOTRUE_SMTP_USER: ${SMTP_USER}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS}
+      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rest:
+    image: postgrest/postgrest:v14.18
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_DB_MAX_ROWS: 200
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: ${JWT_EXPIRY}
+      PGRST_ADMIN_SERVER_HOST: localhost
+      PGRST_ADMIN_SERVER_PORT: 3001
+    healthcheck:
+      test: ["CMD", "postgrest", "--ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # applies migrations/ (and seed/ when SEED=true), then exits
+  migrate:
+    image: supabase/postgres:17.6.1.136
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+    entrypoint: ["bash", "/tilo/migrate.sh"]
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postgres
+      SEED: ${SEED}
+    volumes:
+      - ./db/migrate.sh:/tilo/migrate.sh:ro
+      - ./migrations:/tilo/migrations:ro
+      - ./seed:/tilo/seed:ro
+
+  api:
+    build:
+      context: ..
+      dockerfile: server/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PORT: 8787
+      DATABASE_URL: postgres://tilo_api:${POSTGRES_PASSWORD}@db:5432/postgres
+      JWT_SECRET: ${JWT_SECRET}
+      FILES_DIR: /srv/files
+    volumes:
+      - files:/srv/files
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8787/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  caddy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    depends_on:
+      auth:
+        condition: service_healthy
+      rest:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    ports:
+      - ${CADDY_BIND}:8000
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - files:/srv/files:ro
+      - ../dist:/srv/app:ro
+      - caddy-data:/data
+
+volumes:
+  db-data:
+  db-config:
+  files:
+  caddy-data:
