@@ -88,6 +88,12 @@ Make a mod by hand: `update public.profiles set role = 'mod' where handle = '...
 leaves the gallery is purged from the edge too; without them its files stay cached there
 for up to a year.
 
+The first admin is made by hand too, in psql on the server:
+`docker compose exec db psql -U postgres -c "update public.profiles set role = 'admin' where handle = '...'"`.
+After that, admins change roles in the app (Admin > Members), make and withdraw invite codes,
+and switch whether sign-up needs one. That panel reads email addresses from Auth through
+`public.account_facts()`, which only `tilo_api` may call, and every change is logged.
+
 The image check is a filter, not a guarantee: it was tried here on clean drawings only, so
 how well it catches explicit drawings is unmeasured. The first-three-pieces rule and reports
 are what make up for it.

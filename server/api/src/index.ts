@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import postgres from "postgres";
 import { account } from "./account.ts";
+import { admin as adminRoutes } from "./admin.ts";
 import { type AuthEnv, signedIn } from "./auth.ts";
 import { makeDirs, purger } from "./files.ts";
 import { moderation, reports } from "./mod.ts";
@@ -52,6 +53,7 @@ app.route("/pieces", pieces(sql, { member, filesDir, perDay: Number(process.env.
 const modOptions = { member, move, ...admin, holdAfter: Number(process.env.REPORTS_TO_HOLD ?? 3), perDay: 30 };
 app.route("/reports", reports(sql, modOptions));
 app.route("/mod", moderation(sql, modOptions));
+app.route("/admin", adminRoutes(sql, { member }));
 
 // reads a recording and says what is in it
 app.post(

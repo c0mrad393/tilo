@@ -338,6 +338,39 @@ check((await mod(`members/${userId}`, { action: "unsuspend" })).status === 200, 
 check(psql(`select count(*) from public.pieces where id = '${pid}' and status = 'live'`) === "1", "their pieces come back");
 check((await fetch(`${BASE}/files/rec/${pid}.tl`)).ok, "with their files");
 
+// the admin panel: only admins, who see members with their email addresses
+const adm = (path: string, init: { method?: string; json?: unknown } = {}, as = token2) => call(`/api/admin/${path}`, { ...init, token: as });
+check((await adm("stats")).status === 403, "a mod can't open the admin panel");
+psql(`update public.profiles set role = 'admin' where id = '${other.id}'`);
+const stats = await adm("stats");
+check(stats.status === 200 && stats.body.members >= 2 && stats.body.days?.length === 14, "an admin sees the numbers, with 14 days of publishing", stats.body);
+const found = await adm(`members?q=smoke_${tag}`);
+check(found.body?.members?.length === 2 && found.body.members.some((m: { email: string }) => m.email === `smoke-${tag}@tilo.test`), "an admin finds members by handle, with their email", found.body);
+const first = found.body?.members?.find((m: { id: string }) => m.id === userId);
+check(first?.invite === `SMOKE-${tag.toUpperCase()}` && first.live >= 1, "and sees the invite they joined with and their pieces", first);
+check((await adm(`members?q=smoke-${tag}@`)).body?.members?.length === 1, "searching by email works too");
+check((await adm(`members/${userId}`, { method: "POST", json: { role: "mod" } })).status === 200 && psql(`select role from public.profiles where id = '${userId}'`) === "mod", "an admin makes a member a mod");
+check((await adm(`members/${userId}`, { method: "POST", json: { role: "member" } })).status === 200, "and a member again");
+check((await adm(`members/${other.id}`, { method: "POST", json: { role: "member" } })).status === 400, "an admin can't change their own role");
+check((await adm(`members/${userId}`, { method: "POST", json: { role: "owner" } })).status === 400, "roles are member, mod or admin");
+const made = await adm("invites", { method: "POST", json: { count: 3, note: `smoke ${tag}` } });
+const codes: string[] = made.body?.codes ?? [];
+check(made.status === 201 && codes.length === 3 && codes.every((c) => /^TILO-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(c)), "an admin makes invite codes", made.body);
+const unused = await adm("invites?used=no");
+check(codes.every((c) => unused.body?.invites?.some((i: { code: string; note: string }) => i.code === c && i.note === `smoke ${tag}`)), "they are listed as unused, with their note");
+check((await adm("invites?used=yes")).body?.invites?.some((i: { code: string; used_by: string }) => i.code === `SMOKE-${tag.toUpperCase()}` && i.used_by === handle), "used codes say who used them");
+check((await adm(`invites/${codes[0]}`, { method: "DELETE" })).status === 204, "an admin withdraws an unused code");
+check((await adm(`invites/SMOKE-${tag.toUpperCase()}`, { method: "DELETE" })).status === 404, "but not one that was used");
+check((await adm("invites", { method: "POST", json: { count: 0 } })).status === 400, "codes come 1 to 50 at a time");
+psql(`delete from public.invites where note = 'smoke ${tag}'`);
+check((await adm("settings")).body?.invites_required === "true", "an admin reads the settings");
+check((await adm("settings", { method: "PUT", json: { invites_required: "maybe" } })).status === 400, "a setting only takes its own values");
+check((await adm("settings", { method: "PUT", json: { invites_required: false } })).status === 200 && psql(`select value from tilo_meta.settings where key = 'invites_required'`) === "false", "an admin opens sign-up without invites");
+await adm("settings", { method: "PUT", json: { invites_required: true } });
+check(psql(`select value from tilo_meta.settings where key = 'invites_required'`) === "true", "and closes it again");
+check((await adm("stats", {}, token)).status === 403, "a member can't open the admin panel");
+psql(`update public.profiles set role = 'mod' where id = '${other.id}'`);
+
 // the daily limit counts every piece of the last 24 hours, published or not
 psql(`insert into public.pieces (id, owner, title, strokes, format, bytes, checked)
   select 'fill${tag}' || n, '${userId}', 'Filler', 1, 3, 1, now() from generate_series(1, 20) n`);

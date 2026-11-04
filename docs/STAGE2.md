@@ -211,6 +211,18 @@ explicit drawings must not reach the gallery.
 - Smoke test: 131 checks. Not measured: how well the image check catches explicit drawings,
   since it was only tried on clean ones; the first-three rule and reports cover for it.
 
+### Between 2.5 and 2.6: the admin panel
+
+Done locally. Admins get "Admin" in the nav in place of "Queue", and tabs over the queue:
+Overview (the numbers, pieces published over two weeks, and whether sign-up needs an invite
+code), Members (search by handle, name or email; joined, last sign-in, pieces, who invited
+them, open reports, and the role, where making an admin asks first and nobody changes their
+own), Invites (make up to 50 `TILO-XXXX-XXXX` codes with a note on who they're for, copy,
+withdraw unused ones), Pieces (every piece, by status and title, with the mods' buttons),
+Feedback, and the whole log, filtered by action. Email addresses come from Auth through
+`account_facts()`, a function only tilo-api may call; the routes are `/api/admin/*` and
+check the admin role on every call. Role, invite and setting changes go into the same log.
+
 ### 2.6 Legal (about half a week)
 - Terms: who may join (minimum age), what you may post, the licence you grant Tilo to
   show your work, your right to delete, remix rules.
