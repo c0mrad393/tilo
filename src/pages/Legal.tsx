@@ -159,9 +159,9 @@ export function Privacy() {
       <h2 id="where">Where it is, and who else handles it</h2>
       <ul className="serif">
         <li><b>netcup GmbH</b> hosts Tilo's server, database and files, in Germany.</li>
-        <li><b>Cloudflare, Inc.</b> carries every page and file between the server and you, and keeps copies of public pictures near you. It is in the USA and certified under the EU–US Data Privacy Framework.</li>
+        <li><b>Cloudflare, Inc.</b> carries every page and file between the server and you, and keeps copies of public pictures near you. It also stores Tilo's nightly backups, encrypted so that only Tilo can open them. It is in the USA and certified under the EU–US Data Privacy Framework.</li>
         <li><b>{MAIL_SERVICE || "A mail service"}</b> sends the sign-in emails, so it sees your email address.</li>
-        <li><b>Google</b>, only if you choose to sign in with Google.</li>
+        <li><b>Google</b>: mail you send to <Mail to={CONTACT} /> or <Mail to={LEGAL} /> arrives in a Gmail inbox. Also, only if you choose to sign in with Google, Google tells us who you are.</li>
         {SUPPORT.via && <li><b>{SUPPORT.via}</b>, for gifts on the <Link to="/support">support page</Link>. Tilo only sees the name, message and amount the giver shares there, and keeps them as long as the law asks for records of money received.</li>}
       </ul>
       <p className="serif">No one else gets your data, unless the law makes us hand it over.</p>

@@ -6,16 +6,15 @@ import { call } from "./account";
 /** Who runs Tilo. Fill in the name before accounts open: the privacy policy must say who
     is responsible for the data. Empty, the pages say "the person who runs Tilo". */
 export const OPERATOR = {
-  name: "",
+  name: "Otari Kharebashvili",
   /** a private person, not a company */
   kind: "a private person",
   country: "Georgia",
 };
 export const runBy = OPERATOR.name ? `${OPERATOR.name}, ${OPERATOR.kind} in ${OPERATOR.country}` : `${OPERATOR.kind} in ${OPERATOR.country}`;
 
-/** the service that sends sign-in emails, named in the privacy policy once it is picked
-    (2.8: Resend or Brevo) */
-export const MAIL_SERVICE = "";
+/** the service that sends sign-in emails, named in the privacy policy */
+export const MAIL_SERVICE = "Resend, Inc. (USA)";
 
 export const CONTACT = "hello@tiloart.com";
 export const LEGAL = "legal@tiloart.com";
@@ -27,7 +26,7 @@ export const ANSWER_IN = "two working days";
     terms_version on the server (migration 0008); claim_handle refuses any other. Change
     both, in a new migration, when the terms change in a way members must agree to again. */
 export const TERMS_VERSION = "2026-11-04";
-export const UPDATED = "4 November 2026";
+export const UPDATED = "5 November 2026";
 
 export type ClaimKind = "copyright" | "abuse" | "privacy" | "other";
 export interface Claim {
