@@ -278,7 +278,7 @@ export function PiecePage() {
             {published ? <Link to={`/u/${published.by}`} viewTransition>@{published.by}</Link> : `@${piece.by}`}
             {piece.mine || yours ? " (you)" : ""}
             {piece.prompt ? ` · Subject No. ${piece.prompt}` : ""}
-            {piece.sample ? " · sample piece" : ""}
+            {piece.ai ? " · drawn by Claude, an AI" : piece.sample ? " · sample piece" : ""}
             {piece.mine ? " · pinned on this device" : ""}
             {out && yours ? " · only you see it" : ""}
           </p>
@@ -287,13 +287,23 @@ export function PiecePage() {
               {published.status === "removed" ? "A moderator removed this piece." : published.why ? WHY_FOR_ARTIST[published.why] : "This piece is out of the gallery."}
             </p>
           )}
-          {published && !published.proof ? (
+          {piece.ai ? (
+            <div className="ai-box">
+              <p className="kicker">AI-made sample</p>
+              <p className="serif">
+                <b>Claude, an AI, drew this in code.</b> All {strokeCount} strokes are real strokes made with Tilo's own tools, but a program laid them down, not a
+                hand, so the piece never carries the proof-of-hand badge. It's here to show what the studio can do, and to be beaten.
+              </p>
+              <p className="serif ai-dare">Can you do better with your own hands? Draw your own, or remix this one and make it yours.</p>
+              <Link to={piece.prompt ? `/studio?prompt=${piece.prompt}` : "/studio"} viewTransition className="btn btn-line"><Icon name="pencil" />Draw your own</Link>
+            </div>
+          ) : published && !published.proof ? (
             <div className="proof-box is-plain"><p className="serif">All {strokeCount} strokes were saved as they were made. Press play to watch them in order. This recording doesn't carry the proof-of-hand badge. <Link to="/proof">How proof works</Link></p></div>
           ) : (
             <div className="proof-box"><Icon name="proof" /><p className="serif"><b>Recorded on Tilo.</b> All {strokeCount} strokes were saved as they were made. Press play to watch them in order.{published && <> <Link to="/proof">How proof works</Link></>}</p></div>
           )}
           <dl className="facts">
-            <dt>Time</dt><dd>{fmtMin(piece.minutes)} min{piece.prompt && piece.minutes <= 10 ? " · inside the 10:00 limit" : ""}</dd>
+            <dt>Time</dt><dd>{piece.ai ? "Not a hand's time: a program drew it" : `${fmtMin(piece.minutes)} min${piece.prompt && piece.minutes <= 10 ? " · inside the 10:00 limit" : ""}`}</dd>
             <dt>Tools</dt><dd>{toolsUsed(piece.strokes).join(" · ")}</dd>
             <dt>Inks</dt><dd className="swatches">{paletteOf(piece.strokes).map((c) => <i key={c} style={{ ["--c" as string]: c }} title={c} />)}</dd>
             <dt>Sheet</dt><dd>{SHAPES[piece.shape ?? "land"].name} · {sheet.w.toLocaleString()} × {sheet.h.toLocaleString()}</dd>
@@ -305,7 +315,7 @@ export function PiecePage() {
           </div>
           <Lineage key={piece.id} piece={piece} closed={closed || out} />
           <div className="piece-actions">
-            <button className="btn btn-ink" disabled={closed || out} onClick={() => nav(`/studio?remix=${piece.id}`, { viewTransition: true })}><Icon name="remix" />Remix in studio</button>
+            <button className="btn btn-ink" disabled={closed || out} onClick={() => nav(`/studio?remix=${piece.id}`, { viewTransition: true })}><Icon name="remix" />{piece.ai ? "Remix it by hand" : "Remix in studio"}</button>
             {yours && <TakeDown piece={published!} />}
             {published && !yours && !out && <ReportButton target={{ piece: published.id }} label="this piece" />}
           </div>

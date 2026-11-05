@@ -87,6 +87,11 @@ p {
 [hidden] {
   display: none !important;
 }
+/* crop marks and lifted plates may reach past a narrow screen's edge; they never make the page
+   scroll sideways */
+main {
+  overflow-x: clip;
+}
 .wrap {
   max-width: 1400px;
   margin-inline: auto;

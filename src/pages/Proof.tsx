@@ -29,7 +29,10 @@ export function Proof() {
         The badge is a deterrent, not proof. Someone careful could write a program that makes a fake recording and passes every check above.
         The badge makes faking work rather than impossible. A later version will look at how each stroke moves, which is much harder to fake.
       </p>
-      <p className="serif">The pieces by @tilo were made for the prototype before strokes carried their times, so they don't have the badge.</p>
+      <p className="serif">
+        The pieces by @tilo show it. Claude, an AI, drew them in code, stroke by stroke, with the studio's own tools, and their recordings look
+        like a hand's. They're marked <b>AI-made</b> wherever they appear, and they never get the badge, however their recordings read.
+      </p>
 
       <h2>Tilo is for all ages</h2>
       <p className="serif">

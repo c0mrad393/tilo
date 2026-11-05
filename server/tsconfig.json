@@ -10,7 +10,8 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": { "@napi-rs/canvas": ["./api/node_modules/@napi-rs/canvas"] }
   },
   "include": ["api/src", "scripts/*.ts"]
 }

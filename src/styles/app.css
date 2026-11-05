@@ -446,6 +446,16 @@ input[type="range"] {
   color: #1d1b19;
 }
 
+.card-ai {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 3px 8px;
+  background: var(--ground-ink);
+  color: var(--ground);
+  letter-spacing: 0.08em;
+}
+
 /* ---------- trace ---------- */
 .trace {
   position: relative;
@@ -852,6 +862,37 @@ a.index-name::after {
 }
 .sec-link {
   justify-self: end;
+}
+
+/* ---------- the bar to beat: the AI samples, and the case for hands ---------- */
+.beat {
+  display: grid;
+  gap: var(--s-7);
+}
+.beat-copy {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 62ch;
+  padding: 0 18px;
+}
+.beat-copy .hero-ctas {
+  margin-top: var(--s-2);
+}
+.salon.is-even {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.salon.is-even > :first-child {
+  grid-column: auto;
+  grid-row: auto;
+}
+.salon.is-even > :first-child .card-title {
+  font-size: 22px;
+}
+.proof-note {
+  margin: 0;
+  font-size: 15px;
+  font-style: italic;
+  color: var(--ground-soft);
 }
 
 /* ---------- proof of hand ---------- */
@@ -1405,6 +1446,19 @@ button.stamp[aria-pressed="true"] {
   gap: 10px;
   padding: 14px 16px;
 }
+/* a touch screen has no Alt key to hold */
+@media (hover: none) and (pointer: coarse) {
+  .hint-keys {
+    display: none;
+  }
+}
+/* the tabs only show on a narrow screen; on a wide one every card is in the side panel */
+.panel-tabs {
+  display: none;
+}
+.panel-cards {
+  display: contents;
+}
 .panel-card .kicker {
   color: var(--ink-soft);
 }
@@ -1861,6 +1915,12 @@ dialog::backdrop {
   .salon > :first-child {
     grid-row: auto;
   }
+  .salon.is-even {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .salon.is-even > :first-child {
+    grid-column: auto;
+  }
   .proof {
     gap: var(--s-6);
   }
@@ -1900,22 +1960,82 @@ dialog::backdrop {
   }
   .studio-panel {
     display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
+    gap: 0;
+    overflow: visible;
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
     border-left: 0;
     border-top: 1px solid var(--rule-soft);
   }
-  .studio-panel {
+  .panel-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 6px max(8px, var(--gutter-l)) 6px max(8px, var(--gutter-r));
+    overflow-x: auto;
+  }
+  .panel-tab {
+    flex: 1 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 12px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    color: inherit;
+    background: none;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+  }
+  .panel-tab[aria-pressed="true"] {
+    border-color: var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .panel-tab .chip {
+    width: 18px;
+    height: 18px;
+  }
+  .panel-tab-n {
+    font-size: 12px;
+    color: var(--ground-soft);
+  }
+  .panel-tab[aria-pressed="true"] .panel-tab-n {
+    color: var(--ink-soft);
+  }
+  .panel-cards {
+    display: flex;
     align-items: flex-start;
-    max-height: 36dvh;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 0 max(12px, var(--gutter-r)) 10px max(12px, var(--gutter-l));
+  }
+  .studio-panel[data-tab="none"] .panel-cards {
+    display: none;
+  }
+  .studio-panel:not([data-tab="none"]) .panel-card:not([data-tab]),
+  .studio-panel[data-tab="colour"] .panel-card:not([data-tab="colour"]),
+  .studio-panel[data-tab="brush"] .panel-card:not([data-tab="brush"]),
+  .studio-panel[data-tab="layers"] .panel-card:not([data-tab="layers"]),
+  .studio-panel[data-tab="sheet"] .panel-card:not([data-tab="sheet"]) {
+    display: none;
   }
   .panel-card {
-    flex: none;
-    width: 260px;
-    max-height: calc(36dvh - 20px);
+    flex: 1 0 auto;
+    width: min(100%, 340px);
+    max-height: 40dvh;
     overflow-y: auto;
   }
+}
+/* a tablet held upright: the cards keep a hand's width instead of stretching across */
+@media (min-width: 600px) and (max-width: 860px) {
+  .panel-card {
+    flex: 0 0 340px;
+  }
+}
+@media (max-width: 860px) {
   .studio-panel .opt,
   .hide-s {
     display: none;
@@ -1975,7 +2095,8 @@ dialog::backdrop {
     padding-top: var(--s-8);
   }
   .salon,
-  .salon.is-wide {
+  .salon.is-wide,
+  .salon.is-even {
     grid-template-columns: minmax(0, 1fr);
   }
   .salon > :first-child,
@@ -1984,6 +2105,9 @@ dialog::backdrop {
   }
   .entries {
     gap: 36px 32px;
+  }
+  .beat-copy {
+    padding: 0;
   }
   .poster {
     min-height: 0;
@@ -2342,6 +2466,26 @@ main[tabindex="-1"]:focus {
   border-left: 4px solid var(--fluo);
   background: var(--ground-2);
   font-size: 17px;
+}
+.ai-box {
+  display: grid;
+  gap: var(--s-3);
+  justify-items: start;
+  padding: var(--s-4) var(--s-5) var(--s-5);
+  border: 1px solid var(--ground-ink);
+  box-shadow: 4px 4px 0 var(--fluo);
+}
+.ai-box p {
+  margin: 0;
+}
+.ai-box .kicker {
+  padding: 2px 8px;
+  background: var(--ground-ink);
+  color: var(--ground);
+}
+.ai-dare {
+  font-size: 18px;
+  font-style: italic;
 }
 .proof-box.is-plain {
   border-style: dashed;

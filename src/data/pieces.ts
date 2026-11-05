@@ -51,12 +51,13 @@ interface Row {
   stamps: Record<string, number>;
   stamp_total: number;
   picture: "webp" | "jpg";
+  ai: boolean;
   created: string;
   owner: { id: string; handle: string };
 }
 
 // pieces has two links to profiles (its owner, and profiles.avatar_piece), so the embed names one
-export const SELECT = "id,title,paper,shape,layers,strokes,minutes,subject,remix_of,remixable,status,why,proof,checked,stamps,stamp_total,picture,created,owner:profiles!pieces_owner_fkey(id,handle)";
+export const SELECT = "id,title,paper,shape,layers,strokes,minutes,subject,remix_of,remixable,status,why,proof,checked,stamps,stamp_total,picture,ai,created,owner:profiles!pieces_owner_fkey(id,handle)";
 
 export const fromRow = (r: Row): Published => ({
   id: r.id,
@@ -76,7 +77,9 @@ export const fromRow = (r: Row): Published => ({
   created: r.created,
   status: r.status,
   why: r.why,
-  proof: r.proof,
+  // proof of hand is for hands: an AI piece never shows it
+  proof: r.proof && !r.ai,
+  ai: r.ai || undefined,
   checked: !!r.checked,
   count: r.strokes,
 });

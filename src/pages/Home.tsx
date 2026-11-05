@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Annotate, type Measure } from "../components/Annotate";
 import { Icon } from "../components/Icon";
-import { PinCard } from "../components/PinCard";
+import { AiMark, PinCard } from "../components/PinCard";
 import { ReplayCanvas } from "../components/ReplayCanvas";
 import { Trace } from "../components/Trace";
 import { Wall } from "../components/Wall";
 import { DISCIPLINES } from "../data/disciplines";
-import { allPieces, stampTotal, useLocal } from "../data/local";
+import { allPieces, useLocal } from "../data/local";
 import { PROMPT, SAMPLES } from "../data/samples";
 import { Sketch } from "../engine/sketch";
-import { drawnCount, fmtMin, toolsUsed, type Piece } from "../engine/stroke";
+import { drawnCount, toolsUsed, type Piece } from "../engine/stroke";
 
 const HIGHLIGHTER = "#FFD23F";
 
@@ -41,18 +41,19 @@ function LivePlate({ piece, no, className = "", children }: { piece: Piece; no: 
           shape={piece.shape}
           aspect={4 / 3}
           mode="loop"
-          label={`${piece.title} being drawn, stroke by stroke`}
+          label={`${piece.title} being drawn, stroke by stroke${piece.ai ? ", by an AI" : ""}`}
           onProgress={(pos, idx) => {
             trace.current?.style.setProperty("--pos", String(pos));
             if (counter.current) counter.current.textContent = `stroke ${idx + 1} of ${piece.strokes.length}`;
           }}
         />
+        {piece.ai && <AiMark />}
       </span>
       <Trace strokes={piece.strokes} ref={trace} />
       <span className="card-cap">
         <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>
         <span className="card-title">{piece.title}</span>
-        <span className="card-by serif">@{piece.by} · <span ref={counter}>{drawnCount(piece.strokes)} strokes</span></span>
+        <span className="card-by serif">@{piece.by}{piece.ai ? " · drawn by AI" : ""} · <span ref={counter}>{drawnCount(piece.strokes)} strokes</span></span>
         {children}
       </span>
     </Link>
@@ -112,10 +113,10 @@ export function Home() {
   const local = useLocal();
   const countdown = useCountdown();
   const entries = allPieces(local).filter((p) => p.prompt === PROMPT.no).slice(0, 4);
-  const top = [...SAMPLES].sort((a, b) => stampTotal(b, local) - stampTotal(a, local)).slice(0, 6);
-  const feed = ["kazbegi", "oneline", "pomegranate", "tram", "waves"].map((id) => SAMPLES.find((p) => p.id === id)!);
-  const hero = SAMPLES.find((p) => p.id === "window")!;
-  const proof = SAMPLES.find((p) => p.id === "balcony")!;
+  const sample = (id: string) => SAMPLES.find((p) => p.id === id)!;
+  const feed = ["gergeti", "oldtown", "blacksea", "raintram", "harvest"].map(sample);
+  const hero = sample("nightlamp");
+  const proof = sample("rkatsiteli");
 
   return (
     <main id="main" tabIndex={-1}>
@@ -134,12 +135,12 @@ export function Home() {
             </div>
             <dl className="hero-facts">
               <div><dt className="num">0</dt><dd>uploads in the hand-made gallery</dd></div>
-              <div><dt className="num">{hero.strokes.length}</dt><dd>strokes in Plate 01, all replayable</dd></div>
+              <div><dt className="num">{hero.strokes.length}</dt><dd>strokes in Plate 01, drawn by an AI for you to beat</dd></div>
               <div><dt>Free</dt><dd>to draw, show and stamp</dd></div>
             </dl>
           </div>
           <LivePlate piece={hero} no={1} className="hero-plate">
-            <span className="card-note serif">{toolsUsed(hero.strokes).join(", ")} · {fmtMin(hero.minutes)} min · playing from its recording</span>
+            <span className="card-note serif">A sample Claude, an AI, drew in code · {toolsUsed(hero.strokes).join(", ")} · playing from its recording</span>
           </LivePlate>
         </div>
       </section>
@@ -155,7 +156,7 @@ export function Home() {
       <section className="sec wrap" aria-labelledby="feed-h">
         <header className="sec-head">
           <h2 id="feed-h">On the press</h2>
-          <p className="serif">Pieces are stored as recordings, so this row plays how they were made, not only how they ended. The strip under each one is its trace: every stroke in order, with its pressure.</p>
+          <p className="serif">Pieces are stored as recordings, so this row plays how they were made, not only how they ended. The strip under each one is its trace: every stroke in order, with its pressure. For now these are the AI samples; the press fills with yours.</p>
         </header>
         <div className="feed" tabIndex={0} role="region" aria-label="Pieces being replayed">
           {feed.map((p, i) => <LivePlate key={p.id} piece={p} no={i + 2} className="feed-card" />)}
@@ -192,7 +193,7 @@ export function Home() {
             </ul>
             <div className="poster-foot">
               <Link to={`/studio?prompt=${PROMPT.no}`} viewTransition className="btn btn-poster"><Icon name="pencil" />Start the 10-minute sheet</Link>
-              <span className="serif">{PROMPT.entries} entries so far (example)</span>
+              <span className="serif">The first two entries are AI samples. Yours goes next to them.</span>
             </div>
           </article>
           <div className="subject-entries">
@@ -202,13 +203,25 @@ export function Home() {
         </div>
       </section>
 
-      <section className="sec wrap" aria-labelledby="top-h">
+      <section className="sec wrap" id="beat" aria-labelledby="beat-h">
         <header className="sec-head">
-          <h2 id="top-h">Most stamped this week</h2>
-          <p className="serif">Stamps are how people answer a piece: bold, patient, funny, remix me. No likes, no follower counts on the work.</p>
-          <Link to="/gallery" viewTransition className="btn btn-line sec-link">The whole gallery<Icon name="arrow" /></Link>
+          <h2 id="beat-h">The bar to beat</h2>
+          <p className="serif">
+            Tilo opened with eight pieces drawn by Claude, an AI, in code. Every line in them is a real stroke with a real tool, so they replay and
+            remix like anything else. They're here to show what the tools can do, and to be beaten.
+          </p>
         </header>
-        <div className="salon">{top.map((p, i) => <PinCard key={p.id} piece={p} index={i} no={i + 7} />)}</div>
+        <div className="beat">
+          <div className="beat-copy">
+            <p className="lede serif">A program can lay down a thousand tidy strokes. It can't hesitate, change its mind halfway or draw the street it grew up on. You can.</p>
+            <p className="serif">Draw something better with your own hands and it hangs here, beside them and then in front of them. Or open one, press Remix, and redo it your way: the credit goes back to the sample, and the hand that improved it is yours.</p>
+            <div className="hero-ctas">
+              <Link to="/studio" viewTransition className="btn btn-ink"><Icon name="pencil" />Draw your own</Link>
+              <Link to="/gallery" viewTransition className="btn btn-line">The whole gallery<Icon name="arrow" /></Link>
+            </div>
+          </div>
+          <div className="salon is-even">{SAMPLES.map((p, i) => <PinCard key={p.id} piece={p} index={i} no={i + 7} />)}</div>
+        </div>
       </section>
 
       <section className="sec wrap" aria-labelledby="proof-h">
@@ -217,7 +230,7 @@ export function Home() {
           <p className="serif">The recording is the signature. It is what separates a drawing from a picture of one.</p>
         </header>
         <div className="proof">
-          <LivePlate piece={proof} no={13} className="proof-plate" />
+          <LivePlate piece={proof} no={15} className="proof-plate" />
           <div className="proof-copy">
             <p className="lede serif">Uploads can't go into the hand-made gallery. A piece is drawn on Tilo, and its recording travels with it. That doesn't make faking impossible, but it makes faking more work than drawing.</p>
             <ol className="badges">
@@ -225,6 +238,7 @@ export function Home() {
               <li><b>Drawn live</b><span className="serif">Made while others watched, in a live room or on the wall.</span></li>
               <li><b>Verified artist</b><span className="serif">A person whose body of work and process have been reviewed.</span></li>
             </ol>
+            <p className="serif proof-note">The plate beside this was drawn by an AI, and its recording looks like a hand's. That's why a recording alone doesn't earn the badge, and why Tilo's AI samples never carry it.</p>
           </div>
         </div>
       </section>

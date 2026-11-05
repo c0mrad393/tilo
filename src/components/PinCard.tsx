@@ -15,6 +15,18 @@ export function Stamp({ name, count, tilt = -2 }: { name: string; count?: number
   );
 }
 
+/** the mark on every piece an AI drew: Tilo's samples, which Claude drew in code */
+export const AiMark = ({ className = "" }: { className?: string }) => (
+  <span className={`card-ai kicker ${className}`} title="Drawn by Claude, an AI, in code, stroke by stroke">AI-made</span>
+);
+
+/** the caption line under a plate. An AI piece says who drew it and leaves out the minutes,
+    which a program doesn't spend the way a hand does. */
+export function byLine(piece: { by: string; minutes: number; remixOf?: string; ai?: boolean }, strokes: number) {
+  const n = `${strokes.toLocaleString()} strokes${piece.remixOf ? " · remix" : ""}`;
+  return piece.ai ? `@${piece.by} · drawn by AI · ${n}` : `@${piece.by} · ${fmtMin(piece.minutes)} min · ${n}`;
+}
+
 /* A piece as a catalogue plate: the work with crop marks, its caption underneath.
    Hovering or focusing it plays its replay. */
 export function PinCard({ piece, index = 0, no, mode = "hover" as const }: { piece: Piece; index?: number; no?: number; mode?: "hover" | "static" | "loop" }) {
@@ -26,17 +38,18 @@ export function PinCard({ piece, index = 0, no, mode = "hover" as const }: { pie
       data-replay-host
       className="card lift press"
       style={{ ["--press-delay" as string]: `${(index % 4) * 90}ms` }}
-      aria-label={`${piece.title} by ${piece.by}. Open the piece.`}
+      aria-label={`${piece.title} by ${piece.by}${piece.ai ? ", drawn by an AI" : ""}. Open the piece.`}
     >
       <span className="plate">
         <ReplayCanvas strokes={piece.strokes} layers={piece.layers} paper={piece.paper} shape={piece.shape} aspect={4 / 3} mode={mode} label={`${piece.title}, drawn by ${piece.by}`} />
         {piece.mine && <span className="card-flag kicker">Yours</span>}
+        {piece.ai && <AiMark />}
       </span>
       <span className="card-cap">
         {no !== undefined && <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>}
         <span className="card-title">{piece.title}</span>
         <span className="card-by serif">
-          @{piece.by} · {fmtMin(piece.minutes)} min · {drawnCount(piece.strokes).toLocaleString()} strokes{piece.remixOf ? " · remix" : ""}
+          {byLine(piece, drawnCount(piece.strokes))}
         </span>
       </span>
       {top.length > 0 && (
@@ -65,7 +78,7 @@ export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: 
       data-replay-host
       className="card lift press"
       style={{ ["--press-delay" as string]: `${(index % 4) * 90}ms` }}
-      aria-label={`${piece.title} by ${piece.by}. Open the piece.`}
+      aria-label={`${piece.title} by ${piece.by}${piece.ai ? ", drawn by an AI" : ""}. Open the piece.`}
       onPointerEnter={want}
       onFocus={want}
     >
@@ -75,13 +88,14 @@ export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: 
         ) : (
           picture && <img className="card-picture" src={picture} alt={`${piece.title}, drawn by ${piece.by}`} loading="lazy" decoding="async" />
         )}
+        {piece.ai && <AiMark />}
         {piece.status !== "live" && <span className="card-flag kicker">{piece.why === "check" ? "Being checked" : piece.status === "held" ? "Waiting for a mod" : "Out of the gallery"}</span>}
       </span>
       <span className="card-cap">
         {no !== undefined && <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>}
         <span className="card-title">{piece.title}</span>
         <span className="card-by serif">
-          @{piece.by} · {fmtMin(piece.minutes)} min · {piece.count.toLocaleString()} strokes{piece.remixOf ? " · remix" : ""}
+          {byLine(piece, piece.count)}
         </span>
       </span>
       {top.length > 0 && (

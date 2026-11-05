@@ -27,15 +27,21 @@ if [ "${SEED:-false}" = "true" ]; then
   done
 fi
 
-# the tilo account and the sample pieces, once per database (SAMPLES=false skips them)
-if [ "${SAMPLES:-true}" = "true" ] && [ -z "$(psql -tAc "select 1 from tilo_meta.migrations where name = 'seed:samples'")" ]; then
+# the tilo account and the sample pieces, once per database (SAMPLES=false skips them).
+# seed:samples-ai replaced the prototype's samples (seed:samples) with ones drawn by Claude.
+if [ "${SAMPLES:-true}" = "true" ] && [ -z "$(psql -tAc "select 1 from tilo_meta.migrations where name = 'seed:samples-ai'")" ]; then
   echo "seed: samples"
   # tilo-api runs as node (uid 1000) and has to keep writing into these folders
   mkdir -p /srv/files/rec /srv/files/img
   chown 1000:1000 /srv/files/rec /srv/files/img
-  for f in /tilo/seed/samples/*.tl; do cp -n "$f" /srv/files/rec/; done
-  for f in /tilo/seed/samples/*.webp; do cp -n "$f" /srv/files/img/; done
-  psql -v ON_ERROR_STOP=1 -q -1 -f /tilo/seed/samples/samples.sql -c "insert into tilo_meta.migrations (name) values ('seed:samples')"
+  for id in window balcony cat kazbegi oneline pomegranate tram waves; do
+    rm -f "/srv/files/rec/tilo$id.tl" "/srv/files/img/tilo$id.webp"
+  done
+  for f in /tilo/seed/samples/*.tl; do cp "$f" /srv/files/rec/; done
+  for f in /tilo/seed/samples/*.webp; do cp "$f" /srv/files/img/; done
+  chown 1000:1000 /srv/files/rec/tilo* /srv/files/img/tilo*
+  psql -v ON_ERROR_STOP=1 -q -1 -f /tilo/seed/samples/samples.sql -f /tilo/seed/samples/pieces.sql \
+    -c "insert into tilo_meta.migrations (name) values ('seed:samples-ai') on conflict do nothing"
 fi
 
 # PostgREST caches the schema; tell it to look again

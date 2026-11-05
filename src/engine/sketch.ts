@@ -17,12 +17,29 @@ export type Pt = [number, number];
 export class Sketch {
   readonly R: () => number;
   readonly strokes: Stroke[] = [];
+  /** the layer and opacity new strokes get; the defaults leave strokes as they always were */
+  layer = 0;
+  alpha = 1;
   constructor(seed: number) {
     this.R = rng(seed);
   }
   private st(tool: ToolId, c: string, w: number) {
     const s: Stroke = { tool, c, w, p: [] };
+    if (this.layer) s.l = this.layer;
+    if (this.alpha < 1) s.a = Math.max(0.01, Math.round(this.alpha * 100) / 100);
     this.strokes.push(s);
+    return s;
+  }
+  /** A flat shape through the points, as the lasso fill lays it down. */
+  lasso(pts: Pt[], c: string) {
+    const s = this.st("lasso", c, 1);
+    for (const [x, y] of pts) this.add(s, x, y);
+    return s;
+  }
+  /** A stroke along exactly these points, with pressure along it from `pr(0..1)`. */
+  path(pts: Pt[], tool: ToolId, c: string, w: number, pr: (t: number) => number = () => 0.6) {
+    const s = this.st(tool, c, w);
+    pts.forEach(([x, y], i) => this.add(s, x, y, pr(pts.length > 1 ? i / (pts.length - 1) : 0)));
     return s;
   }
   private add(s: Stroke, x: number, y: number, pr = 0.6) {

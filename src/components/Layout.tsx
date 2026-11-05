@@ -111,7 +111,7 @@ export function Layout() {
           <div className="colophon">
             <section>
               <h2 className="kicker">Colophon</h2>
-              <p className="serif">Tilo is set in Archivo and Newsreader and printed on your screen in two inks, blue and fluorescent pink. Every picture on it was drawn by a person, stroke by stroke.{ACCOUNTS && <> <Link to="/proof">How proof works</Link></>}</p>
+              <p className="serif">Tilo is set in Archivo and Newsreader and printed on your screen in two inks, blue and fluorescent pink. Every picture on it was drawn stroke by stroke: by people, except the samples on @tilo, which Claude, an AI, drew in code and which say so.{ACCOUNTS && <> <Link to="/proof">How proof works</Link></>}</p>
             </section>
             <section>
               <h2 className="kicker">Free, for good</h2>

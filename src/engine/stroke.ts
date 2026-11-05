@@ -71,6 +71,8 @@ export interface Piece {
   remixOf?: string;
   stamps?: Record<string, number>;
   sample?: boolean;
+  /** drawn by an AI, not a hand; shown on the piece wherever it appears */
+  ai?: boolean;
   mine?: boolean;
   tilt?: number;
 }

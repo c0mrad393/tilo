@@ -313,6 +313,16 @@ Progress (2026-11-05): the server is live and accounts are open on tiloart.com.
 - Mail: Resend for sign-in links; hello@ and legal@ forward to Gmail (Cloudflare Email
   Routing), with Gmail sending as them through Resend.
 - The terms and privacy policy name the operator and every service that handles data.
+- New samples (migration 0009, seed step `seed:samples-ai`): the prototype's eight samples
+  are replaced by eight drawn by Claude in code (src/data/art.ts, src/data/samples.ts;
+  `npm run samples` writes their recordings, pictures and pieces.sql). `pieces.ai` marks
+  them; only the seed sets it. Every AI piece shows "AI-made", never the proof-of-hand
+  badge, and its page dares people to beat it by hand. The home page's "Most stamped this
+  week" with made-up stamps is now "The bar to beat".
+- Phones and tablets: the studio's settings fold into four tabs under the sheet below
+  861px (iPad upright included), so the sheet gets the room; the sheet fits itself again
+  when the screen turns or a tab opens, until someone zooms or moves it. No page scrolls
+  sideways from 375px up.
 - Left: invite codes for members, a feedback box on every page, error reports, the
   accessibility and performance pass, and the first invited group.
 

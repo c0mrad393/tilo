@@ -108,6 +108,9 @@ export async function studioLoader({ request }: LoaderFunctionArgs): Promise<She
 /* swapping the address to ?sheet=<the open sheet> after its first save shouldn't reload it */
 export const studioShouldRevalidate = ({ nextUrl }: ShouldRevalidateFunctionArgs) => nextUrl.searchParams.get("sheet") !== openSheet || !openSheet;
 
+type PanelTab = "colour" | "brush" | "layers" | "sheet";
+const PANEL_TABS: [PanelTab, string][] = [["colour", "Colour"], ["brush", "Brush"], ["layers", "Layers"], ["sheet", "Sheet"]];
+
 export function StudioRoute() {
   const sheet = useLoaderData() as Sheet;
   return <Studio key={sheet.id} sheet={sheet} />;
@@ -130,6 +133,8 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const [color, setColor] = useState(promptMode ? PROMPT.palette[0] : FREE[0]);
   const [recent, setRecent] = useState<string[]>(recentColours.get);
   const [mixing, setMixing] = useState(false);
+  // on a narrow screen the settings fold into tabs under the sheet; none open leaves the sheet the room
+  const [tab, setTab] = useState<PanelTab | null>(null);
   const [size, setSize] = useState(8);
   const [opacity, setOpacity] = useState(1);
   const [steady, setSteady] = useState(0);
@@ -271,13 +276,15 @@ function Studio({ sheet }: { sheet: Sheet }) {
     if (!raf.current) raf.current = requestAnimationFrame(render);
   }, [render]);
 
+  // the view fit() made; while nobody has moved it, a new screen size fits the sheet again
+  const fitted = useRef<View | null>(null);
   const fit = useCallback(() => {
     const b = box.current!;
     const pad = innerWidth < 860 ? 12 : 32;
     const d = dimsRef.current;
     const s = Math.max(0.05, Math.min((b.clientWidth - pad * 2) / d.w, (b.clientHeight - pad * 2) / d.h));
     // fitting also straightens and unflips the view
-    view.current = { s, r: 0, f: 1, ox: (b.clientWidth - d.w * s) / 2, oy: (b.clientHeight - d.h * s) / 2 };
+    view.current = fitted.current = { s, r: 0, f: 1, ox: (b.clientWidth - d.w * s) / 2, oy: (b.clientHeight - d.h * s) / 2 };
     setZoom(Math.round(s * 100));
     setTurn({ deg: 0, flip: false });
     redraw();
@@ -433,14 +440,23 @@ function Studio({ sheet }: { sheet: Sheet }) {
   useEffect(() => {
     const b = box.current!, c = cv.current!;
     let first = true;
+    let w = 0, h = 0;
     const ro = new ResizeObserver(() => {
       const dpr = Math.min(2, devicePixelRatio || 1);
       c.width = Math.round(b.clientWidth * dpr);
       c.height = Math.round(b.clientHeight * dpr);
-      if (first) {
+      const dw = b.clientWidth - w, dh = b.clientHeight - h;
+      w = b.clientWidth;
+      h = b.clientHeight;
+      // the first time, or while the view is as fit() left it (a tablet turned, a panel opened):
+      // fit again. Once someone has zoomed or moved it, keep the middle of the screen in place.
+      if (first || view.current === fitted.current) {
         first = false;
         fit();
-      } else redraw();
+      } else {
+        view.current = { ...view.current, ox: view.current.ox + dw / 2, oy: view.current.oy + dh / 2 };
+        redraw();
+      }
     });
     ro.observe(b);
     return () => ro.disconnect();
@@ -1067,8 +1083,18 @@ function Studio({ sheet }: { sheet: Sheet }) {
         </div>
       </div>
 
-      <aside className="studio-panel" aria-label="Sheet settings">
-        <section className="sheet panel-card">
+      <aside className="studio-panel" aria-label="Sheet settings" data-tab={tab ?? "none"}>
+        <div className="panel-tabs" role="group" aria-label="Settings">
+          {PANEL_TABS.map(([k, label]) => (
+            <button key={k} className="panel-tab" aria-pressed={tab === k} aria-controls={`panel-${k}`} onClick={() => setTab((t) => (t === k ? null : k))}>
+              {k === "colour" && <span className="chip" style={{ ["--c" as string]: color }} aria-hidden="true" />}
+              {k === "brush" ? TOOLS[tool].label : label}
+              {k === "brush" && tool !== "fill" && tool !== "lasso" && tool !== "select" && <span className="mono num panel-tab-n">{size}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="panel-cards">
+        <section className="sheet panel-card" data-tab="colour" id="panel-colour">
           <h2 className="kicker">Colour</h2>
           <div className="pal">
             {palette.map((c, i) => (
@@ -1097,12 +1123,12 @@ function Studio({ sheet }: { sheet: Sheet }) {
                 <Icon name={mixing ? "up" : "down"} size={16} />
               </button>
               {mixing && <ColorPicker value={color} onChange={setColor} />}
-              <p className="hint">Hold Alt and click the sheet to pick a colour up.</p>
+              <p className="hint hint-keys">Hold Alt and click the sheet to pick a colour up.</p>
             </>
           )}
         </section>
 
-        <section className="sheet panel-card">
+        <section className="sheet panel-card" data-tab="brush" id="panel-brush">
           <h2 className="kicker">{TOOLS[tool].label}</h2>
           {tool === "select" ? (
             <p className="hint">Draw around part of {activeLayer.name}. Drag inside it to move it, a corner to scale it, the round handle to turn it (Shift for 15° steps). Enter puts it down, Esc puts it back.</p>
@@ -1132,7 +1158,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
           )}
         </section>
 
-        <section className="sheet panel-card">
+        <section className="sheet panel-card" data-tab="layers" id="panel-layers">
           <div className="card-head">
             <h2 className="kicker">Layers</h2>
             <button className="icon-btn" onClick={addLayer} aria-label="Add a layer" title="Add a layer"><Icon name="plus" size={18} /></button>
@@ -1192,7 +1218,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
           </div>
         </section>
 
-        <section className="sheet panel-card">
+        <section className="sheet panel-card" data-tab="sheet" id="panel-sheet">
           <h2 className="kicker">Paper</h2>
           <div className="papers" role="group" aria-label="Paper">
             {PAPER_IDS.map((id) => (
@@ -1204,14 +1230,14 @@ function Studio({ sheet }: { sheet: Sheet }) {
           <p className="hint">{PAPERS[paper].name}. Charcoal catches on its grain.</p>
         </section>
 
-        <section className="sheet panel-card">
+        <section className="sheet panel-card" data-tab="sheet">
           <h2 className="kicker">Symmetry</h2>
           <div className="seg" role="group" aria-label="Symmetry">
             {SYMMETRY.map(([v, n]) => <button key={v || "off"} aria-pressed={sym === v} onClick={() => setSym(v)}>{n}</button>)}
           </div>
         </section>
 
-        <section className="sheet panel-card">
+        <section className="sheet panel-card" data-tab="sheet">
           <h2 className="kicker">Perspective</h2>
           <div className="seg" role="group" aria-label="Perspective guides">
             {PERSPECTIVE.map(([v, n]) => <button key={v} aria-pressed={guides.mode === v} onClick={() => setGuides((g) => ({ ...g, mode: v }))}>{n}</button>)}
@@ -1220,7 +1246,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
           <p className="hint">{guides.mode ? "Drag the blue points to move them. Guides stay out of the picture." : "Hold Shift for a straight line."}</p>
         </section>
 
-        <section className="sheet panel-card">
+        <section className="sheet panel-card" data-tab="sheet">
           <h2 className="kicker">This sheet</h2>
           <div className="field">
             <label htmlFor="sheet-title">Title</label>
@@ -1246,6 +1272,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
             <span><kbd>[</kbd> <kbd>]</kbd> size </span><span><kbd>⌘Z</kbd> undo </span><span><kbd>Shift</kbd> straight line </span><span><kbd>Space</kbd> drag to move </span><span><kbd>⌘</kbd>+scroll or pinch to zoom </span><span><kbd>0</kbd> fit </span><span><kbd>R</kbd> <kbd>⇧R</kbd> turn </span><span><kbd>H</kbd> mirror view </span><span><kbd>Alt</kbd>+click pick colour </span><span><kbd>Enter</kbd> <kbd>Esc</kbd> put a selection down or back</span>
           </p>
         </section>
+        </div>
       </aside>
 
       <dialog ref={pinDlg} aria-labelledby="pin-h">

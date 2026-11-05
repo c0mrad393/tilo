@@ -52,8 +52,8 @@ function Exhibition({ list }: { list: Shown[] }) {
         <aside className="expo-label" aria-live="polite">
           <span className="kicker num">Plate {String(i + 1).padStart(2, "0")} of {String(list.length).padStart(2, "0")}</span>
           <h2>{p.title}</h2>
-          <p className="serif expo-by">@{p.by}{p.mine ? " (you)" : ""}</p>
-          <p className="serif">{"strokes" in p ? `${toolsUsed(p.strokes).join(", ")} on ` : "On "}{PAPERS[paperOf(p.paper)].name.toLowerCase()}.<br />{count.toLocaleString()} strokes, {fmtMin(p.minutes)} min.</p>
+          <p className="serif expo-by">@{p.by}{p.mine ? " (you)" : ""}{p.ai ? " · AI-made, drawn by Claude in code" : ""}</p>
+          <p className="serif">{"strokes" in p ? `${toolsUsed(p.strokes).join(", ")} on ` : "On "}{PAPERS[paperOf(p.paper)].name.toLowerCase()}.<br />{count.toLocaleString()} strokes{p.ai ? "" : `, ${fmtMin(p.minutes)} min`}.</p>
           <Link to={`/piece/${p.id}`} viewTransition className="expo-open">Open the piece<Icon name="arrow" size={16} /></Link>
         </aside>
       </div>
@@ -120,8 +120,8 @@ export function Gallery() {
         <h1>The gallery</h1>
         <p className="serif">
           {ACCOUNTS
-            ? "Everything here was drawn on Tilo and can be replayed from its first stroke. Tilo is in a closed beta, so the gallery is small for now."
-            : "Everything here was drawn on Tilo and can be replayed from its first stroke. The pieces and artists are samples for the prototype; what you pin stays on this device until accounts open."}
+            ? "Everything here was drawn on Tilo and can be replayed from its first stroke. Tilo is in a closed beta, so the gallery is small for now. The pieces marked AI-made are samples Claude drew in code; the rest are by hand, and the hands are meant to win."
+            : "Everything here was drawn on Tilo and can be replayed from its first stroke. The pieces marked AI-made are samples Claude drew in code, there to be beaten by hand; what you pin stays on this device until accounts open."}
         </p>
         <div className="gal-controls">
           <div className="filters" role="group" aria-label="Sort the gallery">
