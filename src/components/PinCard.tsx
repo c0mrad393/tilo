@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { loadStrokes, type Published } from "../data/pieces";
 import { drawnCount, fmtMin, type Piece, type Stroke } from "../engine/stroke";
-import { STAMP_COLOR } from "../data/samples";
+import { STAMP_COLOR } from "../data/prompt";
 import { usePicture } from "./Moderation";
 import { ReplayCanvas } from "./ReplayCanvas";
 

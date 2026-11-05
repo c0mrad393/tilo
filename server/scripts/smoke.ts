@@ -379,6 +379,71 @@ await adm("settings", { method: "PUT", json: { invites_required: true } });
 check(psql(`select value from tilo_meta.settings where key = 'invites_required'`) === "true", "and closes it again");
 check((await adm("stats", {}, token)).status === 403, "a member can't open the admin panel");
 
+// invite codes members hand out: a few each, made one at a time, taken back while unused
+const myInv = (init: { method?: string } = {}, path = "", as = token) => call(`/api/me/invites${path}`, { ...init, token: as });
+const myCodes = await myInv();
+check(myCodes.status === 200 && myCodes.body.per === 3 && myCodes.body.left === 3 && myCodes.body.codes.length === 0 && myCodes.body.open === false, "a member has 3 invite codes to hand out", myCodes.body);
+const handedOut: string[] = [];
+for (let i = 0; i < 3; i++) handedOut.push((await myInv({ method: "POST" })).body?.code);
+check(handedOut.every((c) => /^TILO-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(c ?? "")), "they make them one at a time", handedOut);
+const fourth = await myInv({ method: "POST" });
+check(fourth.status === 429 && (await myInv()).body?.left === 0, "a fourth is refused", fourth);
+check((await myInv({ method: "DELETE" }, `/${handedOut[0]}`)).status === 204 && (await myInv()).body?.left === 1, "taking back an unused code frees its place");
+check((await myInv({ method: "DELETE" }, `/${handedOut[1]}`, token2)).status === 404, "nobody else can take it back");
+check((await myInv({}, "", token2)).body?.admin === true && (await myInv({ method: "POST" }, "", token2)).status === 400, "admins make theirs in the admin panel instead");
+check((await adm("settings", { method: "PUT", json: { invites_per_member: "11" } })).status === 400, "codes per member go from 0 to 10");
+check((await adm("settings", { method: "PUT", json: { invites_per_member: "0" } })).status === 200 && (await myInv({ method: "POST" })).status === 429, "with none per member, members make no codes");
+await adm("settings", { method: "PUT", json: { invites_per_member: "3" } });
+check((await adm("invites?used=no")).body?.invites?.some((i: { code: string; made_by: string }) => i.code === handedOut[1] && i.made_by === handle), "the admin panel shows who handed a code out");
+psql(`update public.invites set used_at = now() where code = '${handedOut[2]}'`);
+check(!!(await myInv()).body?.codes?.find((c: { code: string }) => c.code === handedOut[2])?.used_at && (await myInv({ method: "DELETE" }, `/${handedOut[2]}`)).status === 404, "a used code stays on the list and can't be taken back");
+
+// the feedback box: members send it, admins and mods read it and tick it off
+const fb = await call("/rest/v1/feedback", { method: "POST", token, headers: { prefer: "return=minimal" }, json: { kind: "problem", text: "The eraser skips.", page: "/studio", device: "Smoke 1 · Test · 390×844" } });
+check(fb.status === 201, "a member sends feedback", fb);
+check((await call("/rest/v1/feedback", { method: "POST", json: { kind: "idea", text: "Hi" } })).status >= 400, "signed out, feedback can't be sent");
+check((await call("/rest/v1/feedback", { method: "POST", token, json: { kind: "rant", text: "Hi" } })).status === 400, "feedback is a problem, an idea or something else");
+check((await call("/rest/v1/feedback?select=id", { token })).body?.length === 0, "members can't read feedback, not even their own");
+const fbRow = await call(`/rest/v1/feedback?select=id,kind,page,device,done&member=eq.${userId}`, { token: token2 });
+const fbId = fbRow.body?.[0]?.id;
+check(fbRow.body?.[0]?.kind === "problem" && fbRow.body[0].page === "/studio" && fbRow.body[0].device.startsWith("Smoke") && fbRow.body[0].done === false, "an admin reads it, with the page and the device", fbRow.body);
+const ticked = await call(`/rest/v1/feedback?id=eq.${fbId}`, { method: "PATCH", token: token2, headers: { prefer: "return=representation" }, json: { done: true } });
+check(ticked.body?.[0]?.done === true, "and ticks it off", ticked.body);
+const memberTick = await call(`/rest/v1/feedback?id=eq.${fbId}`, { method: "PATCH", token, headers: { prefer: "return=representation" }, json: { done: false } });
+check(Array.isArray(memberTick.body) && memberTick.body.length === 0, "a member can't", memberTick.body);
+check((await call(`/rest/v1/feedback?id=eq.${fbId}`, { method: "PATCH", token: token2, json: { text: "Changed" } })).status >= 400, "nobody rewrites what was sent");
+psql(`insert into public.feedback (member, text) select '${userId}', 'filler' from generate_series(1, 19)`);
+const tooMuch = await call("/rest/v1/feedback", { method: "POST", token, json: { text: "One more" } });
+check(tooMuch.status === 400 && tooMuch.body?.hint === "limit", "the 21st message in a day is refused", tooMuch);
+psql(`delete from public.feedback where member = '${userId}' and text = 'filler'`);
+
+// error reports: from anyone, one row per distinct fault, read by admins through tilo-api
+const fault = {
+  message: `TypeError: smoke ${tag} is not a function`,
+  stack: `TypeError: smoke ${tag} is not a function\n    at draw (https://tiloart.com/assets/Studio-x1.js:1:2345)`,
+  page: "/piece/abcdef?secret=1#x",
+  version: "0.8.0",
+  browser: "Smoke 1 · Test",
+};
+const sendFault = (json: Record<string, unknown>, ip = `smoke-${tag}`) => call("/api/errors", { method: "POST", headers: { "cf-connecting-ip": ip }, json });
+check((await sendFault(fault)).status === 204, "anyone sends an error report, without signing in");
+await sendFault({ ...fault, browser: "Smoke 2 · Test" });
+const faultRow = psql(`select count || ' ' || page || ' ' || browser from public.errors where message = '${fault.message}'`);
+check(faultRow === "2 /piece/abcdef Smoke 2 · Test", "the same fault twice is one row, counted twice, with no query string", faultRow);
+check((await sendFault({ message: " " })).status === 400, "a report has to say what broke");
+const flood: number[] = [];
+for (let i = 0; i < 11; i++) flood.push((await sendFault({ message: `flood ${tag} ${i}` }, `flood-${tag}`)).status);
+check(flood.slice(0, 10).every((st) => st === 204) && flood[10] === 429, "one sender gets 10 reports a minute", flood);
+check(psql(`select count(*) || ' ' || max(count) from public.errors where message like 'flood ${tag} %'`) === "1 10", "faults differing only in numbers are one row");
+const faults = await adm("errors");
+const ours = faults.body?.errors?.find((e: { message: string }) => e.message === fault.message);
+check(ours?.count === 2 && ours.source === "app" && ours.version === "0.8.0" && ours.stack.includes("Studio-x1.js"), "an admin sees it, with its count and where in the code", ours);
+check((await adm("stats")).body?.errors >= 2, "and counts this week's on the overview");
+check((await adm("errors", {}, token)).status === 403, "a member doesn't see error reports");
+check((await call("/rest/v1/errors?select=sig", { token: token2 })).status >= 400, "the table isn't reachable through PostgREST, even by an admin");
+check((await adm(`errors/${ours?.sig}`, { method: "DELETE" })).status === 204 && psql(`select count(*) from public.errors where sig = '${ours?.sig}'`) === "0", "an admin marks it fixed");
+psql(`delete from public.errors where message like 'flood ${tag} %'`);
+
 // takedown claims: anyone may send one, about a piece or profile on Tilo; admins answer
 const site = env.PUBLIC_URL.replace(/\/$/, "");
 const sendClaim = (json: Record<string, unknown>, as?: string) =>
@@ -425,6 +490,7 @@ check(
   exported.status,
 );
 check(exported.body.agreed_to?.terms === terms.body && exported.body.claims_sent?.length === 1, "the export has what they agreed to and the claims they sent", exported.body.agreed_to);
+check(exported.body.invites_made?.length === 2 && exported.body.feedback_sent?.[0]?.kind === "problem", "and the codes they handed out and the feedback they sent", exported.body.invites_made);
 check(/attachment; filename="tilo-smoke_/.test(exported.headers.get("content-disposition") ?? ""), "the export downloads as a file");
 check((await call("/api/me", { token, method: "DELETE", json: {} })).status === 400, "deleting needs an explicit confirm");
 const gone = await call("/api/me", { token, method: "DELETE", json: { confirm: true } });
@@ -437,6 +503,7 @@ check(psql(`select remix_of is null from public.pieces where id = '${remixed.bod
 check(psql(`select count(*) from public.invites where used_by = '${userId}'`) === "0", "the invite no longer points at them");
 check(psql(`select used_at is not null from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`) === "t", "their invite stays used up");
 psql(`delete from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`);
+psql(`delete from public.invites where code in ('${handedOut.join("','")}')`);
 
 // tidy up the second member, and what they did as a mod
 psql(`delete from public.mod_log where mod = '${other.id}'`);

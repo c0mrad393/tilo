@@ -7,6 +7,7 @@ import { account } from "./account.ts";
 import { admin as adminRoutes } from "./admin.ts";
 import { type AuthEnv, signedIn } from "./auth.ts";
 import { claims } from "./claims.ts";
+import { errors, record } from "./errors.ts";
 import { makeDirs, purger } from "./files.ts";
 import { moderation, reports } from "./mod.ts";
 import { pieces } from "./pieces.ts";
@@ -68,6 +69,7 @@ app.route("/reports", reports(sql, modOptions));
 app.route("/mod", moderation(sql, modOptions));
 app.route("/admin", adminRoutes(sql, { member }));
 app.route("/claims", claims(sql, { jwtSecret: env("JWT_SECRET"), site }));
+app.route("/errors", errors(sql));
 
 // reads a recording and says what is in it
 app.post(
@@ -87,6 +89,8 @@ app.post(
 app.notFound((c) => c.json({ error: "No such endpoint." }, 404));
 app.onError((e, c) => {
   console.error(e);
+  // the route's pattern, not its path: /api/pieces/:id is one place however many pieces
+  void record(sql, { source: "api", message: e.message || String(e), stack: e.stack, page: `${c.req.method} ${c.req.routePath}` }).catch(() => {});
   return c.json({ error: "The server hit a fault." }, 500);
 });
 
@@ -94,12 +98,15 @@ await makeDirs(filesDir);
 void screen.resume();
 
 // what the privacy policy promises: Auth's sign-in log goes after 30 days, unused sessions
-// after 90, and answered takedown claims after three years
+// after 90, answered takedown claims after three years, and error reports 30 days after
+// they were last seen
 const prune = async () => {
   try {
     const [n] = await sql`select * from public.prune_sign_ins()`;
     const gone = await sql`delete from public.claims where status = 'closed' and closed_at < now() - interval '3 years' returning id`;
-    if (n.log || n.sessions || gone.length) console.log(`pruned ${n.log} sign-in records, ${n.sessions} sessions, ${gone.length} claims`);
+    const faults = await sql`delete from public.errors where last_seen < now() - interval '30 days' returning sig`;
+    if (n.log || n.sessions || gone.length || faults.length)
+      console.log(`pruned ${n.log} sign-in records, ${n.sessions} sessions, ${gone.length} claims, ${faults.length} error reports`);
   } catch (e) {
     console.error("pruning failed", e);
   }

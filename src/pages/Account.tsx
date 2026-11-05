@@ -16,6 +16,7 @@ import {
   signOut,
   useAccount,
 } from "../data/account";
+import { forgetInvite, inviteLink, keepInvite, makeInvite, type MyInvites, myInvites, takeBackInvite } from "../data/beta";
 import { MIN_AGE, TERMS_VERSION } from "../data/legal";
 import { useLocal } from "../data/local";
 import { publishPin } from "../data/pieces";
@@ -67,6 +68,8 @@ function SignIn({ farewell }: { farewell: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(arrivalError);
   const [google, setGoogle] = useState(false);
+  // arriving from an invite link: the code waits on this device for the handle step
+  const [invite] = useState(keepInvite);
   const id = useId();
 
   useEffect(() => {
@@ -103,6 +106,11 @@ function SignIn({ farewell }: { farewell: boolean }) {
     <Page title="Sign in" lede="Tilo signs you in with a link sent to your email, so there's no password to remember. New here? The same link makes your account.">
       <div className="account-col">
         {farewell && <p className="notice serif" role="status">Your account is deleted, and everything that was in it. Your sheets on this device are still here.</p>}
+        {invite && !farewell && (
+          <p className="notice serif" role="status">
+            You've been invited. Sign in with your email to make your account; your code, <code>{invite}</code>, is filled in for you on this device.
+          </p>
+        )}
         {error && <p className="notice notice-error serif" role="alert">{error}</p>}
         <form className="account-form" onSubmit={submit}>
           <div className="field">
@@ -155,7 +163,7 @@ function useHandleCheck(handle: string, current?: string) {
 function PickHandle({ email }: { email: string }) {
   const [handle, setHandle] = useState("");
   const [name, setName] = useState("");
-  const [invite, setInvite] = useState("");
+  const [invite, setInvite] = useState(keepInvite);
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ text: string; field?: string } | null>(null);
@@ -168,6 +176,7 @@ function PickHandle({ email }: { email: string }) {
     setError(null);
     try {
       await claimHandle(handle, name, invite, agreed ? TERMS_VERSION : "");
+      forgetInvite();
     } catch (err) {
       setError({ text: message(err), field: (err as { hint?: string }).hint });
     } finally {
@@ -292,6 +301,8 @@ function Settings({ profile, email, onDeleted }: { profile: Profile; email: stri
     setStatus(null);
   };
   const handleError = problem ?? (status?.field === "handle" ? status.text : null);
+  // an invite link opened by someone who already has an account has nothing left to do
+  useEffect(forgetInvite, []);
 
   return (
     <Page title="Your account" lede={`Signed in as ${email}.`}>
@@ -339,6 +350,7 @@ function Settings({ profile, email, onDeleted }: { profile: Profile; email: stri
         </section>
 
         <PinsSection />
+        <InvitesSection />
 
         <section className="account-section" aria-labelledby={`${id}-s`}>
           <h2 id={`${id}-s`} className="kicker">Signing in</h2>
@@ -405,6 +417,94 @@ function PinsSection() {
           Published: {done.map((d, i) => <span key={d.id}>{i ? ", " : ""}<Link to={`/piece/${d.id}`} viewTransition>{d.title}</Link></span>)}.
         </p>
       )}
+    </section>
+  );
+}
+
+const day = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long" });
+
+/* the codes a member hands out, made one at a time, each shared as a link */
+function InvitesSection() {
+  const [data, setData] = useState<MyInvites | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const id = useId();
+  const load = () => myInvites().then(setData, () => {});
+  useEffect(() => {
+    void load();
+  }, []);
+  if (!data) return null;
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      await load();
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  // a phone offers its share sheet; elsewhere the link goes on the clipboard
+  const share = async (code: string) => {
+    const url = inviteLink(code);
+    if (navigator.share && matchMedia("(pointer: coarse)").matches) {
+      await navigator.share({ title: "Join Tilo", text: "An invite to Tilo, a free studio and gallery for drawing by hand.", url }).catch(() => {});
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(code);
+      setTimeout(() => setCopied((c) => (c === code ? null : c)), 3000);
+    } catch {
+      setError(`Couldn't copy. The link is ${url}`);
+    }
+  };
+
+  const head = (
+    <div className="account-section-head">
+      <h2 id={`${id}-i`} className="kicker">Invite people</h2>
+      {!data.admin && !data.open && data.left > 0 && (
+        <button className="btn btn-line" disabled={busy} onClick={() => act(makeInvite)}>{busy ? "Making…" : "Make a code"}</button>
+      )}
+    </div>
+  );
+  return (
+    <section className="account-section" aria-labelledby={`${id}-i`}>
+      {head}
+      {data.admin ? (
+        <p className="serif">Admins make codes, as many as needed, in the <Link to="/admin/invites">admin panel</Link>.</p>
+      ) : data.open ? (
+        <p className="serif">Tilo is open just now, so nobody needs a code: send them to tiloart.com.</p>
+      ) : (
+        <p className="serif">
+          Tilo is in a closed beta. You can hand out {data.per} code{data.per === 1 ? "" : "s"}, one for each person; each works once.
+          {data.codes.length > 0 && (data.left ? ` ${data.left} left.` : " You've handed out all of yours.")} Make one when you have someone in mind.
+        </p>
+      )}
+      {error && <p className="notice notice-error serif" role="alert">{error}</p>}
+      {data.codes.length > 0 && (
+        <ul className="pin-list invite-list">
+          {data.codes.map((i) => (
+            <li key={i.code}>
+              <span>
+                <code>{i.code}</code>
+                <small className="serif">{i.used_at ? `Used${i.used_by ? ` by @${i.used_by}` : ""} on ${day.format(new Date(i.used_at))}` : "Not used yet"}</small>
+              </span>
+              {!i.used_at && (
+                <div className="row">
+                  <button className="btn btn-line" onClick={() => share(i.code)}>{copied === i.code ? "Link copied" : "Copy link"}</button>
+                  <button className="btn btn-quiet" disabled={busy} onClick={() => act(() => takeBackInvite(i.code))} aria-label={`Take back ${i.code}`}>Take back</button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="sr-only" role="status">{copied ? "Invite link copied" : ""}</p>
     </section>
   );
 }

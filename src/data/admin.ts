@@ -13,7 +13,11 @@ export interface Stats {
   reports: number;
   invites_left: number;
   invites_used: number;
+  /** feedback not ticked off yet */
   feedback: number;
+  /** distinct faults seen in the last 7 days, and how often they happened */
+  errors: number;
+  error_count: number;
   /** open takedown claims */
   claims: number;
   /** pieces published on each of the last 14 days, oldest first */
@@ -88,3 +92,19 @@ export const withdrawInvite = (code: string) => request(`/api/admin/invites/${co
 export const settings = () => call<Record<string, string>>("/api/admin/settings");
 
 export const setSetting = (key: string, value: string) => call("/api/admin/settings", { method: "PUT", json: { [key]: value } });
+
+/** one distinct fault, from browsers ("app") or tilo-api ("api"), with how often it happened */
+export interface ErrorReport {
+  sig: string;
+  source: "app" | "api";
+  message: string;
+  stack: string;
+  page: string;
+  version: string;
+  browser: string;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+}
+export const errorReports = () => call<{ errors: ErrorReport[] }>("/api/admin/errors").then((r) => r.errors);
+export const fixedError = (sig: string) => request(`/api/admin/errors/${sig}`, { method: "DELETE" });

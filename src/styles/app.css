@@ -2988,3 +2988,55 @@ a.admin-tile:hover b {
     justify-content: flex-start;
   }
 }
+
+/* ---------- the closed beta: feedback, invites, error reports ---------- */
+/* a button inside running text, which reads as a link */
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+.mast-line .link-btn {
+  color: var(--blue);
+}
+@media (max-width: 640px) {
+  /* the line's right-hand note is hidden here, so this takes its place */
+  .mast-feedback {
+    margin-left: auto;
+  }
+}
+.feedback-dialog textarea {
+  width: 100%;
+}
+.invite-list code {
+  font-family: var(--f-mono);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.invite-list .row {
+  gap: 6px;
+}
+.error-list li {
+  display: grid;
+  gap: 4px;
+}
+.error-list pre {
+  max-height: 260px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 10px;
+  background: var(--paper-2);
+  font-family: var(--f-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.feedback-done {
+  opacity: 0.55;
+}

@@ -12,6 +12,7 @@ import "./styles/materials.css";
 import "./styles/app.css";
 import { Layout } from "./components/Layout";
 import { startAccounts } from "./data/account";
+import { watchErrors } from "./data/beta";
 import { NotFound, PageError } from "./pages/Errors";
 
 /* Each page is its own file, fetched when it is first opened, so the first visit only loads
@@ -62,3 +63,5 @@ createRoot(document.getElementById("root")!).render(
 
 // checks for a saved session once the page is up (only when accounts are on)
 startAccounts();
+// what breaks and no page catches reaches the admin panel (only when accounts are on)
+watchErrors();

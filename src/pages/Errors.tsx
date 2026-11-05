@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { isRouteErrorResponse, Link, useLocation, useRouteError } from "react-router";
+import { reportError } from "../data/beta";
 
 /* What shows when a page can't be drawn: an address that leads nowhere, a part of Tilo that
    couldn't be fetched (offline, or Tilo was updated while the tab was open), or a fault in
@@ -25,6 +27,11 @@ const isFetchFailure = (e: unknown) =>
 export function PageError() {
   const error = useRouteError();
   const { pathname } = useLocation();
+  // a fault in the page itself is reported; an answer like 404 isn't one, and reportError
+  // leaves out pages that couldn't be fetched
+  useEffect(() => {
+    if (!isRouteErrorResponse(error)) reportError(error);
+  }, [error]);
   if (isRouteErrorResponse(error) && error.status === 404) return <NotFound />;
   const fetchFailed = isFetchFailure(error);
   const inStudio = pathname.startsWith("/studio");

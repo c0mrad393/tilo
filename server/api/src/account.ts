@@ -2,6 +2,7 @@ import { Hono, type MiddlewareHandler } from "hono";
 import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
 import { publicUrls, removeFiles, type Purge } from "./files.ts";
+import { newCode } from "./invites.ts";
 
 /* /api/me: the signed-in member's own account. Everything here acts only on whoever the
    session belongs to, so there is no id in any path. */
@@ -29,6 +30,54 @@ export function account(sql: Sql, { member, filesDir, authUrl, serviceKey, site,
     return c.json({ id, email, profile: profile ?? null });
   });
 
+  // Invite codes the member hands out: a few each (invites_per_member), made one at a time,
+  // so nobody holds codes they haven't given anyone. An unused one can be taken back, which
+  // frees its place. Admins make theirs in the admin panel, with no limit.
+  const beta = async () => {
+    const rows = await sql<{ key: string; value: string }[]>`select key, value from tilo_meta.settings where key in ('invites_required', 'invites_per_member')`;
+    const v = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    return { open: v.invites_required !== "true", per: Number(v.invites_per_member ?? 0) };
+  };
+  const mine = (id: string) => sql`
+    select i.code, i.created, i.used_at, taker.handle as used_by
+    from public.invites i left join public.profiles taker on taker.id = i.used_by
+    where i.made_by = ${id} order by i.created`;
+
+  app.get("/invites", async (c) => {
+    const { id } = c.get("member");
+    const [p] = await sql`select role from public.profiles where id = ${id}`;
+    if (!p) return c.json({ error: "Pick a handle first." }, 403);
+    const { open, per } = await beta();
+    if (p.role === "admin") return c.json({ open, per, admin: true, left: 0, codes: [] });
+    const codes = await mine(id);
+    return c.json({ open, per, admin: false, left: Math.max(0, per - codes.length), codes });
+  });
+
+  app.post("/invites", async (c) => {
+    const { id } = c.get("member");
+    return sql.begin(async (tx) => {
+      // one at a time per member, so two taps can't both take the last place
+      await tx`select pg_advisory_xact_lock(hashtext(${"invites:" + id}))`;
+      const [p] = await tx`select role, suspended from public.profiles where id = ${id}`;
+      if (!p) return c.json({ error: "Pick a handle first." }, 403);
+      if (p.suspended) return c.json({ error: "A suspended account can't invite anyone." }, 403);
+      if (p.role === "admin") return c.json({ error: "Admins make codes in the admin panel." }, 400);
+      const { open, per } = await beta();
+      if (open) return c.json({ error: "Tilo is open just now: anyone can join without a code." }, 409);
+      const [{ n }] = await tx`select count(*)::int as n from public.invites where made_by = ${id}`;
+      if (n >= per) return c.json({ error: per ? `You've handed out all ${per} of your codes.` : "Members can't hand out codes just now." }, 429);
+      const [made] = await tx`insert into public.invites (code, made_by) values (${newCode()}, ${id}) returning code, created, used_at`;
+      return c.json({ ...made, used_by: null }, 201);
+    });
+  });
+
+  app.delete("/invites/:code", async (c) => {
+    const { id } = c.get("member");
+    const gone = await sql`delete from public.invites where code = ${c.req.param("code").toUpperCase()} and made_by = ${id} and used_at is null returning code`;
+    if (!gone.length) return c.json({ error: "No unused code of yours like that." }, 404);
+    return c.body(null, 204);
+  });
+
   // everything Tilo keeps about the member, as one JSON file (GDPR article 20)
   app.get("/export", async (c) => {
     const { id } = c.get("member");
@@ -51,7 +100,7 @@ export function account(sql: Sql, { member, filesDir, authUrl, serviceKey, site,
       followers: await sql`select p.handle, f.created from public.follows f join public.profiles p on p.id = f.follower where f.followee = ${id}`,
       reports_filed: await sql`select piece, profile, reason, note, status, created from public.reports where reporter = ${id}`,
       claims_sent: await sql`select kind, url, name, email, details, status, outcome, created from public.claims where member = ${id}`,
-      feedback_sent: await sql`select page, text, created from public.feedback where member = ${id}`,
+      feedback_sent: await sql`select kind, page, text, device, created from public.feedback where member = ${id}`,
       invite_used: (await sql`select code, used_at from public.invites where used_by = ${id}`)[0] ?? null,
       invites_made: await sql`select code, used_at from public.invites where made_by = ${id}`,
     };

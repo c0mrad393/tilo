@@ -7,7 +7,9 @@
 import { createCanvas, DOMMatrix, ImageData, Path2D } from "@napi-rs/canvas";
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { SAMPLES, publishedSample, SAMPLE_ACCOUNT } from "../../src/data/samples";
+import { publishedSample, SAMPLE_ACCOUNT, samples } from "../../src/data/samples";
+
+const SAMPLES = samples();
 import { encode } from "../../src/engine/codec";
 import { Painter } from "../../src/engine/painter";
 import { drawnCount, layersOf, sizeOf, type Piece } from "../../src/engine/stroke";

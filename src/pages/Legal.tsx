@@ -141,17 +141,25 @@ export function Privacy() {
         <li><b>Your profile:</b> handle, name and bio. These are public.</li>
         <li><b>Your pieces:</b> each recording, with every stroke, its time and its pen pressure; the picture the server draws from it; the title; and what the checks found. Pieces in the gallery are public, recordings included.</li>
         <li><b>What you do:</b> the stamps you give, who you follow, the reports and feedback you send. Counts of stamps and followers are public; who reported what is not.</li>
+        <li><b>Feedback:</b> what you write in the feedback box, with the page you sent it from and your browser's name, window size and whether it has a touch screen, so a problem can be seen the way you saw it.</li>
+        <li><b>Invites:</b> the invite codes you hand out, and who used them.</li>
         <li><b>Moderation:</b> what moderators did about your pieces or account, and why.</li>
         <li><b>Sign-ins:</b> the IP address and browser of each sign-in and session, to keep accounts safe.</li>
       </ul>
       <p className="serif">
         If you send a takedown claim, we keep the name, email address and details you give, to answer it.
       </p>
+      <p className="serif">
+        When a page breaks, with or without an account, your browser sends Tilo an error report: the page's address without anything after
+        a <code>?</code>, the error and where in Tilo's code it happened, Tilo's version, and your browser's name and system, such as
+        “Safari 26 · iOS”. Nothing ties it to you: no account and no IP address is kept with it.
+      </p>
 
       <h2 id="why">Why</h2>
       <p className="serif">
         We use your account, profile and pieces to provide Tilo to you, as these terms describe. We use sign-in records, the image check,
-        reports and moderation because we have a legitimate interest in keeping accounts and the gallery safe, for all ages. The image check
+        reports and moderation because we have a legitimate interest in keeping accounts and the gallery safe, for all ages, and error
+        reports because we have one in fixing what breaks. The image check
         runs on Tilo's own server; it can only hold a piece back for a person to look at. We keep takedown claims because the law asks us to
         handle them.
       </p>
@@ -171,6 +179,7 @@ export function Privacy() {
         <li>Your account, profile, pieces and activity: until you delete them. Deleting your account deletes all of it at once.</li>
         <li>Backups: copies roll off within four weeks.</li>
         <li>Sign-in records: 30 days. Sessions: until you sign out, or 90 days without use.</li>
+        <li>Error reports: 30 days after that error last happened.</li>
         <li>Takedown claims: three years after they are answered, in case they are disputed.</li>
         <li>Moderation records stay after an account is deleted, without the account they were about.</li>
       </ul>

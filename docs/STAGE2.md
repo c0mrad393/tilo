@@ -323,8 +323,28 @@ Progress (2026-11-05): the server is live and accounts are open on tiloart.com.
   861px (iPad upright included), so the sheet gets the room; the sheet fits itself again
   when the screen turns or a tab opens, until someone zooms or moves it. No page scrolls
   sideways from 375px up.
-- Left: invite codes for members, a feedback box on every page, error reports, the
-  accessibility and performance pass, and the first invited group.
+- Invite codes for members (migration 0010): each member hands out up to
+  `invites_per_member` codes (3; admins change it, 0 to 10), made one at a time on their
+  account page and shared as a link (`/account?invite=…`) that fills the code in, even across
+  the sign-in email. An unused code can be taken back. Admins still make theirs, unlimited,
+  in the admin panel, which shows who handed each code out.
+- Feedback box on every page: "Send feedback" under the masthead, in the footer and in the
+  studio's sheet panel open one dialog. It sends what it's about (broken, idea, other), the
+  page and the browser, window size and touch; 20 a day per member. Signed out, it gives the
+  address. The admin panel's Feedback tab ticks messages off.
+- Error reports: the app sends faults no page caught, and pages that crash, to
+  `/api/errors` (no sign-in, 10 a minute per address, 5 per page load); tilo-api records its
+  own faults too. One row per distinct fault with a count, no account or IP address, pruned
+  30 days after it was last seen; the privacy policy says so. The admin panel's Errors tab
+  lists them with where in the code, and "Mark fixed".
+- Accessibility: axe-core (WCAG 2.1 A/AA and best practice) finds nothing on 15 pages
+  signed in as an admin, the open feedback dialog, and the account page in dark mode.
+- Performance: the eight samples (about 7,500 strokes) were drawn on every page load,
+  because the masthead read the day's subject from the same file. The small facts moved to
+  src/data/prompt.ts and the samples are drawn the first time a page shows one: the first
+  script is 105 KB gzipped instead of 116, and piece pages draw nothing they don't show.
+- Smoke test: 203 checks.
+- Left: the first invited group.
 
 Total: about 9 weeks.
 

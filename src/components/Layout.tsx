@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigation } from "react-router";
 import { ACCOUNTS, call, handleHint, useAccount } from "../data/account";
-import { PROMPT } from "../data/samples";
+import { openFeedback } from "../data/beta";
+import { PROMPT } from "../data/prompt";
+import { FeedbackDialog } from "./Feedback";
 import { Logo } from "./Logo";
 
 /* Blocks marked .press go through the press the first time they scroll into view. They are
@@ -102,6 +104,7 @@ export function Layout() {
             <span className="opt">{today}</span>
             <span>Today's subject: <a href="/#today">{PROMPT.title}</a></span>
             <span className="mast-free opt">Drawn by hand, free to show</span>
+            <button type="button" className="link-btn mast-feedback" onClick={openFeedback}>Send feedback</button>
           </p>
         </header>
       )}
@@ -116,6 +119,7 @@ export function Layout() {
             <section>
               <h2 className="kicker">Free, for good</h2>
               <p className="serif">Drawing, the wall, the gallery and stamps are free and stay free. <Link to="/support">Support Tilo</Link></p>
+              <p className="serif">Something broken, or missing? <button type="button" className="link-btn" onClick={openFeedback}>Tell us</button></p>
             </section>
             <section>
               <h2 className="kicker">The small print</h2>
@@ -134,6 +138,7 @@ export function Layout() {
           </div>
         </footer>
       )}
+      <FeedbackDialog />
       <ScrollRestoration />
     </>
   );

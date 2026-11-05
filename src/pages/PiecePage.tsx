@@ -6,7 +6,7 @@ import { Trace } from "../components/Trace";
 import { ACCOUNTS, useAccount } from "../data/account";
 import { allPieces, pieceById, stampCount, toggleStamp, useLocal } from "../data/local";
 import { type Full, getPiece, listPieces, loadPiece, myStamps, type Published, reloadPiece, setRemixable, setStamp, takeDown } from "../data/pieces";
-import { publishedSample, STAMPS, STAMP_COLOR } from "../data/samples";
+import { publishedSample, STAMPS, STAMP_COLOR } from "../data/prompt";
 import { Replayer, prefersReducedMotion } from "../engine/replay";
 import { drawnCount, fmtMin, paletteOf, SHAPES, sizeOf, toolsUsed, type Piece } from "../engine/stroke";
 

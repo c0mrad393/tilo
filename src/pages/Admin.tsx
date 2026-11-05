@@ -3,14 +3,14 @@ import { Link, useParams } from "react-router";
 import { AdminTabs } from "../components/AdminTabs";
 import { ACCOUNTS, call, type Profile, useAccount } from "../data/account";
 import { ModButtons } from "../components/Moderation";
-import { type Claim, claims, closeClaim, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite } from "../data/admin";
+import { type Claim, claims, closeClaim, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite } from "../data/admin";
 import { ANSWER_IN } from "../data/legal";
 import { fromRow, type Published, SELECT } from "../data/pieces";
 import { NotFound } from "./Errors";
 import { LOGGED, PieceItem, when } from "./Queue";
 
-/* /admin/:tab, the admin panel: the numbers, members, invite codes, every piece, feedback
-   and the whole log. The queue (/mod) is its first tab. Admins only. */
+/* /admin/:tab, the admin panel: the numbers, members, invite codes, every piece, feedback,
+   error reports and the whole log. The queue (/mod) is its first tab. Admins only. */
 
 const day = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
 const date = (s: string | null) => (s ? day.format(new Date(s)) : "never");
@@ -65,9 +65,13 @@ function PublishedChart({ days }: { days: Stats["days"] }) {
 
 function InvitesSetting() {
   const [on, setOn] = useState<boolean | null>(null);
+  const [per, setPer] = useState("3");
   const [error, setError] = useState("");
   useEffect(() => {
-    settings().then((s) => setOn(s.invites_required === "true"), () => {});
+    settings().then((s) => {
+      setOn(s.invites_required === "true");
+      setPer(s.invites_per_member ?? "0");
+    }, () => {});
   }, []);
   if (on === null) return null;
   const flip = (next: boolean) => {
@@ -78,11 +82,27 @@ function InvitesSetting() {
       setError("That didn't save.");
     });
   };
+  const perMember = (next: string) => {
+    const was = per;
+    setPer(next);
+    setError("");
+    setSetting("invites_per_member", next).catch(() => {
+      setPer(was);
+      setError("That didn't save.");
+    });
+  };
   return (
     <section className="admin-card">
       <h2 className="kicker">Sign-up</h2>
       <label className="check"><input type="checkbox" checked={on} onChange={(e) => flip(e.target.checked)} /> New members need an invite code</label>
       <p className="field-note">{on ? "The closed beta: only someone with a code can pick a handle." : "Open: anyone who signs in can pick a handle."}</p>
+      <label className="field admin-per">
+        <span className="kicker">Codes each member can hand out</span>
+        <select value={per} onChange={(e) => perMember(e.target.value)} disabled={!on}>
+          {Array.from({ length: 11 }, (_, i) => <option key={i} value={String(i)}>{i === 0 ? "None" : i}</option>)}
+        </select>
+      </label>
+      <p className="field-note">Members make them one at a time on their account page. Lowering this takes no code back that was already made.</p>
       {error && <p className="field-note is-error" role="alert">{error}</p>}
     </section>
   );
@@ -99,7 +119,8 @@ function Overview() {
     ["Open reports", s.reports, "pieces and profiles", "/mod"],
     ["Takedown claims", s.claims, `open, answer within ${ANSWER_IN}`, "/admin/claims"],
     ["Invites left", s.invites_left, `${s.invites_used} used`, "/admin/invites"],
-    ["Feedback", s.feedback, "messages", "/admin/feedback"],
+    ["Feedback", s.feedback, "to read", "/admin/feedback"],
+    ["Errors this week", s.errors, `${s.error_count.toLocaleString()} time${s.error_count === 1 ? "" : "s"} in all`, "/admin/errors"],
   ];
   return (
     <>
@@ -501,22 +522,96 @@ function Pieces() {
 
 // ---------- feedback ----------
 
+type FeedbackRow = { id: number; kind: "problem" | "idea" | "other"; page: string; text: string; device: string; done: boolean; created: string; member: { handle: string } | null };
+const FEEDBACK_KIND = { problem: "Something's broken", idea: "An idea", other: "Something else" };
+
 function Feedback() {
-  const { data, failed } = useLoad(
-    () => call<{ id: number; page: string; text: string; created: string; member: { handle: string } | null }[]>("/rest/v1/feedback?select=id,page,text,created,member:profiles(handle)&order=created.desc&limit=100"),
-    [],
-  );
-  if (!data) return <Wait failed={failed} />;
-  if (!data.length) return <p className="empty serif">No feedback yet. The feedback box on every page arrives with the beta (2.8).</p>;
+  const [show, setShow] = useState<"open" | "done" | "">("open");
+  const { data, failed, reload } = useLoad(() => {
+    const p = new URLSearchParams({ select: "id,kind,page,text,device,done,created,member:profiles(handle)", order: "created.desc", limit: "200" });
+    if (show) p.set("done", `is.${show === "done"}`);
+    return call<FeedbackRow[]>(`/rest/v1/feedback?${p}`);
+  }, [show]);
+  const tick = async (f: FeedbackRow) => {
+    await call(`/rest/v1/feedback?id=eq.${f.id}`, { method: "PATCH", headers: { prefer: "return=minimal" }, json: { done: !f.done } }).catch(() => {});
+    reload();
+  };
   return (
-    <ul className="queue-log serif">
-      {data.map((f) => (
-        <li key={f.id}>
-          <b>{f.member ? `@${f.member.handle}` : "Someone"}</b>, {when.format(new Date(f.created))}{f.page && <> on <code>{f.page}</code></>}
-          <p>{f.text}</p>
-        </li>
-      ))}
-    </ul>
+    <>
+      <div className="admin-filters">
+        <label className="field">
+          <span className="kicker">Show</span>
+          <select value={show} onChange={(e) => setShow(e.target.value as typeof show)}>
+            <option value="open">To read</option>
+            <option value="done">Dealt with</option>
+            <option value="">All</option>
+          </select>
+        </label>
+      </div>
+      {!data ? (
+        <Wait failed={failed} />
+      ) : !data.length ? (
+        <p className="empty serif">{show === "open" ? "Nothing to read. Members send feedback from any page, with “Send feedback” under the masthead." : "None here."}</p>
+      ) : (
+        <ul className="queue-log serif">
+          {data.map((f) => (
+            <li key={f.id} className={f.done ? "feedback-done" : undefined}>
+              <b>{FEEDBACK_KIND[f.kind]}</b> from {f.member ? <Link to={`/u/${f.member.handle}`}>@{f.member.handle}</Link> : "a deleted account"}, {when.format(new Date(f.created))}
+              {f.page && <> on <code>{f.page}</code></>}
+              <p>{f.text}</p>
+              {f.device && <p className="field-note">{f.device}</p>}
+              <button className="btn btn-quiet" onClick={() => tick(f)}>{f.done ? "Mark as not dealt with" : "Mark as dealt with"}</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+// ---------- errors ----------
+
+function Errors() {
+  const { data, failed, reload } = useLoad(errorReports, []);
+  const fixed = async (e: ErrorReport) => {
+    await fixedError(e.sig).catch(() => {});
+    reload();
+  };
+  if (!data) return <Wait failed={failed} />;
+  return (
+    <>
+      <p className="serif">
+        Faults in browsers and in tilo-api, sent on their own: one line per distinct fault, with how often it happened. Nothing about who it
+        happened to is kept. A fault not seen for 30 days drops off; mark one fixed once a fix is live, and it comes back if it happens again.
+      </p>
+      {!data.length ? (
+        <p className="empty serif">Nothing has broken lately.</p>
+      ) : (
+        <ul className="queue-log serif error-list">
+          {data.map((e) => (
+            <li key={e.sig}>
+              <b>{e.message}</b>
+              <span className="field-note">
+                {e.count.toLocaleString()} time{e.count === 1 ? "" : "s"} · last {when.format(new Date(e.last_seen))}, first {when.format(new Date(e.first_seen))} ·{" "}
+                {e.source === "api" ? "tilo-api" : "browser"}
+                {e.page && <> · <code>{e.page}</code></>}
+                {e.browser && ` · ${e.browser}`}
+                {e.version && ` · version ${e.version}`}
+              </span>
+              {e.stack && (
+                <details>
+                  <summary>Where in the code</summary>
+                  <pre>{e.stack}</pre>
+                </details>
+              )}
+              <div className="row row-start">
+                <button className="btn btn-quiet" onClick={() => fixed(e)}>Mark fixed</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
@@ -576,6 +671,7 @@ const SECTIONS: Record<string, [string, () => React.ReactElement]> = {
   invites: ["Invites", Invites],
   pieces: ["Pieces", Pieces],
   feedback: ["Feedback", Feedback],
+  errors: ["Errors", Errors],
   log: ["Log", Log],
 };
 

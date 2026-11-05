@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { decode, encode, fromBase64, toBase64 } from "../engine/codec";
 import type { Piece, Stroke } from "../engine/stroke";
-import { SAMPLES } from "./samples";
+import { isSample, samples } from "./samples";
 
 /* Per-device state until accounts arrive in Stage 2: pinned pieces, stamps and your marks on
    the wall. Storage can be missing or full, so every access is guarded. Sheets you are still
@@ -56,8 +56,9 @@ const subscribe = (f: () => void) => {
 
 export const useLocal = () => useSyncExternalStore(subscribe, () => state);
 
-export const allPieces = (s: State = state) => [...s.mine, ...SAMPLES];
-export const pieceById = (id: string, s: State = state) => allPieces(s).find((p) => p.id === id);
+export const allPieces = (s: State = state) => [...s.mine, ...samples()];
+// the samples are drawn only when the id is one of theirs, not for every piece page
+export const pieceById = (id: string, s: State = state) => s.mine.find((p) => p.id === id) ?? (isSample(id) ? samples().find((p) => p.id === id) : undefined);
 
 export function pinPiece(p: Piece) {
   const mine = [p, ...state.mine];

@@ -8,7 +8,8 @@ import { Trace } from "../components/Trace";
 import { Wall } from "../components/Wall";
 import { DISCIPLINES } from "../data/disciplines";
 import { allPieces, useLocal } from "../data/local";
-import { PROMPT, SAMPLES } from "../data/samples";
+import { PROMPT } from "../data/prompt";
+import { samples } from "../data/samples";
 import { Sketch } from "../engine/sketch";
 import { drawnCount, toolsUsed, type Piece } from "../engine/stroke";
 
@@ -113,7 +114,7 @@ export function Home() {
   const local = useLocal();
   const countdown = useCountdown();
   const entries = allPieces(local).filter((p) => p.prompt === PROMPT.no).slice(0, 4);
-  const sample = (id: string) => SAMPLES.find((p) => p.id === id)!;
+  const sample = (id: string) => samples().find((p) => p.id === id)!;
   const feed = ["gergeti", "oldtown", "blacksea", "raintram", "harvest"].map(sample);
   const hero = sample("nightlamp");
   const proof = sample("rkatsiteli");
@@ -220,7 +221,7 @@ export function Home() {
               <Link to="/gallery" viewTransition className="btn btn-line">The whole gallery<Icon name="arrow" /></Link>
             </div>
           </div>
-          <div className="salon is-even">{SAMPLES.map((p, i) => <PinCard key={p.id} piece={p} index={i} no={i + 7} />)}</div>
+          <div className="salon is-even">{samples().map((p, i) => <PinCard key={p.id} piece={p} index={i} no={i + 7} />)}</div>
         </div>
       </section>
 

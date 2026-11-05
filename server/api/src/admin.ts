@@ -1,8 +1,8 @@
-import { randomBytes } from "node:crypto";
 import { Hono, type MiddlewareHandler } from "hono";
 import { createMiddleware } from "hono/factory";
 import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
+import { newCode } from "./invites.ts";
 
 /* /api/admin: what only admins do. The numbers at a glance, members with their email
    addresses (which only Auth keeps), roles, invite codes and settings. Pieces, reports,
@@ -12,13 +12,9 @@ import type { AuthEnv } from "./auth.ts";
 const PAGE = 50;
 const ROLES = new Set(["member", "mod", "admin"]);
 /** settings an admin may change, with the values each may take */
-const SETTINGS: Record<string, Set<string>> = { invites_required: new Set(["true", "false"]) };
-// no 0/O or 1/I, so a code read aloud or off paper comes through
-const ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const newCode = () => {
-  const b = randomBytes(8);
-  const part = (o: number) => Array.from({ length: 4 }, (_, i) => ABC[b[o + i] % ABC.length]).join("");
-  return `TILO-${part(0)}-${part(4)}`;
+const SETTINGS: Record<string, Set<string>> = {
+  invites_required: new Set(["true", "false"]),
+  invites_per_member: new Set(Array.from({ length: 11 }, (_, i) => String(i))),
 };
 
 export function admin(sql: Sql, { member }: { member: MiddlewareHandler<AuthEnv> }) {
@@ -48,7 +44,9 @@ export function admin(sql: Sql, { member }: { member: MiddlewareHandler<AuthEnv>
         (select count(*)::int from public.reports where status = 'open') as reports,
         (select count(*)::int from public.invites where used_at is null) as invites_left,
         (select count(*)::int from public.invites where used_at is not null) as invites_used,
-        (select count(*)::int from public.feedback) as feedback,
+        (select count(*)::int from public.feedback where not done) as feedback,
+        (select count(*)::int from public.errors where last_seen > now() - interval '7 days') as errors,
+        (select coalesce(sum(count), 0)::int from public.errors where last_seen > now() - interval '7 days') as error_count,
         (select count(*)::int from public.claims where status = 'open') as claims`;
     // pieces published on each of the last 14 days, oldest first, days without any included
     const days = await sql`
@@ -130,6 +128,21 @@ export function admin(sql: Sql, { member }: { member: MiddlewareHandler<AuthEnv>
     const gone = await sql`delete from public.invites where code = ${code} and used_at is null returning code`;
     if (!gone.length) return c.json({ error: "No unused code like that." }, 404);
     await log(me, "uninvite", null, code);
+    return c.body(null, 204);
+  });
+
+  // error reports, the most recent first
+  app.get("/errors", async (c) => {
+    const rows = await sql`
+      select sig, source, message, stack, page, version, browser, count, first_seen, last_seen
+      from public.errors order by last_seen desc limit 200`;
+    return c.json({ errors: rows });
+  });
+
+  // a fault that is fixed leaves the list; if it happens again it comes back as new
+  app.delete("/errors/:sig", async (c) => {
+    const gone = await sql`delete from public.errors where sig = ${c.req.param("sig")} returning sig`;
+    if (!gone.length) return c.json({ error: "No such error." }, 404);
     return c.body(null, 204);
   });
 

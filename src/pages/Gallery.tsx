@@ -6,7 +6,7 @@ import { ReplayCanvas } from "../components/ReplayCanvas";
 import { ACCOUNTS, useAccount } from "../data/account";
 import { allPieces, stampTotal, useLocal } from "../data/local";
 import { listPieces, loadStrokes, type Published, type Sort } from "../data/pieces";
-import { PROMPT } from "../data/samples";
+import { PROMPT } from "../data/prompt";
 import { PAPERS, paperOf } from "../engine/paper";
 import { drawnCount, fmtMin, toolsUsed, type Piece, type Stroke } from "../engine/stroke";
 

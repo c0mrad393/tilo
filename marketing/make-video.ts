@@ -14,7 +14,9 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { letters } from "../src/components/Logo";
-import { SAMPLES } from "../src/data/samples";
+import { samples } from "../src/data/samples";
+
+const SAMPLES = samples();
 import { Replayer } from "../src/engine/replay";
 import { Sketch } from "../src/engine/sketch";
 import { drawnCount, layersOf, sizeOf, type Piece } from "../src/engine/stroke";

@@ -4,7 +4,7 @@ import { layersOf, type LayerDef, type Piece, type ShapeId, type Stroke } from "
 import { call, request } from "./account";
 import { library } from "./library";
 import { pieceById, unpinPiece } from "./local";
-import { publishedSample } from "./samples";
+import { publishedSample } from "./prompt";
 
 /* Published pieces, from Stage 2.3. The rows come from PostgREST; each live piece's recording
    and picture are files under /files, which never change once written. A list only fetches

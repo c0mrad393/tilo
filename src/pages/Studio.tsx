@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, type LoaderFunctionArgs, type ShouldRevalidateFunctionArgs } from "react-router";
 import { Icon } from "../components/Icon";
 import { ReplayCanvas } from "../components/ReplayCanvas";
+import { openFeedback } from "../data/beta";
 import { blankSheet, lastSheet, library, migrateDraft, type Guides, type Sheet } from "../data/library";
 import { ACCOUNTS, useAccount } from "../data/account";
 import { pinPiece } from "../data/local";
 import { findPiece, getPiece, isPublished, publish } from "../data/pieces";
-import { PROMPT, publishedSample } from "../data/samples";
+import { PROMPT, publishedSample } from "../data/prompt";
 import { download, fileName, pictureBlob, thumbnail, timelapse, videoType } from "../engine/export";
 import { drawGuides, handleAt, snapDirection } from "../engine/guides";
 import { Painter } from "../engine/painter";
@@ -1262,7 +1263,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
             <div><b className="num">{drawn.toLocaleString()}</b><span>strokes</span></div>
             <div><b className="num">{fmtMin(ms / 60000)}</b><span>drawing time</span></div>
           </div>
-          <p className="hint">Saved on this device as you draw. <Link to="/library" viewTransition>All your sheets</Link></p>
+          <p className="hint">Saved on this device as you draw. <Link to="/library" viewTransition>All your sheets</Link> · <button type="button" className="link-btn" onClick={openFeedback}>Send feedback</button></p>
         </section>
 
         <section className="sheet panel-card opt">

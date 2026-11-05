@@ -1,24 +1,15 @@
 import { Sketch, type Pt } from "../engine/sketch";
 import type { Piece } from "../engine/stroke";
 import { below, blob, ellipse, hatch, mix, noise, ramp, ridge, sky, soft, speckle } from "./art";
+import { PROMPT, SAMPLE_BY } from "./prompt";
+
+export { PROMPT, publishedSample, SAMPLE_ACCOUNT, SAMPLE_BY, STAMP_COLOR, STAMPS } from "./prompt";
 
 /* Tilo's sample pieces. Claude, an AI, drew them in code (src/data/art.ts has the tools it
    drew with): every mark is a real stroke with a real tool, so they replay and remix like
    any piece, but no hand made them, and the UI says so wherever they appear. They are the
    bar for people to beat, not the work Tilo is for. */
-const NAVY = "#1E2A5A", LAMP = "#F2C14E", EMBER = "#E26D3D", MOSS = "#3E7C6B", CREAM = "#F4EEE0", INK = "#1B1B1B";
-
-export const PROMPT = {
-  no: 312,
-  title: "A window at night",
-  palette: [NAVY, LAMP, EMBER, MOSS, CREAM, INK],
-  names: ["Night navy", "Lamp", "Ember", "Moss", "Moon", "Ink"],
-  minutes: 10,
-};
-
-/** who the samples are credited to: the @tilo account on the server */
-export const SAMPLE_BY = "tilo";
-export const SAMPLE_ACCOUNT = "71100000-0000-4000-8000-000000000001";
+const [NAVY, LAMP, EMBER, MOSS, CREAM, INK] = PROMPT.palette;
 
 const scale = (pts: Pt[], cx: number, cy: number, s: number, sy = s): Pt[] => pts.map(([x, y]) => [cx + (x - cx) * s, cy + (y - cy) * sy]);
 
@@ -764,18 +755,15 @@ const DEFS: Def[] = [
 ];
 const TILTS = [-2.2, 1.6, -0.8, 2.4, -1.4, 1, -2.6, 0.7];
 
-export const SAMPLES: Piece[] = DEFS.map(({ gen, ...d }, i) => {
-  const S = new Sketch(1000 + i * 77);
-  gen(S);
-  return { ...d, strokes: S.strokes, sample: true, ai: true, tilt: TILTS[i % TILTS.length] };
-});
+/** whether an id is one of the samples, without drawing them */
+export const isSample = (id: string) => DEFS.some((d) => d.id === id);
 
-/** A sample's id in the shared gallery, where the server's seed publishes it as @tilo
-    (server/seed/samples). With accounts on, its page and remix credit go there. */
-export const publishedSample = (id: string) => `tilo${id}`;
-
-export const STAMPS = ["Bold", "Moody", "Calm", "Colour", "Clean line", "Patient", "Funny", "Remix me"] as const;
-export const STAMP_COLOR: Record<string, string> = {
-  Bold: "#B23A2E", Moody: "#3B3F8F", Calm: "#2F6B5A", Colour: "#99520F",
-  "Clean line": "#1B1E1D", Patient: "#6B4C2E", Funny: "#A1386B", "Remix me": "#2B37D4",
-};
+let drawn: Piece[] | undefined;
+/** The eight samples, drawn the first time something asks for them: about 7,500 strokes,
+    which a phone would otherwise spend on every page load, pages without samples included. */
+export const samples = () =>
+  (drawn ??= DEFS.map(({ gen, ...d }, i) => {
+    const S = new Sketch(1000 + i * 77);
+    gen(S);
+    return { ...d, strokes: S.strokes, sample: true, ai: true, tilt: TILTS[i % TILTS.length] };
+  }));
