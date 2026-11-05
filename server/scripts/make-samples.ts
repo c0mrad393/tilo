@@ -1,6 +1,8 @@
 /* Draws Tilo's sample pieces (src/data/samples.ts) with the studio's own engine, on skia, as
    tilo-api's image check does, and writes what the seed needs: each piece's recording
-   ({id}.tl), its picture ({id}.webp) and server/seed/samples/samples.sql. With `preview DIR`
+   ({id}.tl), its picture ({id}.webp) and the rows for it: the paintings in
+   server/seed/samples/pieces.sql, the pixel pieces (added later, and seeded on their own by
+   migrate.sh) in server/seed/samples/pixel/pieces.sql, beside their files. With `preview DIR`
    it only writes PNGs there, to look at while drawing them.
    Usage, from the repository root: npm run samples [-- preview DIR [id ...]] */
 
@@ -12,7 +14,7 @@ import { publishedSample, SAMPLE_ACCOUNT, samples } from "../../src/data/samples
 const SAMPLES = samples();
 import { encode } from "../../src/engine/codec";
 import { Painter } from "../../src/engine/painter";
-import { drawnCount, layersOf, sizeOf, type Piece } from "../../src/engine/stroke";
+import { drawnCount, isPixelShape, layersOf, sizeOf, type Piece } from "../../src/engine/stroke";
 
 Object.assign(globalThis, { DOMMatrix, ImageData, Path2D, document: { createElement: () => createCanvas(1, 1) } });
 
@@ -40,7 +42,13 @@ if (mode === "preview") {
     console.log(`${p.id}: ${drawnCount(p.strokes)} strokes, ${encode(p.strokes).length} bytes, ${Date.now() - t} ms`);
   }
 } else {
-  const out = join("server", "seed", "samples");
+  const root = join("server", "seed", "samples");
+  await write(root, pieces.filter((p) => !isPixelShape(p.shape)));
+  await write(join(root, "pixel"), pieces.filter((p) => isPixelShape(p.shape)));
+}
+
+async function write(out: string, pieces: Piece[]) {
+  mkdirSync(out, { recursive: true });
   for (const f of readdirSync(out)) if (/\.(tl|webp)$/.test(f)) rmSync(join(out, f));
   const rows: string[] = [];
   const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
@@ -50,7 +58,7 @@ if (mode === "preview") {
     writeFileSync(join(out, `${id}.tl`), rec);
     rows.push(
       `    (${q(id)}, ${q(p.title)}, ${q(p.paper ?? "smooth")}, ${q(p.shape ?? "land")}, ${q(JSON.stringify(layersOf(p)))}::jsonb, ` +
-        `${drawnCount(p.strokes)}, ${p.minutes}, 2, ${rec.length}, ${p.prompt ?? "null"}, ${p.remixOf ? q(publishedSample(p.remixOf)) : "null"}, ` +
+        `${drawnCount(p.strokes)}, ${p.minutes}, ${rec[2]}, ${rec.length}, ${p.prompt ?? "null::int"}, ${p.remixOf ? q(publishedSample(p.remixOf)) : "null"}, ` +
         `'webp', now() - interval '${pieces.length - i} hours')`,
     );
   });

@@ -69,7 +69,7 @@ Detailed plan, milestones and open decisions: [STAGE2.md](STAGE2.md).
 
 Detailed plan, milestones and open questions: [STAGE3.md](STAGE3.md).
 
-Progress, 3.1 (v0.10): pixel sheets of 16, 32, 64 or 128 cells square, or 64 × 48, chosen before the first stroke. A pixel pen, eraser and fill that work cell by cell, with Shift for straight lines, a brush of 1 to 4 cells and mirror symmetry that lands on the grid. Four palettes of Tilo's own beside the mixer, a grid when zoomed in, cells sharp at every zoom, two papers without grain, and a PNG at one pixel a cell. Pixel strokes are recording format 4; older recordings keep their format byte for byte. Next: 3.2, animation.
+Progress, 3.1 (v0.10): pixel sheets of 16, 32, 64 or 128 cells square, or 64 × 48, chosen before the first stroke. A pixel pen, eraser and fill that work cell by cell, with Shift for straight lines, a brush of 1 to 4 cells and mirror symmetry that lands on the grid. Four palettes of Tilo's own beside the mixer, a grid when zoomed in, cells sharp at every zoom, two papers without grain, and a PNG at one pixel a cell. Pixel strokes are recording format 4; older recordings keep their format byte for byte. Then 0.10.1 put it on show: four pixel samples drawn in code by Claude (Narikala at night, khinkali, a Batumi sunset, a pomegranate), seeded on their own; a pixel section and a "new" note on the home page, a Pixel art filter in the gallery, a Pixel art mark on every pixel plate, and "New pixel sheet" in Your sheets. The image check now also looks at every frame of a pixel piece softened, cells blended into each other, since the models read blocky pictures less well. Next: 3.2, animation.
 
 ## Stage 4 — Social modes and public launch
 

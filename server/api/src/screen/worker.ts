@@ -18,7 +18,7 @@ import { parentPort } from "node:worker_threads";
 import { decode } from "../../../../src/engine/codec";
 import type { PaperId } from "../../../../src/engine/paper";
 import { Painter } from "../../../../src/engine/painter";
-import { BASE_LAYER, drawStroke, sizeOf, type LayerDef, type ShapeId, type Stroke } from "../../../../src/engine/stroke";
+import { BASE_LAYER, drawStroke, SHAPES, sizeOf, type LayerDef, type ShapeId, type Stroke } from "../../../../src/engine/stroke";
 import { outline } from "../../../../src/data/wall-art";
 import { markBox, overlaps, PAPER, WALL } from "../../../../src/data/wall";
 
@@ -125,9 +125,27 @@ async function screen(job: Job): Promise<Result> {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
   const scores: Scores = { porn: 0, hentai: 0, sexy: 0, explicit: 0, frame: "", frames: 0 };
+  // pixel art is blocky, and the models were trained on photos and drawings: each frame of a
+  // pixel piece is also checked softened, cells blended into each other the way a photo is
+  const grid = SHAPES[job.shape]?.grid;
+  const small = grid ? createCanvas(grid, Math.round((grid * H) / W)) : null;
+  const soft = grid ? createCanvas(W, H) : null;
   const look = async (frame: string) => {
     painter.render(ctx as unknown as CanvasRenderingContext2D);
-    const s = await classify(canvas);
+    await score(canvas, frame);
+    if (small && soft) {
+      const sc = small.getContext("2d"), fc = soft.getContext("2d");
+      sc.imageSmoothingEnabled = fc.imageSmoothingEnabled = true;
+      sc.imageSmoothingQuality = fc.imageSmoothingQuality = "high";
+      sc.clearRect(0, 0, small.width, small.height);
+      sc.drawImage(canvas, 0, 0, small.width, small.height);
+      fc.clearRect(0, 0, W, H);
+      fc.drawImage(small, 0, 0, W, H);
+      await score(soft, `${frame}, softened`);
+    }
+  };
+  const score = async (img: Canvas, frame: string) => {
+    const s = await classify(img);
     scores.frames++;
     scores.porn = Math.max(scores.porn, s.porn);
     scores.hentai = Math.max(scores.hentai, s.hentai);

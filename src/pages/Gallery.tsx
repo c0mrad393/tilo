@@ -8,11 +8,11 @@ import { allPieces, stampTotal, useLocal } from "../data/local";
 import { listPieces, loadStrokes, type Published, type Sort } from "../data/pieces";
 import { PROMPT } from "../data/prompt";
 import { PAPERS, paperOf } from "../engine/paper";
-import { drawnCount, fmtMin, toolsUsed, type Piece, type Stroke } from "../engine/stroke";
+import { drawnCount, fmtMin, isPixelShape, toolsUsed, type Piece, type Stroke } from "../engine/stroke";
 
 const FILTERS: [Sort, string][] = ACCOUNTS
-  ? [["new", "Newest"], ["stamped", "Most stamped this week"], ["prompt", `Subject No. ${PROMPT.no}`], ["remix", "Remixes"]]
-  : [["stamped", "Most stamped"], ["new", "Newest"], ["prompt", `Subject No. ${PROMPT.no}`], ["remix", "Remixes"]];
+  ? [["new", "Newest"], ["stamped", "Most stamped this week"], ["prompt", `Subject No. ${PROMPT.no}`], ["remix", "Remixes"], ["pixel", "Pixel art"]]
+  : [["stamped", "Most stamped"], ["new", "Newest"], ["prompt", `Subject No. ${PROMPT.no}`], ["remix", "Remixes"], ["pixel", "Pixel art"]];
 
 type Shown = Piece | Published;
 
@@ -106,6 +106,7 @@ export function Gallery() {
   if (sort === "stamped") list = [...local.mine, ...list.filter((p) => !p.mine).sort((a, b) => stampTotal(b, local) - stampTotal(a, local))];
   if (sort === "prompt") list = list.filter((p) => p.prompt === PROMPT.no);
   if (sort === "remix") list = list.filter((p) => p.remixOf);
+  if (sort === "pixel") list = list.filter((p) => isPixelShape(p.shape));
   const mine = list.filter((p) => p.mine);
 
   const board = (items: Shown[]) => (
@@ -151,7 +152,7 @@ export function Gallery() {
                   : "Nobody you follow has published anything yet."}
               </p>
             ) : (
-              <p className="empty serif">{sort === "stamped" ? "Nothing has been stamped this week yet." : "Nothing published here yet."} <Link to="/studio">Start a sheet</Link> and publish it.</p>
+              <p className="empty serif">{sort === "stamped" ? "Nothing has been stamped this week yet." : sort === "pixel" ? "No pixel art published yet." : "Nothing published here yet."} <Link to={sort === "pixel" ? "/studio?new&kind=pixel" : "/studio"}>Start a {sort === "pixel" ? "pixel sheet" : "sheet"}</Link> and publish it.</p>
             )
           ) : view === "board" ? board(shared.items) : shared.items.length ? <Exhibition list={shared.items} /> : null}
           {shared.status === "loading" && <p className="serif page-wait" aria-live="polite">Hanging the next plates…</p>}

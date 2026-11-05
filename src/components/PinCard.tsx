@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { loadStrokes, type Published } from "../data/pieces";
-import { drawnCount, fmtMin, type Piece, type Stroke } from "../engine/stroke";
+import { drawnCount, fmtMin, isPixelShape, type Piece, type ShapeId, type Stroke } from "../engine/stroke";
 import { STAMP_COLOR } from "../data/prompt";
 import { usePicture } from "./Moderation";
 import { ReplayCanvas } from "./ReplayCanvas";
@@ -19,6 +19,9 @@ export function Stamp({ name, count, tilt = -2 }: { name: string; count?: number
 export const AiMark = ({ className = "" }: { className?: string }) => (
   <span className={`card-ai kicker ${className}`} title="Drawn by Claude, an AI, in code, stroke by stroke">AI-made</span>
 );
+
+/** a pixel piece says so on its plate, so the pixel bench shows wherever pieces hang */
+export const PixelMark = ({ shape }: { shape?: ShapeId }) => (isPixelShape(shape) ? <span className="card-kind kicker">Pixel art</span> : null);
 
 /** the caption line under a plate. An AI piece says who drew it and leaves out the minutes,
     which a program doesn't spend the way a hand does. */
@@ -44,6 +47,7 @@ export function PinCard({ piece, index = 0, no, mode = "hover" as const }: { pie
         <ReplayCanvas strokes={piece.strokes} layers={piece.layers} paper={piece.paper} shape={piece.shape} aspect={4 / 3} mode={mode} label={`${piece.title}, drawn by ${piece.by}`} />
         {piece.mine && <span className="card-flag kicker">Yours</span>}
         {piece.ai && <AiMark />}
+        <PixelMark shape={piece.shape} />
       </span>
       <span className="card-cap">
         {no !== undefined && <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>}
@@ -89,6 +93,7 @@ export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: 
           picture && <img className="card-picture" src={picture} alt={`${piece.title}, drawn by ${piece.by}`} loading="lazy" decoding="async" />
         )}
         {piece.ai && <AiMark />}
+        <PixelMark shape={piece.shape} />
         {piece.status !== "live" && <span className="card-flag kicker">{piece.why === "check" ? "Being checked" : piece.status === "held" ? "Waiting for a mod" : "Out of the gallery"}</span>}
       </span>
       <span className="card-cap">

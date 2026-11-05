@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Annotate, type Measure } from "../components/Annotate";
 import { Icon } from "../components/Icon";
-import { AiMark, PinCard } from "../components/PinCard";
+import { AiMark, PinCard, PixelMark } from "../components/PinCard";
 import { ReplayCanvas } from "../components/ReplayCanvas";
 import { Trace } from "../components/Trace";
 import { Wall } from "../components/Wall";
@@ -11,7 +11,7 @@ import { allPieces, useLocal } from "../data/local";
 import { PROMPT } from "../data/prompt";
 import { samples } from "../data/samples";
 import { Sketch } from "../engine/sketch";
-import { drawnCount, toolsUsed, type Piece } from "../engine/stroke";
+import { drawnCount, isPixelShape, toolsUsed, type Piece } from "../engine/stroke";
 
 const HIGHLIGHTER = "#FFD23F";
 
@@ -49,6 +49,7 @@ function LivePlate({ piece, no, className = "", children }: { piece: Piece; no: 
           }}
         />
         {piece.ai && <AiMark />}
+        <PixelMark shape={piece.shape} />
       </span>
       <Trace strokes={piece.strokes} ref={trace} />
       <span className="card-cap">
@@ -118,6 +119,8 @@ export function Home() {
   const feed = ["gergeti", "oldtown", "blacksea", "raintram", "harvest"].map(sample);
   const hero = sample("nightlamp");
   const proof = sample("rkatsiteli");
+  const pixels = ["narikala", "khinkali", "batumisun", "brotseuli"].map(sample);
+  const paintings = samples().filter((p) => !isPixelShape(p.shape));
 
   return (
     <main id="main" tabIndex={-1}>
@@ -134,6 +137,11 @@ export function Home() {
               <Link to="/studio" viewTransition className="btn btn-ink"><Icon name="pencil" />Start a blank sheet</Link>
               <a href="#today" className="btn btn-line">Today's subject</a>
             </div>
+            <Link to="/studio?new&kind=pixel" viewTransition className="hero-new">
+              <span className="hero-new-tag kicker">New</span>
+              <span className="serif">Pixel art is open: a grid, a small palette, every cell on purpose.</span>
+              <Icon name="arrow" size={18} />
+            </Link>
             <dl className="hero-facts">
               <div><dt className="num">0</dt><dd>uploads in the hand-made gallery</dd></div>
               <div><dt className="num">{hero.strokes.length}</dt><dd>strokes in Plate 01, drawn by an AI for you to beat</dd></div>
@@ -164,6 +172,22 @@ export function Home() {
         </header>
         <div className="feed" tabIndex={0} role="region" aria-label="Pieces being replayed">
           {feed.map((p, i) => <LivePlate key={p.id} piece={p} no={i + 2} className="feed-card" />)}
+        </div>
+      </section>
+
+      <section className="sec wrap" id="pixel" aria-labelledby="pixel-h">
+        <header className="sec-head">
+          <h2 id="pixel-h">Pixel art</h2>
+          <p className="serif">
+            The newest bench: a sheet 16 to 128 cells across, a small palette, and a pen that puts down one cell at a time. Pixel pieces keep their
+            recording like any other, so they replay cell by cell. These four were drawn in code by Claude, an AI, to show what the grid can do; the hands
+            are meant to win here too.
+          </p>
+        </header>
+        <div className="pixel-row">{pixels.map((p, i) => <LivePlate key={p.id} piece={p} no={i + 16} className="pixel-card" />)}</div>
+        <div className="hero-ctas pixel-ctas">
+          <Link to="/studio?new&kind=pixel" viewTransition className="btn btn-ink"><Icon name="pixel" />Start a pixel sheet</Link>
+          <Link to="/gallery?sort=pixel" viewTransition className="btn btn-line">Pixel art in the gallery<Icon name="arrow" /></Link>
         </div>
       </section>
 
@@ -224,7 +248,7 @@ export function Home() {
               <Link to="/gallery" viewTransition className="btn btn-line">The whole gallery<Icon name="arrow" /></Link>
             </div>
           </div>
-          <div className="salon is-even">{samples().map((p, i) => <PinCard key={p.id} piece={p} index={i} no={i + 7} />)}</div>
+          <div className="salon is-even">{paintings.map((p, i) => <PinCard key={p.id} piece={p} index={i} no={i + 7} />)}</div>
         </div>
       </section>
 

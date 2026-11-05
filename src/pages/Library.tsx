@@ -60,7 +60,10 @@ export function Library() {
         <p className="serif">Every drawing you start is kept here, on this device, with its whole recording. Pin one to put it in the gallery; the sheet stays here either way.</p>
         <div className="gal-controls">
           <p className="serif lib-count">{sheets ? `${sheets.length} ${sheets.length === 1 ? "sheet" : "sheets"}` : failed ? "" : "Opening the drawer…"}</p>
-          <Link to="/studio?new" viewTransition className="btn btn-ink"><Icon name="plus" />New sheet</Link>
+          <div className="row-btns lib-new">
+            <Link to="/studio?new&kind=pixel" viewTransition className="btn btn-line"><Icon name="pixel" />New pixel sheet</Link>
+            <Link to="/studio?new" viewTransition className="btn btn-ink"><Icon name="plus" />New sheet</Link>
+          </div>
         </div>
       </header>
 

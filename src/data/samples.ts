@@ -2,6 +2,7 @@ import { Sketch, type Pt } from "../engine/sketch";
 import type { Piece } from "../engine/stroke";
 import { below, blob, ellipse, hatch, mix, noise, ramp, ridge, sky, soft, speckle } from "./art";
 import { PROMPT, SAMPLE_BY } from "./prompt";
+import { genKhinkali, genNarikala, genPomegranate, genSunset } from "./pixel-art";
 
 export { PROMPT, publishedSample, SAMPLE_ACCOUNT, SAMPLE_BY, STAMP_COLOR, STAMPS } from "./prompt";
 
@@ -752,6 +753,12 @@ const DEFS: Def[] = [
   { id: "blacksea", title: "Batumi, low tide", minutes: 30, gen: genBlackSea, by: SAMPLE_BY },
   { id: "raintram", title: "The last tram, in the rain", minutes: 45, gen: genRainTram, by: SAMPLE_BY },
   { id: "rkatsiteli", title: "Rkatsiteli in October", minutes: 50, shape: "port", paper: "cold", gen: genVine, by: SAMPLE_BY },
+  // pixel art (src/data/pixel-art.ts), added with Stage 3; new samples only ever go at the end,
+  // because each one's seed comes from its place in this list
+  { id: "narikala", title: "Narikala at night", minutes: 40, shape: "pxland", paper: "plaindark", gen: genNarikala, by: SAMPLE_BY },
+  { id: "khinkali", title: "Khinkali, steaming", minutes: 20, shape: "px32", paper: "plaindark", gen: genKhinkali, by: SAMPLE_BY },
+  { id: "batumisun", title: "Batumi, the sun going into the sea", minutes: 35, shape: "px64", paper: "plain", gen: genSunset, by: SAMPLE_BY },
+  { id: "brotseuli", title: "Brotseuli", minutes: 10, shape: "px16", paper: "plain", gen: genPomegranate, by: SAMPLE_BY },
 ];
 const TILTS = [-2.2, 1.6, -0.8, 2.4, -1.4, 1, -2.6, 0.7];
 
@@ -759,7 +766,7 @@ const TILTS = [-2.2, 1.6, -0.8, 2.4, -1.4, 1, -2.6, 0.7];
 export const isSample = (id: string) => DEFS.some((d) => d.id === id);
 
 let drawn: Piece[] | undefined;
-/** The eight samples, drawn the first time something asks for them: about 7,500 strokes,
+/** The samples (eight paintings, then the pixel pieces), drawn the first time something asks for them: about 7,500 strokes,
     which a phone would otherwise spend on every page load, pages without samples included. */
 export const samples = () =>
   (drawn ??= DEFS.map(({ gen, ...d }, i) => {

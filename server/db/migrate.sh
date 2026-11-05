@@ -44,6 +44,18 @@ if [ "${SAMPLES:-true}" = "true" ] && [ -z "$(psql -tAc "select 1 from tilo_meta
     -c "insert into tilo_meta.migrations (name) values ('seed:samples-ai') on conflict do nothing"
 fi
 
+# the pixel samples (Stage 3), added to a database that may have its other samples already;
+# once, like them, so one taken down stays down
+if [ "${SAMPLES:-true}" = "true" ] && [ -z "$(psql -tAc "select 1 from tilo_meta.migrations where name = 'seed:samples-pixel'")" ]; then
+  echo "seed: pixel samples"
+  mkdir -p /srv/files/rec /srv/files/img
+  for f in /tilo/seed/samples/pixel/*.tl; do cp "$f" /srv/files/rec/; done
+  for f in /tilo/seed/samples/pixel/*.webp; do cp "$f" /srv/files/img/; done
+  chown 1000:1000 /srv/files/rec/tilo* /srv/files/img/tilo*
+  psql -v ON_ERROR_STOP=1 -q -1 -f /tilo/seed/samples/pixel/pieces.sql \
+    -c "insert into tilo_meta.migrations (name) values ('seed:samples-pixel') on conflict do nothing"
+fi
+
 # PostgREST caches the schema; tell it to look again
 psql -q -c "notify pgrst, 'reload schema'"
 echo "migrate: done"

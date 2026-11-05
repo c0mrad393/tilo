@@ -344,6 +344,52 @@ input[type="range"] {
   flex-wrap: wrap;
   gap: 12px;
 }
+/* the pixel bench announced under the hero's buttons */
+.hero-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  justify-self: start;
+  padding: 10px 14px;
+  border: 1.5px dashed var(--rule);
+  color: inherit;
+  text-decoration: none;
+  font-size: 16px;
+}
+.hero-new:hover,
+.hero-new:focus-visible {
+  border-style: solid;
+}
+.hero-new-tag {
+  padding: 2px 7px;
+  background: var(--fluo);
+  color: #1d1b19;
+}
+.pixel-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 36px;
+}
+@media (max-width: 900px) {
+  .pixel-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+  }
+}
+@media (max-width: 480px) {
+  .pixel-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.pixel-ctas {
+  margin-top: var(--s-5);
+}
+/* pixel plates keep their cells sharp however the plate is scaled */
+.pixel-card canvas,
+.card:has(.card-kind) canvas,
+.card:has(.card-kind) .card-picture {
+  image-rendering: pixelated;
+}
 .hero-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -446,6 +492,16 @@ input[type="range"] {
   color: #1d1b19;
 }
 
+.card-kind {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  padding: 3px 8px;
+  background: var(--ground);
+  color: var(--ground-ink);
+  box-shadow: inset 0 0 0 1.5px var(--ground-ink);
+  letter-spacing: 0.08em;
+}
 .card-ai {
   position: absolute;
   top: 10px;
@@ -3174,4 +3230,8 @@ a.admin-tile:hover b {
 }
 .feedback-done {
   opacity: 0.55;
+}
+.lib-new {
+  flex-wrap: wrap;
+  gap: 10px;
 }

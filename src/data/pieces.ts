@@ -84,7 +84,7 @@ export const fromRow = (r: Row): Published => ({
   count: r.strokes,
 });
 
-export type Sort = "new" | "stamped" | "prompt" | "remix" | "following";
+export type Sort = "new" | "stamped" | "prompt" | "remix" | "pixel" | "following";
 export const PAGE = 24;
 
 /** One page of the gallery, newest first unless sorted otherwise. */
@@ -104,6 +104,7 @@ export async function listPieces(q: { sort?: Sort; subject?: number; owner?: str
   if (q.remixOf) p.set("remix_of", `eq.${q.remixOf}`);
   if (q.sort === "prompt" && q.subject) p.set("subject", `eq.${q.subject}`);
   if (q.sort === "remix") p.set("remix_of", "not.is.null");
+  if (q.sort === "pixel") p.set("shape", "like.px*");
   if (q.sort === "stamped") {
     p.set("created", `gte.${new Date(Date.now() - 7 * 864e5).toISOString()}`);
     p.set("order", "stamp_total.desc,created.desc");
