@@ -5,3 +5,5 @@ dist
 *.local
 prototype/preview.html
 *.tsbuildinfo
+marketing/out
+marketing/shots

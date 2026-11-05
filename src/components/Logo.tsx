@@ -4,7 +4,7 @@ import { Sketch } from "../engine/sketch";
 import type { Stroke } from "../engine/stroke";
 
 /* The wordmark is a recording, like everything else on Tilo: it writes itself on load. */
-function letters(color: string): Stroke[] {
+export function letters(color: string): Stroke[] {
   const S = new Sketch(42);
   S.poly([[70, 40], [68, 100], [70, 150], [84, 168], [106, 164]], "ink", color, 15, 0.6, 8);
   S.poly([[38, 88], [110, 82]], "ink", color, 13, 0.4, 8);
