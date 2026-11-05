@@ -5,7 +5,7 @@ import { capture } from "../engine/capture";
 import { drawStroke, TOOLS, type Stroke, type ToolId } from "../engine/stroke";
 import { PAPER, themeById, themeFor, WALL, WALL_COLORS, WALL_POINTS } from "../data/wall";
 import { outline } from "../data/wall-art";
-import { addMarks, type FoundMark, liveWall, marksIn, moderateWall, timeLeft, WALL_LIVE } from "../data/wall-live";
+import { addMarks, type FoundMark, liveWall, marksIn, moderateWall, takeBack, timeLeft, WALL_LIVE } from "../data/wall-live";
 import { Icon } from "./Icon";
 import { ReportButton } from "./Moderation";
 
@@ -47,6 +47,10 @@ export function Wall({ page = false }: { page?: boolean }) {
   cfg.current = { tool, color, size, member: !!profile, ready };
   const ringSize = useRef(() => {});
   const reload = useRef<(fresh?: boolean) => Promise<void>>(async () => {});
+  const undo = useRef<() => Promise<void>>(async () => {});
+  /** how many of your marks on this wall, from this visit, Undo can take back */
+  const [undoable, setUndoable] = useState(0);
+  const [undoing, setUndoing] = useState(false);
   const [, tickClock] = useState(0);
 
   useEffect(() => {
@@ -64,9 +68,14 @@ export function Wall({ page = false }: { page?: boolean }) {
     const known = new Set<number>();
     /** finished marks not yet sent */
     let queued: Stroke[] = [];
+    /** ids of the marks this visit put on the wall, oldest first, for Undo */
+    let mine: number[] = [];
     let sending = 0;
     let loading = false;
+    /** a load asked for while one was running; true if it has to start over */
+    let rerun: boolean | null = null;
     let flushTimer = 0;
+    const countMine = () => setUndoable(mine.length + queued.length);
 
     const blank = (theme: string) => {
       octx.setTransform(1, 0, 0, 1, 0, 0);
@@ -75,12 +84,21 @@ export function Wall({ page = false }: { page?: boolean }) {
       outline(theme).forEach((s) => drawStroke(octx, s, K));
     };
     const load = async (fresh = false) => {
-      if (loading || gone) return;
+      if (gone) return;
+      if (loading) {
+        rerun = (rerun ?? false) || fresh;
+        return;
+      }
       loading = true;
       try {
         const w = await liveWall(fresh || !have ? undefined : have);
         // a mark of ours on its way would come back twice; the next look gets it
         if (gone || (sending && !w.fresh)) return;
+        // a new wall: what Undo had is on the old one
+        if (have && w.no !== have.no) {
+          mine = [];
+          countMine();
+        }
         if (w.fresh || !have) {
           if (w.picture) {
             const img = new Image();
@@ -114,9 +132,33 @@ export function Wall({ page = false }: { page?: boolean }) {
         }
       } finally {
         loading = false;
+        if (rerun !== null) {
+          const again = rerun;
+          rerun = null;
+          void load(again);
+        }
       }
     };
     reload.current = load;
+
+    undo.current = async () => {
+      if (queued.length) {
+        // not sent yet: it only has to come off this page
+        queued.pop();
+        countMine();
+        return load(true);
+      }
+      const id = mine.pop();
+      countMine();
+      if (id === undefined) return;
+      try {
+        await takeBack(id);
+      } catch (e) {
+        setMsg(e instanceof Error ? e.message : "That mark didn't come off. Try again.");
+      }
+      setInfo((i) => (i ? { ...i, count: Math.max(0, i.count - 1) } : i));
+      await load(true);
+    };
 
     const flush = async () => {
       flushTimer = 0;
@@ -126,6 +168,9 @@ export function Wall({ page = false }: { page?: boolean }) {
       try {
         const r = await addMarks(have.no, batch);
         r.ids.forEach((id) => known.add(id));
+        // only the last 50 can be taken back
+        mine = [...mine, ...r.ids].slice(-50);
+        countMine();
         setInfo((i) => (i ? { ...i, count: i.count + r.ids.length } : i));
         sending--;
       } catch (e) {
@@ -133,6 +178,7 @@ export function Wall({ page = false }: { page?: boolean }) {
         const closed = e instanceof Error && /closed/.test(e.message);
         setMsg(closed ? "That wall just closed and a new one is up; your last marks didn't make it onto the old one." : e instanceof Error ? e.message : "Your marks didn't reach the server.");
         queued = [];
+        countMine();
         // what wasn't kept comes off the page
         await load(true);
         return;
@@ -266,6 +312,7 @@ export function Wall({ page = false }: { page?: boolean }) {
         if (s && s.p.length) {
           drawStroke(octx, s, K);
           queued.push(s);
+          countMine();
           if (flushTimer) clearTimeout(flushTimer);
           flushTimer = window.setTimeout(() => void flush(), queued.length >= 20 ? 0 : 500);
         }
@@ -284,6 +331,17 @@ export function Wall({ page = false }: { page?: boolean }) {
       if (!document.hidden) void load();
     };
     document.addEventListener("visibilitychange", back);
+    // Cmd/Ctrl+Z takes back your last mark, while the pointer is over the wall
+    let over = false;
+    const enter = () => (over = true), leave = () => (over = false);
+    wbox.addEventListener("pointerenter", enter);
+    wbox.addEventListener("pointerleave", leave);
+    const onKey = (e: KeyboardEvent) => {
+      if (!over || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
+      e.preventDefault();
+      void undo.current();
+    };
+    addEventListener("keydown", onKey);
 
     const ro = new ResizeObserver(fit);
     ro.observe(wbox);
@@ -302,6 +360,9 @@ export function Wall({ page = false }: { page?: boolean }) {
       io.disconnect();
       clearInterval(poll);
       document.removeEventListener("visibilitychange", back);
+      removeEventListener("keydown", onKey);
+      wbox.removeEventListener("pointerenter", enter);
+      wbox.removeEventListener("pointerleave", leave);
       stopCapture();
       wbox.removeEventListener("pointerdown", onDown);
       wbox.removeEventListener("pointermove", onMove);
@@ -358,6 +419,26 @@ export function Wall({ page = false }: { page?: boolean }) {
             </button>
           ))}
         </div>
+        {profile && (
+          <div className="tray-grp">
+            <button
+              className="tool"
+              aria-label="Take back your last mark"
+              title="Take back your last mark"
+              disabled={!undoable || undoing}
+              onClick={async () => {
+                setUndoing(true);
+                try {
+                  await undo.current();
+                } finally {
+                  setUndoing(false);
+                }
+              }}
+            >
+              <Icon name="undo" />
+            </button>
+          </div>
+        )}
         <div className="tray-status kicker">
           {state === "live" && info ? (
             <>

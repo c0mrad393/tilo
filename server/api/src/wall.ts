@@ -292,6 +292,21 @@ export function wall(sql: Sql, { member, filesDir, thread, site, purge }: Option
     },
   );
 
+  // a member takes back a mark of their own from the live wall (the wall's Undo)
+  app.delete("/marks/:id", member, async (c) => {
+    const { id: me } = c.get("member");
+    const id = Number(c.req.param("id"));
+    if (!Number.isInteger(id)) return c.json({ error: "No such mark." }, 404);
+    const [m] = await sql<{ wall: number }[]>`
+      update public.wall_marks m set status = 'removed' from public.walls w
+      where m.id = ${id} and m.member = ${me} and m.status = 'live' and w.no = m.wall and w.status = 'live'
+      returning m.wall`;
+    if (!m) return c.json({ error: "That mark isn't yours to take back, or it's already gone." }, 404);
+    // the picture loses it at once, so a page that starts over doesn't show it
+    await rebuild(m.wall);
+    return c.body(null, 204);
+  });
+
   /* ---- mods ---- */
 
   const mods = new Hono<AuthEnv & { Variables: { role: string } }>();
@@ -319,6 +334,38 @@ export function wall(sql: Sql, { member, filesDir, thread, site, purge }: Option
     return c.json(rows);
   });
 
+  // every wall, the hidden ones too, for the admin panel
+  mods.get("/walls", async (c) => {
+    const rows = await sql`
+      select w.no, w.theme, w.status, w.started, w.ends, w.rev, w.snapshot_upto::int as upto,
+        (select count(*)::int from public.wall_marks m where m.wall = w.no and m.status = 'live') as marks,
+        (select count(distinct member)::int from public.wall_marks m where m.wall = w.no and m.status = 'live') as artists
+      from public.walls w order by w.no desc limit 200`;
+    return c.json(rows.map((w) => ({ ...w, title: themeById(w.theme).title })));
+  });
+
+  // who drew on a wall, and how much
+  mods.get("/:no/people", async (c) => {
+    const no = Number(c.req.param("no"));
+    if (!Number.isInteger(no)) return c.json({ error: "No such wall." }, 404);
+    const rows = await sql`
+      select p.id as member, p.handle, p.suspended, count(*)::int as marks, max(m.created) as last
+      from public.wall_marks m join public.profiles p on p.id = m.member
+      where m.wall = ${no} and m.status = 'live' group by p.id order by last desc limit 1000`;
+    return c.json(rows);
+  });
+
+  // one member's marks on a wall, to see them on their own
+  mods.get("/:no/people/:member", async (c) => {
+    const no = Number(c.req.param("no"));
+    if (!Number.isInteger(no)) return c.json({ error: "No such wall." }, 404);
+    const rows = await sql`
+      select id::int, stroke as s, created from public.wall_marks
+      where wall = ${no} and member = ${c.req.param("member")}::uuid and status = 'live' order by id limit 5000`.catch(() => null);
+    if (!rows) return c.json({ error: "No such member." }, 404);
+    return c.json(rows);
+  });
+
   // the marks in a part of a wall, for a mod about to rub them out
   mods.get("/:no/marks", async (c) => {
     const no = Number(c.req.param("no"));
@@ -330,7 +377,8 @@ export function wall(sql: Sql, { member, filesDir, thread, site, purge }: Option
     return c.json(rows.filter((m) => overlaps(markBox(m.s), x, y, w, h)).slice(0, 2000));
   });
 
-  // { action: "erase", ids } rubs marks out; { action: "restore" | "erase", ids } on held ones
+  // { action: "erase", ids } or { action: "erase", member } rubs marks out (every live and held
+  // mark of that member's on the wall); { action: "restore" | "erase", ids } on held ones
   // lets them back or removes them; { action: "hide" | "show" } takes a closed wall out of the
   // archive or puts it back
   mods.post("/:no", async (c) => {
@@ -353,10 +401,12 @@ export function wall(sql: Sql, { member, filesDir, thread, site, purge }: Option
     }
     if (action !== "erase" && action !== "restore") return c.json({ error: "The action is erase, restore, hide or show." }, 400);
     const ids: number[] = Array.isArray(body?.ids) ? body.ids.filter(Number.isInteger).slice(0, 5000) : [];
-    if (!ids.length) return c.json({ error: "Say which marks: { ids: [...] }." }, 400);
+    const whose = action === "erase" && typeof body?.member === "string" && /^[0-9a-f-]{36}$/.test(body.member) ? (body.member as string) : null;
+    if (!ids.length && !whose) return c.json({ error: "Say which marks: { ids: [...] } or { member }." }, 400);
     const done = await sql<{ member: string }[]>`
       update public.wall_marks set status = ${action === "erase" ? "removed" : "live"}
-      where wall = ${no} and id in ${sql(ids)} and status = any(${action === "erase" ? ["live", "held"] : ["held"]})
+      where wall = ${no} and ${whose ? sql`member = ${whose}::uuid` : sql`id in ${sql(ids)}`}
+        and status = any(${action === "erase" ? ["live", "held"] : ["held"]})
       returning member`;
     if (!done.length) return c.json({ error: "Those marks aren't there any more." }, 409);
     await rebuild(no);

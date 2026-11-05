@@ -676,6 +676,40 @@ input[type="range"] {
 .past-nav {
   margin-top: var(--s-4);
 }
+/* the admin panel's wall tab */
+.wall-admin-head {
+  display: grid;
+  grid-template-columns: minmax(0, 20rem) 1fr;
+  gap: var(--s-4);
+  align-items: start;
+  margin: var(--s-4) 0 var(--s-5);
+}
+.wall-admin-head img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.wall-admin-head p {
+  margin: 0 0 8px;
+}
+.queue-item.wall-admin-person {
+  grid-template-columns: 1fr;
+}
+.wall-admin-marks {
+  margin: var(--s-3) 0 0;
+}
+.wall-admin-marks canvas {
+  display: block;
+  width: 100%;
+  max-width: 50rem;
+  height: auto;
+  border: 1px solid var(--rule-soft);
+}
+@media (max-width: 640px) {
+  .wall-admin-head {
+    grid-template-columns: 1fr;
+  }
+}
 .mark-thumbs {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(45%, 1fr));

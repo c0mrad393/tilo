@@ -523,6 +523,29 @@ const held = await call("/api/wall/mod/held", { token: token2 });
 check(held.body?.some?.((m: { id: number; handle: string }) => m.id === myMarks[1] && m.handle === handle), "mods see the marks the image check held", held.body);
 check((await wallMod(wallNo, { action: "restore", ids: [myMarks[1]] })).status === 200 && psql(`select status from public.wall_marks where id = ${myMarks[1]}`) === "live", "a mod lets a held mark back");
 check((await wallMod(wallNo, { action: "hide" })).status === 409, "the live wall can't be hidden");
+// Undo: a member takes back their own mark, nobody else's
+const oops = await draw([ink(1500, 800)], token, wallNo);
+const oopsId = oops.body?.ids?.[0];
+check((await call(`/api/wall/marks/${oopsId}`, { method: "DELETE", token: token2 })).status === 404, "nobody takes back someone else's mark");
+const revUndo = Number(psql(`select rev from public.walls where no = ${wallNo}`));
+check((await call(`/api/wall/marks/${oopsId}`, { method: "DELETE", token })).status === 204 && psql(`select status from public.wall_marks where id = ${oopsId}`) === "removed", "a member takes back their own mark");
+check(Number(psql(`select rev from public.walls where no = ${wallNo}`)) > revUndo, "and the wall is drawn again without it");
+check((await call(`/api/wall/marks/${oopsId}`, { method: "DELETE", token })).status === 404, "a mark goes only once");
+// the admin panel's wall tab: every wall, who drew on one, one member's marks, all of them out
+const allW = await call("/api/wall/mod/walls", { token: token2 });
+check(allW.body?.some?.((w: { no: number; status: string }) => w.no === wallNo && w.status === "live"), "mods list every wall", allW.body);
+check((await call("/api/wall/mod/walls", { token })).status === 403, "members don't");
+const ppl = await call(`/api/wall/mod/${wallNo}/people`, { token: token2 });
+const meOnWall = ppl.body?.find?.((p: { handle: string }) => p.handle === handle);
+check(meOnWall?.marks >= 1 && meOnWall.member === userId, "mods see who drew on a wall, and how much", ppl.body);
+const theirs = await call(`/api/wall/mod/${wallNo}/people/${userId}`, { token: token2 });
+check(Array.isArray(theirs.body) && theirs.body.length === meOnWall?.marks, "and one member's marks on their own", theirs.body?.length);
+const extra = await draw([ink(1200, 700), ink(1250, 720)], token, wallNo);
+const wipe = await wallMod(wallNo, { action: "erase", member: userId, note: "smoke" });
+check(wipe.status === 200 && wipe.body.marks === (meOnWall?.marks ?? 0) + 2, "a mod rubs out everything one member drew on a wall", wipe.body);
+check(psql(`select count(*) from public.wall_marks where wall = ${wallNo} and member = '${userId}' and status = 'live'`) === "0", "none of their marks are left on it", extra.status);
+check(psql(`select status from public.wall_marks where id = ${myMarks[1]}`) === "removed", "the earlier ones included");
+check((await draw([ink(450, 350)], token, wallNo)).status === 201, "they can still draw after that");
 // the wall turns: the old one goes into the archive and the next subject goes up
 psql(`update public.walls set ends = now() where no = ${wallNo}`);
 let next: any = null;

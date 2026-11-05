@@ -6,6 +6,10 @@ import { ModButtons } from "../components/Moderation";
 import { type Claim, claims, closeClaim, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite } from "../data/admin";
 import { ANSWER_IN } from "../data/legal";
 import { fromRow, type Published, SELECT } from "../data/pieces";
+import { PAPER, WALL } from "../data/wall";
+import { outline } from "../data/wall-art";
+import { allWalls, artistsOn, marksBy, moderateWall, type WallRow, wallPicture } from "../data/wall-live";
+import { drawStroke, type Stroke } from "../engine/stroke";
 import { NotFound } from "./Errors";
 import { LOGGED, PieceItem, when } from "./Queue";
 
@@ -665,6 +669,155 @@ function Log() {
   );
 }
 
+// ---------- the wall ----------
+
+/** One member's marks on a wall on their own, over a faint copy of the subject. */
+function MemberMarks({ wall, member }: { wall: WallRow; member: string }) {
+  const cv = useRef<HTMLCanvasElement>(null);
+  const { data, failed } = useLoad(() => marksBy(wall.no, member), [wall.no, member]);
+  useEffect(() => {
+    const c = cv.current;
+    if (!c || !data) return;
+    const ctx = c.getContext("2d")!;
+    const k = c.width / WALL.w;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(0, 0, c.width, c.height);
+    // the subject on its own sheet, laid in faintly (the brushes set their own opacity)
+    const back = document.createElement("canvas");
+    back.width = c.width;
+    back.height = c.height;
+    const bctx = back.getContext("2d")!;
+    outline(wall.theme).forEach((s) => drawStroke(bctx, s, k));
+    ctx.globalAlpha = 0.16;
+    ctx.drawImage(back, 0, 0);
+    ctx.globalAlpha = 1;
+    data.forEach((m) => drawStroke(ctx, m.s as Stroke, k));
+  }, [data, wall.theme]);
+  if (!data) return <Wait failed={failed} />;
+  return (
+    <figure className="wall-admin-marks">
+      <canvas ref={cv} width={1000} height={500} role="img" aria-label={`Their ${data.length} marks on Wall No. ${wall.no}, on their own`} />
+      <figcaption className="serif field-note">
+        {data.length} mark{data.length === 1 ? "" : "s"}, from {data[0] ? when.format(new Date(data[0].created)) : "?"} to {data.at(-1) ? when.format(new Date(data.at(-1)!.created)) : "?"}. The subject is drawn faintly behind them.
+      </figcaption>
+    </figure>
+  );
+}
+
+function WallAdmin() {
+  const walls = useLoad(allWalls, []);
+  const [no, setNo] = useState<number | null>(null);
+  const [tick, setTick] = useState(0);
+  const [open, setOpen] = useState<string | null>(null);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const wall = walls.data?.find((w) => w.no === no) ?? walls.data?.find((w) => w.status === "live") ?? walls.data?.[0];
+  const people = useLoad(() => (wall ? artistsOn(wall.no) : Promise.resolve([])), [wall?.no, tick]);
+  if (!walls.data) return <Wait failed={walls.failed} />;
+  if (!wall) return <p className="empty serif">No wall has gone up yet.</p>;
+  const again = () => {
+    setTick((t) => t + 1);
+    walls.reload();
+  };
+  const act = async (key: string, run: () => Promise<unknown>) => {
+    setBusy(key);
+    setError("");
+    try {
+      await run();
+      again();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't work.");
+    } finally {
+      setBusy("");
+    }
+  };
+  const status = { live: "up now", closed: "in the archive", hidden: "taken out of the archive" }[wall.status];
+  return (
+    <>
+      <div className="admin-filters">
+        <label className="field">
+          <span className="kicker">Wall</span>
+          <select value={wall.no} onChange={(e) => (setNo(Number(e.target.value)), setOpen(null))}>
+            {walls.data.map((w) => (
+              <option key={w.no} value={w.no}>
+                No. {w.no}, {w.title}
+                {w.status === "live" ? " (up now)" : w.status === "hidden" ? " (hidden)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="wall-admin-head">
+        {wall.status !== "hidden" ? (
+          <img className="plate" src={wallPicture(wall)} alt={`Wall No. ${wall.no} as it is now`} width={600} height={300} />
+        ) : (
+          <span className="queue-thumb"><span className="kicker">Hidden</span></span>
+        )}
+        <div>
+          <p className="queue-title">
+            Wall No. {wall.no}: {wall.title} <span className="serif">({status})</span>
+          </p>
+          <p className="serif">
+            {wall.marks.toLocaleString()} mark{wall.marks === 1 ? "" : "s"} by {wall.artists.toLocaleString()} {wall.artists === 1 ? "person" : "people"} · {date(wall.started)} to {date(new Date(new Date(wall.ends).getTime() - 1).toISOString())}
+          </p>
+          <div className="row row-start">
+            <Link className="btn btn-line" to={wall.status === "live" ? "/wall" : `/wall/${wall.no}`}>Open it</Link>
+            {wall.status !== "live" && (
+              <button className="btn btn-quiet" disabled={!!busy} onClick={() => act("vis", () => moderateWall(wall.no, wall.status === "hidden" ? "show" : "hide"))}>
+                {wall.status === "hidden" ? "Put it back in the archive" : "Take it out of the archive"}
+              </button>
+            )}
+          </div>
+          {wall.status === "live" && (
+            <p className="field-note">To rub out one mark among others, open the wall and use the pick tool (the last tool in the tray). Here you take out everything one person drew.</p>
+          )}
+        </div>
+      </div>
+      {error && <p className="field-note is-error" role="alert">{error}</p>}
+      <h2 className="kicker">Who drew on it · {people.data?.length ?? "…"}</h2>
+      {!people.data ? (
+        <Wait failed={people.failed} />
+      ) : !people.data.length ? (
+        <p className="empty serif">Nobody has drawn on it, or everything was rubbed out.</p>
+      ) : (
+        <ul className="queue-list wall-admin-people">
+          {people.data.map((p) => (
+            <li key={p.member} className="queue-item wall-admin-person">
+              <div className="queue-body">
+                <p className="queue-title">
+                  <Link to={`/u/${p.handle}`}>@{p.handle}</Link>
+                  {p.suspended && <span className="serif"> (suspended)</span>}{" "}
+                  <span className="serif">
+                    {p.marks.toLocaleString()} mark{p.marks === 1 ? "" : "s"}, last {when.format(new Date(p.last))}
+                  </span>
+                </p>
+                <div className="row row-start">
+                  <button className="btn btn-line" aria-expanded={open === p.member} onClick={() => setOpen(open === p.member ? null : p.member)}>
+                    {open === p.member ? "Hide their marks" : "See their marks"}
+                  </button>
+                  <button
+                    className="btn btn-quiet"
+                    disabled={!!busy}
+                    onClick={() => {
+                      if (confirm(`Rub out all ${p.marks} of @${p.handle}'s marks on Wall No. ${wall.no}? This can't be undone.`))
+                        void act(p.member, () => moderateWall(wall.no, "erase", [], "everything they drew", p.member));
+                    }}
+                  >
+                    {busy === p.member ? "Rubbing out…" : `Rub out all ${p.marks}`}
+                  </button>
+                </div>
+                {open === p.member && <MemberMarks wall={wall} member={p.member} />}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 const SECTIONS: Record<string, [string, () => React.ReactElement]> = {
   "": ["Overview", Overview],
   members: ["Members", Members],
@@ -673,6 +826,7 @@ const SECTIONS: Record<string, [string, () => React.ReactElement]> = {
   pieces: ["Pieces", Pieces],
   feedback: ["Feedback", Feedback],
   errors: ["Errors", Errors],
+  wall: ["The wall", WallAdmin],
   log: ["Log", Log],
 };
 

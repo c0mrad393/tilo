@@ -56,6 +56,9 @@ export const pastWall = (no: number) => get<PastWall>(`/api/wall/past/${no}`);
 /** Puts marks on the live wall; gives their ids. */
 export const addMarks = (no: number, strokes: Stroke[]) => call<{ no: number; ids: number[] }>("/api/wall/marks", { method: "POST", json: { no, strokes } });
 
+/** Takes back one of your own marks from the live wall. */
+export const takeBack = (id: number) => request(`/api/wall/marks/${id}`, { method: "DELETE" });
+
 // ---- mods ----
 
 export interface FoundMark extends WallMark {
@@ -69,8 +72,33 @@ export interface HeldMark extends FoundMark {
 export const marksIn = (no: number, r: { x: number; y: number; w: number; h: number }) =>
   call<FoundMark[]>(`/api/wall/mod/${no}/marks?x=${Math.round(r.x)}&y=${Math.round(r.y)}&w=${Math.round(r.w)}&h=${Math.round(r.h)}`);
 export const heldMarks = () => call<HeldMark[]>("/api/wall/mod/held");
-export const moderateWall = (no: number, action: "erase" | "restore" | "hide" | "show", ids: number[] = [], note = "") =>
-  request(`/api/wall/mod/${no}`, { method: "POST", json: { action, ids, note } });
+export const moderateWall = (no: number, action: "erase" | "restore" | "hide" | "show", ids: number[] = [], note = "", member?: string) =>
+  request(`/api/wall/mod/${no}`, { method: "POST", json: { action, ids, note, member } });
+
+export interface WallRow {
+  no: number;
+  theme: string;
+  title: string;
+  status: "live" | "closed" | "hidden";
+  started: string;
+  ends: string;
+  rev: number;
+  upto: number;
+  marks: number;
+  artists: number;
+}
+export interface WallArtist {
+  member: string;
+  handle: string;
+  suspended: boolean;
+  marks: number;
+  last: string;
+}
+export const allWalls = () => call<WallRow[]>("/api/wall/mod/walls");
+export const artistsOn = (no: number) => call<WallArtist[]>(`/api/wall/mod/${no}/people`);
+export const marksBy = (no: number, member: string) => call<(WallMark & { created: string })[]>(`/api/wall/mod/${no}/people/${member}`);
+/** a wall's picture, for mods: the hidden ones aren't served, so this is the live or archived one */
+export const wallPicture = (w: Pick<WallRow, "no" | "rev" | "upto">, small = true) => `/api/wall/img/${w.no}${small ? "-s" : ""}.webp?v=${w.rev}-${w.upto}`;
 
 /** whether the wall can come from the server at all (a build without accounts has none) */
 export const WALL_LIVE = ACCOUNTS;
