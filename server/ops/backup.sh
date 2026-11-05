@@ -34,7 +34,9 @@ if [ -z "${R2_BUCKET:-}" ]; then
   exit 0
 fi
 
-export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+# NO_HEAD: R2 answers an upload with a version id, and Debian's rclone (1.60) then asks for
+# that version, which R2 answers 501; R2 still checks the upload against its Content-MD5
+export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true RCLONE_CONFIG_R2_NO_HEAD=true
 export RCLONE_CONFIG_R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 rclone copyto "$work/$name" "r2:$R2_BUCKET/daily/$name"

@@ -8,7 +8,7 @@ set -euo pipefail
 OPS=$(cd "$(dirname "$0")" && pwd)
 
 apt-get update -q
-DEBIAN_FRONTEND=noninteractive apt-get install -yq age rclone fail2ban python3-systemd
+DEBIAN_FRONTEND=noninteractive apt-get install -yq age rclone fail2ban python3-systemd rsync
 
 # Debian 13 logs to the journal, not /var/log/auth.log
 cat >/etc/fail2ban/jail.d/tilo.local <<'JAIL'
@@ -22,7 +22,7 @@ JAIL
 systemctl enable --now fail2ban
 systemctl restart fail2ban
 
-install -d -m 755 /etc/tilo
+install -d -m 700 -o tilo -g tilo /etc/tilo
 if [ ! -f /etc/tilo/backup.env ]; then
   install -m 600 -o tilo -g tilo "$OPS/backup.env.example" /etc/tilo/backup.env
   echo "Made /etc/tilo/backup.env: fill it in (sudo -u tilo nano /etc/tilo/backup.env)."

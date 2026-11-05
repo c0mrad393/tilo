@@ -149,9 +149,11 @@ npm run server:deploy    # sends server/ and src/engine to the VPS, rebuilds, wa
 
 The first time, it stops and says how to make the server's `.env` there (with
 `setup-env.mjs --server https://tiloart.com`, so the secrets never leave the VPS). Then fill
-in, on the server: `TUNNEL_TOKEN` (the tunnel's page), `SMTP_PASS` (a Resend API key with
-"Sending access" on tiloart.com), `EDGE_ORIGIN`, and `CF_ZONE_ID` and `CF_API_TOKEN` for
-purges. Deploy again, then once: `sudo bash ~/tilo/server/ops/install.sh`.
+`EDGE_ORIGIN` (and `CF_ZONE_ID` and `CF_API_TOKEN` for purges), run
+`sudo bash ~/tilo/server/ops/install.sh` once, then type the outside keys in with
+`ssh -t tilo 'bash ~/tilo/server/ops/set-secrets.sh'`: the tunnel token, the Resend API key
+("Sending access" on tiloart.com) and the R2 keys. Input is hidden, and an empty answer
+keeps what is there. Then deploy again.
 
 Mail goes through Resend on port 2587 (netcup's Mail Block shuts the usual SMTP ports), from
 `hello@tiloart.com`, once Resend has checked the domain's SPF and DKIM records. For Google
@@ -188,7 +190,8 @@ refuses a database that already has Tilo in it. Delete the key from the server a
 
 ## The VPS
 
-netcup VPS 500 G12.5 (2 vCPU, 4 GB, 64 GB), Debian 13, `62.83.82.133`, set up on 2026-11-04:
+netcup VPS 500 G12.5 (2 vCPU, 4 GB, 64 GB), Debian 13, `62.83.82.133`, set up on 2026-11-04;
+the stack has run there since 2026-11-05 (rsync, which deploys need, is installed by hand):
 
 - Only the user `tilo` (sudo without a password, in the `docker` group) can log in, with an SSH
   key; root and password logins are off (`/etc/ssh/sshd_config.d/10-tilo.conf`). On the Mac,
