@@ -1,5 +1,6 @@
 import { drawBrush } from "./brushes";
 import type { PaperId } from "./paper";
+import { drawPixels, isPixelTool } from "./pixel";
 import { mirrored } from "./symmetry";
 
 /* The stroke model shared by every tool.
@@ -9,7 +10,8 @@ export type ToolId =
   | "pencil" | "ink" | "brushpen" | "charcoal"
   | "marker" | "wash" | "gouache" | "oil" | "spray"
   | "fill" | "lasso" | "select"
-  | "smudge" | "eraser";
+  | "smudge" | "eraser"
+  | "pixel" | "pixelerase" | "pixelfill";
 
 /** Recorded actions that aren't drawn with a brush: moving a selection, duplicating a layer,
     merging one layer into another. They sit in the stroke list so a replay repeats them. */
@@ -37,6 +39,8 @@ export interface Stroke {
   x?: number[];
   /** dup and merge: the layer read from (the stroke's own layer is the one written to) */
   src?: number;
+  /** pixel tools: how many cells across the sheet, so the stroke knows its grid */
+  g?: number;
 }
 
 export const isOp = (s: Stroke) => s.tool === "move" || s.tool === "dup" || s.tool === "merge";
@@ -77,24 +81,33 @@ export interface Piece {
   tilt?: number;
 }
 
-export type ShapeId = "land" | "port" | "square";
+export type ShapeId = "land" | "port" | "square" | "px16" | "px32" | "px64" | "px128" | "pxland";
 export interface SheetSize {
   w: number;
   h: number;
 }
-export const SHAPES: Record<ShapeId, SheetSize & { name: string }> = {
+/** A sheet shape. Pixel sheets have `grid`, their cells across; every one is 1280 across. */
+export const SHAPES: Record<ShapeId, SheetSize & { name: string; grid?: number }> = {
   land: { w: 1600, h: 1200, name: "Landscape" },
   port: { w: 1200, h: 1600, name: "Portrait" },
   square: { w: 1400, h: 1400, name: "Square" },
+  px16: { w: 1280, h: 1280, name: "16 × 16", grid: 16 },
+  px32: { w: 1280, h: 1280, name: "32 × 32", grid: 32 },
+  px64: { w: 1280, h: 1280, name: "64 × 64", grid: 64 },
+  px128: { w: 1280, h: 1280, name: "128 × 128", grid: 128 },
+  pxland: { w: 1280, h: 960, name: "64 × 48", grid: 64 },
 };
 export const SHAPE_IDS = Object.keys(SHAPES) as ShapeId[];
+export const DRAW_SHAPES: ShapeId[] = ["land", "port", "square"];
+export const PIXEL_SHAPES: ShapeId[] = ["px16", "px32", "px64", "px128", "pxland"];
+export const isPixelShape = (shape?: ShapeId) => !!shape && !!SHAPES[shape]?.grid;
 export const sizeOf = (p: { shape?: ShapeId }) => SHAPES[p.shape ?? "land"] ?? SHAPES.land;
 /** The landscape sheet, which every piece used before shapes existed. */
 export const SHEET: SheetSize = SHAPES.land;
 export const BASE_LAYER: LayerDef = { id: 0, name: "Layer 1", blend: "source-over", opacity: 1 };
 export const layersOf = (p: { layers?: LayerDef[] }) => (p.layers?.length ? p.layers : [BASE_LAYER]);
 
-export type ToolGroup = "draw" | "paint" | "shape" | "fix";
+export type ToolGroup = "draw" | "paint" | "shape" | "fix" | "pixel";
 export const TOOLS: Record<ToolId, { label: string; key: string; reach: number; group: ToolGroup }> = {
   pencil: { label: "Pencil", key: "p", reach: 0.5, group: "draw" },
   ink: { label: "Ink pen", key: "i", reach: 1, group: "draw" },
@@ -110,10 +123,14 @@ export const TOOLS: Record<ToolId, { label: string; key: string; reach: number; 
   select: { label: "Select and move", key: "v", reach: 0, group: "shape" },
   smudge: { label: "Smudge", key: "u", reach: 2, group: "fix" },
   eraser: { label: "Eraser", key: "e", reach: 2.2, group: "fix" },
+  // pixel sheets have only these, so their keys can repeat the drawing tools'
+  pixel: { label: "Pixel pen", key: "p", reach: 0, group: "pixel" },
+  pixelerase: { label: "Pixel eraser", key: "e", reach: 0, group: "pixel" },
+  pixelfill: { label: "Pixel fill", key: "f", reach: 0, group: "pixel" },
 };
 
 /** Tools that change pixels already on the layer, so a live preview must work on a copy. */
-export const READS_LAYER = new Set<ToolId>(["eraser", "smudge", "fill"]);
+export const READS_LAYER = new Set<ToolId>(["eraser", "smudge", "fill", "pixelerase", "pixelfill"]);
 
 export const pointsOf = (s: Stroke) => (s.p.length / 3) | 0;
 
@@ -122,17 +139,20 @@ export const pointsOf = (s: Stroke) => (s.p.length / 3) | 0;
 export function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke, k = 1, upto?: number, paper: PaperId = "smooth", sheet: SheetSize = SHEET) {
   const n = Math.min(upto ?? Infinity, pointsOf(s));
   if (n < 1 || isOp(s)) return;
+  // pixel strokes mirror cell by cell, so a cell on the middle line is painted once
+  if (isPixelTool(s.tool)) return drawPixels(ctx, s, k, n, sheet);
   for (const copy of mirrored(s, sheet.w, sheet.h)) drawBrush(ctx, copy, k, n, paper);
 }
 
 export const PAPER_COLOR = "#FBFAF5";
 
-export const toolsUsed = (strokes: Stroke[]) =>
-  [...new Set(strokes.filter((s) => !isOp(s)).map((s) => s.tool as ToolId))].map((t) => TOOLS[t]?.label.split(" ")[0].toLowerCase() ?? t);
+export const toolsUsed = (strokes: Stroke[]) => [
+  ...new Set(strokes.filter((s) => !isOp(s)).map((s) => (isPixelTool(s.tool) ? "pixel" : TOOLS[s.tool as ToolId]?.label.split(" ")[0].toLowerCase() ?? s.tool))),
+];
 
 export function paletteOf(strokes: Stroke[], max = 6) {
   const m = new Map<string, number>();
-  strokes.forEach((s) => s.tool !== "eraser" && s.tool !== "smudge" && !isOp(s) && m.set(s.c, (m.get(s.c) || 0) + pointsOf(s)));
+  strokes.forEach((s) => s.tool !== "eraser" && s.tool !== "smudge" && s.tool !== "pixelerase" && !isOp(s) && m.set(s.c, (m.get(s.c) || 0) + pointsOf(s)));
   return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map((e) => e[0]);
 }
 

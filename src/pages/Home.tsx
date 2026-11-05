@@ -89,12 +89,12 @@ function Benches() {
   return (
     <ol className="index" ref={list} onPointerMove={follow}>
       {DISCIPLINES.map((d, i) => {
-        const open = d.stage === 0;
+        const open = !!d.to;
         return (
           <li key={d.id} data-replay-host className={`index-row press${open ? " is-open" : ""}`} style={{ ["--press-delay" as string]: `${i * 40}ms` }}>
             <span className="index-no num">{String(i + 1).padStart(2, "0")}</span>
             {open ? (
-              <Link to="/studio" viewTransition className="index-name">{d.name}</Link>
+              <Link to={d.to!} viewTransition className="index-name">{d.name}</Link>
             ) : (
               <span className="index-name">{d.name}</span>
             )}
@@ -170,7 +170,7 @@ export function Home() {
       <section className="sec wrap" id="benches" aria-labelledby="bench-h">
         <header className="sec-head">
           <h2 id="bench-h">Benches</h2>
-          <p className="serif">One studio, many surfaces. Each discipline gets the material it is made on. Painting is open now; the rest arrive stage by stage. Point at one to see it drawn.</p>
+          <p className="serif">One studio, many surfaces. Each discipline gets the material it is made on. Painting and pixel art are open now; the rest arrive stage by stage. Point at one to see it drawn.</p>
         </header>
         <Benches />
       </section>

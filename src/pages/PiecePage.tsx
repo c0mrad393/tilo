@@ -306,7 +306,7 @@ export function PiecePage() {
             <dt>Time</dt><dd>{piece.ai ? "Not a hand's time: a program drew it" : `${fmtMin(piece.minutes)} min${piece.prompt && piece.minutes <= 10 ? " · inside the 10:00 limit" : ""}`}</dd>
             <dt>Tools</dt><dd>{toolsUsed(piece.strokes).join(" · ")}</dd>
             <dt>Inks</dt><dd className="swatches">{paletteOf(piece.strokes).map((c) => <i key={c} style={{ ["--c" as string]: c }} title={c} />)}</dd>
-            <dt>Sheet</dt><dd>{SHAPES[piece.shape ?? "land"].name} · {sheet.w.toLocaleString()} × {sheet.h.toLocaleString()}</dd>
+            <dt>Sheet</dt><dd>{SHAPES[piece.shape ?? "land"].grid ? `Pixel art · ${SHAPES[piece.shape!].name} cells` : `${SHAPES[piece.shape ?? "land"].name} · ${sheet.w.toLocaleString()} × ${sheet.h.toLocaleString()}`}</dd>
             {published && <><dt>Published</dt><dd>{new Date(published.created).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</dd></>}
           </dl>
           <div>

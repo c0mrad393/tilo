@@ -251,6 +251,17 @@ check(approved.status === 200 && psql(`select status || ' ' || (reviewed_by = '$
 check(psql(`select count(*) from public.mod_log where piece = '${pid}' and action = 'approve'`) === "1", "the action is logged");
 const oneStroke = await publish(token, { title: "One stroke", layers: [] }, encode([strokes[0]]));
 check(oneStroke.status === 201 && oneStroke.body.proof === false, "a piece with one stroke is published, without the badge", oneStroke.body?.proof);
+// pixel art (format 4): a pixel sheet on plain paper, which the server draws cell by cell
+const pixels: Stroke[] = [
+  { tool: "pixel", c: "#B13E53", w: 40, p: [20, 20, 50, 220, 100, 50], t: t0, g: 32 },
+  { tool: "pixelfill", c: "#41A6F6", w: 40, p: [620, 620, 50], t: t0 + 20_000, g: 32 },
+  { tool: "pixelerase", c: "#B13E53", w: 40, p: [60, 20, 50], t: t0 + 40_000, g: 32 },
+];
+const pixelPiece = await publish(token, { title: "Pixel smoke", paper: "plain", shape: "px32", layers: [] }, encode(pixels));
+check(pixelPiece.status === 201, "a pixel piece is published", pixelPiece);
+const pxid: string = pixelPiece.body?.id ?? "";
+check((await settled(pxid)) === "held:new-member" && psql(`select shape || ' ' || paper || ' ' || format from public.pieces where id = '${pxid}'`) === "px32 plain 4", "the server checks it and keeps its grid, paper and format");
+check((await publish(token, { shape: "px24" }, encode(pixels))).status === 400, "a grid Tilo doesn't have is refused");
 
 // what another device sees: the row through PostgREST, the files through Caddy
 const listed = await call(`/rest/v1/pieces?id=eq.${pid}&select=id,title,shape,paper,layers,picture,owner:profiles!pieces_owner_fkey(handle)`);
@@ -588,7 +599,7 @@ check((await fetch(`${BASE}/api/pieces/${tidy.body?.id}/rec`, { headers: { autho
 // export, then delete the account for good
 const exported = await call("/api/me/export", { token });
 check(
-  exported.status === 200 && exported.body.profile?.handle === handle && exported.body.pieces.length === 7 && exported.body.followers[0]?.handle === `smoke_${tag}_b`,
+  exported.status === 200 && exported.body.profile?.handle === handle && exported.body.pieces.length === 8 && exported.body.followers[0]?.handle === `smoke_${tag}_b`,
   "the member exports everything Tilo keeps about them",
   exported.status,
 );

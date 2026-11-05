@@ -45,6 +45,12 @@ const OPS: Stroke[] = [
   { tool: "dup", c: "", w: 0, p: [], l: 1, src: 0, t: 1793735907100 },
   { tool: "merge", c: "", w: 0, p: [], src: 1, t: 1793735907200 },
 ];
+// pixel strokes on a 32-cell sheet (cell 40): centres of cells
+const PIXELS: Stroke[] = [
+  { tool: "pixel", c: "#2B37D4", w: 40, p: [20, 20, 50, 60, 20, 50, 100, 60, 50], t: 1793735908000, g: 32 },
+  { tool: "pixelfill", c: "#F2C14E", w: 40, p: [620, 620, 50], t: 1793735908500, g: 32, l: 1, m: "v" },
+  { tool: "pixelerase", c: "#2B37D4", w: 80, p: [60, 20, 50], t: 1793735909000, g: 32 },
+];
 
 describe("recording v2", () => {
   it("round-trips strokes exactly at its precision", () => {
@@ -61,7 +67,8 @@ describe("recording v2", () => {
   it("starts with the magic bytes and its version", () => {
     // plain strokes are still written as format 2, so older readers keep working
     expect([...encode(randomStrokes(7, 3)).subarray(0, 3)]).toEqual([84, 76, 2]);
-    expect([...encode(OPS).subarray(0, 3)]).toEqual([84, 76, FORMAT]);
+    expect([...encode(OPS).subarray(0, 3)]).toEqual([84, 76, 3]);
+    expect([...encode(PIXELS).subarray(0, 3)]).toEqual([84, 76, FORMAT]);
   });
 
   it("refuses data that isn't a recording, is cut short or is from a newer format", () => {
@@ -85,6 +92,12 @@ describe("recording v2", () => {
     expect(decode(encode(mixed))).toEqual(mixed.map(normal));
   });
 
+  it("round-trips pixel strokes and their grid (format 4)", () => {
+    expect(decode(encode(PIXELS))).toEqual(PIXELS);
+    const mixed = [...randomStrokes(13, 30), ...OPS, ...PIXELS, ...randomStrokes(14, 30)];
+    expect(decode(encode(mixed))).toEqual(mixed.map(normal));
+  });
+
   it("keeps a transform at the precision the studio rounds to", () => {
     expect(decode(encode([{ tool: "move", c: "", w: 0, p: [], x: [1.04, -2.06, 0.9996, 1.0004, -3.14159, 0.05, -0.04] }]))[0].x).toEqual([1, -2.1, 1, 1, -3.1416, 0.1, 0]);
   });
@@ -102,5 +115,9 @@ describe("recording v2", () => {
 
   it("keeps its format 3 byte layout", () => {
     expect(toBase64(encode(OPS))).toMatchSnapshot();
+  });
+
+  it("keeps its format 4 byte layout", () => {
+    expect(toBase64(encode(PIXELS))).toMatchSnapshot();
   });
 });

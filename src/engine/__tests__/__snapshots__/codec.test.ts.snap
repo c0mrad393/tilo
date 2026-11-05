@@ -3,3 +3,5 @@
 exports[`recording v2 > keeps its byte layout 1`] = `"VEwCAwcjMUIxRTFEByMyQjM3RDQHI0ZGRkZGRgMBAwBQhNfur7RoAQLQD6AfZNIBaBQCPAF9IwJyNrHR+dYDAbcUtpsBAM4FGAkBAgprAd4E9bkBxgE="`;
 
 exports[`recording v2 > keeps its format 3 byte layout 1`] = `"VEwDAgcjMUIxRTFEAAQBAQBQhNfur7RoAtAPoB9koB+wCSgNgQEBAOwDhCDcJMQTwxPoUakG8AEE5yD3CgD4IwAAAIgOAPcjAAAOgwIBAMgBAQAAD4ECAQDIAQEA"`;
+
+exports[`recording v2 > keeps its format 4 byte layout 1`] = `"VEwEAgcjMkIzN0Q0ByNGMkMxNEUDEIEEAJADwOrur7RoIAOQA5ADZKAGAACgBqAGABKLBAGQA+gHAQF2IAGgUcBXZBGBBACgBugHIAG/V99dZA=="`;

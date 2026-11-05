@@ -11,13 +11,14 @@ import { PROMPT, publishedSample } from "../data/prompt";
 import { download, fileName, pictureBlob, thumbnail, timelapse, videoType } from "../engine/export";
 import { drawGuides, handleAt, snapDirection } from "../engine/guides";
 import { Painter } from "../engine/painter";
-import { PAPER_IDS, PAPERS, type PaperId } from "../engine/paper";
+import { PAPER_IDS, PAPERS, PLAIN_PAPERS, type PaperId } from "../engine/paper";
+import { cellAt, centreOf, gridOf, isPixelTool } from "../engine/pixel";
 import { SYMMETRY } from "../engine/symmetry";
 import { ColorPicker } from "../components/ColorPicker";
 import { remember } from "../engine/colour";
 import { anchor, matrix, toSheet as viewToSheet, type View } from "../engine/view";
 import { apply as xfApply, boundsOf, invert as xfInvert, isIdentity, snapped, toArr, xfAround, type Xf } from "../engine/select";
-import { BASE_LAYER, fmtMin, isOp, layersOf, SHAPE_IDS, SHAPES, TOOLS, type Blend, type LayerDef, type ShapeId, type Stroke, type ToolGroup, type ToolId } from "../engine/stroke";
+import { BASE_LAYER, DRAW_SHAPES, fmtMin, isOp, isPixelShape, layersOf, PIXEL_SHAPES, SHAPES, TOOLS, type Blend, type LayerDef, type ShapeId, type Stroke, type ToolGroup, type ToolId } from "../engine/stroke";
 
 const NO_STROKES: Stroke[] = [];
 const plural = (n: number, w: string) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
@@ -43,6 +44,15 @@ const recentColours = {
 };
 const FREE = ["#1B1E1D", "#5B5F66", "#2B37D4", "#3FA7D6", "#3E7C6B", "#8DBF5A", "#F2C14E", "#E26D3D", "#C9392F", "#A1386B", "#7A4E2D", "#FFFFFF"];
 const GROUPS: [ToolGroup, string][] = [["draw", "Draw"], ["paint", "Paint"], ["shape", "Shape"], ["fix", "Fix"]];
+const PIXEL_GROUPS: [ToolGroup, string][] = [["pixel", "Pixel"]];
+/* Tilo's own palettes for pixel sheets; the mixer covers anything else */
+const PIXEL_PALETTES: [string, string[]][] = [
+  ["Sixteen", ["#1A1C2C", "#5D275D", "#B13E53", "#EF7D57", "#FFCD75", "#A7F070", "#38B764", "#257179", "#29366F", "#3B5DC9", "#41A6F6", "#73EFF7", "#F4F4F4", "#94B0C2", "#566C86", "#333C57"]],
+  ["Dusk", ["#2B1B3D", "#4E2A5A", "#8A3B6B", "#C9566B", "#F08A6C", "#F7C48B", "#FBE7C6", "#5B6EA3"]],
+  ["Four greys", ["#0F1210", "#4A524C", "#9AA39C", "#E4EBE5"]],
+  ["Warm earth", ["#2A1D17", "#5C3A2A", "#8E5A3C", "#C1844F", "#E0B27A", "#F3DDB3", "#6E7F4B", "#A9B86C", "#3E5A63", "#D9573B", "#F2E9DC", "#1B1E1D"]],
+];
+const pixelColours = new Set(PIXEL_PALETTES.flatMap(([, c]) => c));
 const BLENDS: [Blend, string][] = [["source-over", "Normal"], ["multiply", "Multiply"], ["screen", "Screen"], ["overlay", "Overlay"], ["soft-light", "Soft light"], ["darken", "Darken"], ["lighten", "Lighten"], ["color-burn", "Colour burn"]];
 const SEEDED = new Set<ToolId>(["charcoal", "spray", "oil"]);
 const NO_SNAP = new Set<ToolId>(["fill", "lasso", "smudge"]);
@@ -94,6 +104,7 @@ export async function studioLoader({ request }: LoaderFunctionArgs): Promise<She
     return blankSheet({ remixOf: remix.id, paper: remix.paper ?? "smooth", shape: remix.shape, layers: [...own, top], title: `After “${remix.title}”` });
   }
   if (q.get("prompt") === String(PROMPT.no)) return blankSheet({ subject: true });
+  if (q.has("new") && q.get("kind") === "pixel") return blankSheet(pixelStart(q));
   const id = q.get("sheet") ?? (q.has("new") ? null : lastSheet.get());
   if (id) {
     try {
@@ -110,6 +121,8 @@ export async function studioLoader({ request }: LoaderFunctionArgs): Promise<She
 export const studioShouldRevalidate = ({ nextUrl }: ShouldRevalidateFunctionArgs) => nextUrl.searchParams.get("sheet") !== openSheet || !openSheet;
 
 type PanelTab = "colour" | "brush" | "layers" | "sheet";
+/* ?new&kind=pixel opens a fresh pixel sheet */
+const pixelStart = (q: URLSearchParams) => (q.get("kind") === "pixel" ? { shape: "px32" as ShapeId, paper: "plain" as PaperId } : {});
 const PANEL_TABS: [PanelTab, string][] = [["colour", "Colour"], ["brush", "Brush"], ["layers", "Layers"], ["sheet", "Sheet"]];
 
 export function StudioRoute() {
@@ -130,13 +143,17 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const [sending, setSending] = useState<"" | "busy" | string>("");
   const [remixable, setRemixable] = useState(true);
   const [promptMode, setPromptMode] = useState(!!sheet.subject);
-  const [tool, setTool] = useState<ToolId>("ink");
-  const [color, setColor] = useState(promptMode ? PROMPT.palette[0] : FREE[0]);
+  const [tool, setTool] = useState<ToolId>(isPixelShape(sheet.shape) ? "pixel" : "ink");
+  const [color, setColor] = useState(promptMode ? PROMPT.palette[0] : isPixelShape(sheet.shape) ? PIXEL_PALETTES[0][1][0] : FREE[0]);
   const [recent, setRecent] = useState<string[]>(recentColours.get);
   const [mixing, setMixing] = useState(false);
   // on a narrow screen the settings fold into tabs under the sheet; none open leaves the sheet the room
   const [tab, setTab] = useState<PanelTab | null>(null);
   const [size, setSize] = useState(8);
+  // a pixel brush is 1 to 4 cells across
+  const [pxSize, setPxSize] = useState(1);
+  const [pxPal, setPxPal] = useState(0);
+  const [showGrid, setShowGrid] = useState(true);
   const [opacity, setOpacity] = useState(1);
   const [steady, setSteady] = useState(0);
   const [sym, setSym] = useState("");
@@ -148,6 +165,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const [paper, setPaper] = useState<PaperId>(sheet.paper);
   const [shape, setShape] = useState<ShapeId>(sheet.shape ?? "land");
   const dims = SHAPES[shape];
+  const pixel = !!dims.grid;
   const dimsRef = useRef(dims);
   dimsRef.current = dims;
   const [guides, setGuides] = useState<Guides>(sheet.guides);
@@ -169,8 +187,10 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const [selOn, setSelOn] = useState(false);
   const view = useRef<View>({ s: 0.5, r: 0, f: 1, ox: 0, oy: 0 });
   const lastUp = useRef(0);
-  const cfg = useRef({ tool, color, size, opacity, sym, active, guides, steady });
-  cfg.current = { tool, color, size, opacity, sym, active, guides, steady };
+  const cfg = useRef({ tool, color, size, opacity, sym, active, guides, steady, pxSize, pixel, showGrid });
+  cfg.current = { tool, color, size, opacity, sym, active, guides, steady, pxSize, pixel, showGrid };
+  // the cell under the pointer on a pixel sheet, outlined so you can see where a click lands
+  const hover = useRef<[number, number] | null>(null);
   const pinDlg = useRef<HTMLDialogElement>(null);
   const clearDlg = useRef<HTMLDialogElement>(null);
   const layerDlg = useRef<HTMLDialogElement>(null);
@@ -182,7 +202,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const [title, setTitle] = useState("");
   const [enter, setEnter] = useState(true);
 
-  const palette = promptMode ? PROMPT.palette : FREE;
+  const palette = promptMode ? PROMPT.palette : pixel ? PIXEL_PALETTES[pxPal][1] : FREE;
   const timeLeft = PROMPT.minutes * 60000 - ms;
   const toastTimer = useRef(0);
   const say = (t: string) => {
@@ -212,6 +232,9 @@ function Studio({ sheet }: { sheet: Sheet }) {
     ctx.fillRect(0, 0, d.w, d.h);
     ctx.restore();
     const S = sel.current;
+    const k = cfg.current;
+    // cells stay sharp however far in you zoom
+    ctx.imageSmoothingEnabled = !k.pixel;
     p.render(ctx, cur.current ? { stroke: cur.current } : S ? { stroke: { tool: "move", c: "", w: 0, p: S.p, l: S.layer, x: toArr(S.xf) } } : undefined);
     const m = cfg.current.sym;
     if (m) {
@@ -235,7 +258,42 @@ function Studio({ sheet }: { sheet: Sheet }) {
       ctx.stroke();
       ctx.restore();
     }
-    drawGuides(ctx, cfg.current.guides, s, d);
+    if (!k.pixel) drawGuides(ctx, k.guides, s, d);
+    if (k.pixel && d.grid) {
+      const g = gridOf(d.grid, d);
+      // the grid, once cells are big enough on screen to tell apart; never part of the picture
+      if (k.showGrid && g.cell * s >= 6) {
+        ctx.save();
+        ctx.strokeStyle = p.paper === "plaindark" ? "rgba(255,255,255,0.14)" : "rgba(29,27,25,0.14)";
+        const v = view.current;
+        // a straight view draws the lines on whole device pixels, so they all look the same
+        const X = v.r ? (x: number) => x : (x: number) => Math.round((v.ox + v.s * v.f * x) * dpr) + 0.5;
+        const Y = v.r ? (y: number) => y : (y: number) => Math.round((v.oy + v.s * y) * dpr) + 0.5;
+        if (v.r) ctx.lineWidth = 1 / s;
+        else {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.lineWidth = 1;
+        }
+        ctx.beginPath();
+        for (let c = 1; c < g.cols; c++) ctx.moveTo(X(c * g.cell), Y(0)), ctx.lineTo(X(c * g.cell), Y(d.h));
+        for (let r = 1; r < g.rows; r++) ctx.moveTo(X(0), Y(r * g.cell)), ctx.lineTo(X(d.w), Y(r * g.cell));
+        ctx.stroke();
+        ctx.restore();
+      }
+      const h = hover.current;
+      if (h && !cur.current) {
+        const b = k.tool === "pixelfill" ? 1 : k.pxSize, off = (b - 1) >> 1;
+        const x = (h[0] - off) * g.cell, y = (h[1] - off) * g.cell;
+        ctx.save();
+        ctx.lineWidth = 2 / s;
+        ctx.strokeStyle = "rgba(29,27,25,0.7)";
+        ctx.strokeRect(x, y, b * g.cell, b * g.cell);
+        ctx.lineWidth = 1 / s;
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+        ctx.strokeRect(x, y, b * g.cell, b * g.cell);
+        ctx.restore();
+      }
+    }
     // the lasso being drawn, then the selection with its handles
     const lp = lassoPath.current;
     if (lp || S) {
@@ -342,11 +400,19 @@ function Studio({ sheet }: { sheet: Sheet }) {
   useEffect(() => {
     if (!palette.includes(color) && promptMode) setColor(palette[0]);
   }, [palette, color, promptMode]);
-  useEffect(redraw, [sym, guides, redraw]);
+  useEffect(redraw, [sym, guides, showGrid, redraw]);
+  // a pixel sheet has only the pixel tools, and symmetry that lands on the grid
+  useEffect(() => {
+    if (pixel !== isPixelTool(tool)) setTool(pixel ? "pixel" : "ink");
+    if (pixel && sym[0] === "r") setSym("");
+    if (pixel && !PLAIN_PAPERS.includes(paper)) setPaper("plain");
+    // the drawing sheet's first ink isn't in any pixel palette
+    if (pixel && color === FREE[0]) setColor(PIXEL_PALETTES[0][1][0]);
+  }, [pixel, tool, sym, paper, color]);
 
   const commit = useCallback((s: Stroke) => {
     s.t = Date.now();
-    if (!isOp(s) && s.tool !== "eraser" && s.tool !== "smudge" && !FREE.includes(s.c) && !PROMPT.palette.includes(s.c)) setRecent((r) => recentColours.set(remember(r, s.c)));
+    if (!isOp(s) && s.tool !== "eraser" && s.tool !== "smudge" && s.tool !== "pixelerase" && !FREE.includes(s.c) && !PROMPT.palette.includes(s.c) && !pixelColours.has(s.c)) setRecent((r) => recentColours.set(remember(r, s.c)));
     painter.current!.apply(s);
     const next = [...(applied.current ?? []), s];
     applied.current = next;
@@ -505,9 +571,21 @@ function Studio({ sheet }: { sheet: Sheet }) {
       }
       return [Math.round(((az * 180) / Math.PI + 360) % 360), Math.round((alt * 180) / Math.PI)];
     };
+    // a pixel stroke keeps one point per new cell, its centre; Shift draws a line from where it started
+    const pixelFeed = (e: PointerEvent, s: Stroke) => {
+      const d = dimsRef.current, [x, y] = toSheet(e);
+      if (x < 0 || y < 0 || x >= d.w || y >= d.h) return;
+      const [cx, cy] = centreOf(gridOf(s.g!, d), ...cellAt(gridOf(s.g!, d), x, y));
+      if (straight) {
+        if (s.p.length >= 6) s.p.length = 3;
+        if (s.p.length === 3 && s.p[0] === cx && s.p[1] === cy) return;
+      } else if (s.p.length && s.p[s.p.length - 3] === cx && s.p[s.p.length - 2] === cy) return;
+      s.p.push(cx, cy, 50);
+    };
     const feed = (e: PointerEvent) => {
       const s = cur.current;
       if (!s || s.p.length >= 12000) return;
+      if (isPixelTool(s.tool)) return pixelFeed(e, s);
       let [x, y] = toSheet(e);
       const t = e.timeStamp || performance.now();
       rawLast = [x, y];
@@ -560,6 +638,16 @@ function Studio({ sheet }: { sheet: Sheet }) {
     const moveRing = (e: PointerEvent) => {
       const [x, y] = local(e);
       const k = cfg.current;
+      if (k.pixel) {
+        const d = dimsRef.current, [sx, sy] = toSheet(e);
+        const at = sx < 0 || sy < 0 || sx >= d.w || sy >= d.h ? null : cellAt(gridOf(d.grid!, d), sx, sy);
+        const was = hover.current;
+        if (at?.[0] !== was?.[0] || at?.[1] !== was?.[1]) {
+          hover.current = at;
+          redraw();
+        }
+        return;
+      }
       const d = Math.max(6, k.size * TOOLS[k.tool].reach * view.current.s);
       const el = ring.current!;
       el.style.width = el.style.height = d + "px";
@@ -631,6 +719,27 @@ function Studio({ sheet }: { sheet: Sheet }) {
         return;
       }
       const s: Stroke = { tool: k.tool, c: k.color, w: k.size, p: [], l: k.active };
+      if (isPixelTool(k.tool)) {
+        const d = dimsRef.current, g = gridOf(d.grid ?? 32, d);
+        s.g = g.cols;
+        s.w = (k.tool === "pixelfill" ? 1 : k.pxSize) * g.cell;
+        if (k.sym) s.m = k.sym;
+        if (k.tool === "pixelfill") {
+          if (x < 0 || y < 0 || x >= d.w || y >= d.h) return;
+          s.p.push(...centreOf(g, ...cellAt(g, x, y)), 50);
+          commit(s);
+          return;
+        }
+        straight = e.shiftKey ? "free" : null;
+        brush = null;
+        rawLast = null;
+        cur.current = s;
+        drawing = e.pointerId;
+        feed(e);
+        e.preventDefault();
+        redraw();
+        return;
+      }
       if (k.opacity < 1) s.a = Math.round(k.opacity * 100) / 100;
       if (k.sym) s.m = k.sym;
       if (SEEDED.has(k.tool)) s.r = Math.floor(Math.random() * 1e9);
@@ -754,7 +863,14 @@ function Studio({ sheet }: { sheet: Sheet }) {
     c.addEventListener("pointerup", up);
     c.addEventListener("pointercancel", up);
     c.addEventListener("wheel", wheel, { passive: false });
+    const leave = () => {
+      if (!hover.current) return;
+      hover.current = null;
+      redraw();
+    };
+    c.addEventListener("pointerleave", leave);
     return () => {
+      c.removeEventListener("pointerleave", leave);
       c.removeEventListener("pointerdown", down);
       c.removeEventListener("pointermove", move);
       c.removeEventListener("pointerup", up);
@@ -826,10 +942,10 @@ function Studio({ sheet }: { sheet: Sheet }) {
         box.current?.classList.add("can-pan");
         return;
       }
-      const t = (Object.keys(TOOLS) as ToolId[]).find((id) => TOOLS[id].key === k);
+      const t = (Object.keys(TOOLS) as ToolId[]).find((id) => TOOLS[id].key === k && isPixelTool(id) === pixel);
       if (t) setTool(t);
-      if (k === "[") setSize((s) => Math.max(1, s - (s > 20 ? 4 : 1)));
-      if (k === "]") setSize((s) => Math.min(80, s + (s >= 20 ? 4 : 1)));
+      if (k === "[") (pixel ? setPxSize((s) => Math.max(1, s - 1)) : setSize((s) => Math.max(1, s - (s > 20 ? 4 : 1))));
+      if (k === "]") (pixel ? setPxSize((s) => Math.min(4, s + 1)) : setSize((s) => Math.min(80, s + (s >= 20 ? 4 : 1))));
       if (k === "0") fit();
       if (k === "r") rotateBy(e.shiftKey ? -15 : 15);
       if (k === "h") flipView();
@@ -987,6 +1103,8 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const [busy, setBusy] = useState<null | "png" | "video">(null);
   const [progress, setProgress] = useState(0);
   const [scale, setScale] = useState(1);
+  // a pixel sheet also saves at its true size, one pixel a cell
+  const exportScales = dims.grid ? [dims.grid / dims.w, 1, 2] : [1, 2];
   const [clearBg, setClearBg] = useState(false);
   const stopVideo = useRef<AbortController | null>(null);
   const allStrokes = useMemo(() => (base.length ? [...base, ...strokes] : strokes), [base, strokes]);
@@ -1045,7 +1163,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
       </div>
 
       <div className="studio-tools" role="toolbar" aria-label="Brushes and tools">
-        {GROUPS.map(([g, label]) => (
+        {(pixel ? PIXEL_GROUPS : GROUPS).map(([g, label]) => (
           <div key={g} className="tool-group" role="group" aria-label={label}>
             <span className="tool-group-name kicker" aria-hidden="true">{label}</span>
             {(Object.keys(TOOLS) as ToolId[]).filter((t) => TOOLS[t].group === g).map((t) => (
@@ -1090,13 +1208,21 @@ function Studio({ sheet }: { sheet: Sheet }) {
             <button key={k} className="panel-tab" aria-pressed={tab === k} aria-controls={`panel-${k}`} onClick={() => setTab((t) => (t === k ? null : k))}>
               {k === "colour" && <span className="chip" style={{ ["--c" as string]: color }} aria-hidden="true" />}
               {k === "brush" ? TOOLS[tool].label : label}
-              {k === "brush" && tool !== "fill" && tool !== "lasso" && tool !== "select" && <span className="mono num panel-tab-n">{size}</span>}
+              {k === "brush" && tool !== "fill" && tool !== "lasso" && tool !== "select" && tool !== "pixelfill" && <span className="mono num panel-tab-n">{pixel ? pxSize : size}</span>}
             </button>
           ))}
         </div>
         <div className="panel-cards">
         <section className="sheet panel-card" data-tab="colour" id="panel-colour">
           <h2 className="kicker">Colour</h2>
+          {pixel && !promptMode && (
+            <label className="select">
+              <span>Palette</span>
+              <select value={pxPal} onChange={(e) => setPxPal(+e.target.value)}>
+                {PIXEL_PALETTES.map(([n, c], i) => <option key={n} value={i}>{n} · {c.length}</option>)}
+              </select>
+            </label>
+          )}
           <div className="pal">
             {palette.map((c, i) => (
               <button key={c} className="chip-btn" aria-pressed={c === color} aria-label={`Colour ${promptMode ? PROMPT.names[i] : c}`} onClick={() => setColor(c)}>
@@ -1131,7 +1257,22 @@ function Studio({ sheet }: { sheet: Sheet }) {
 
         <section className="sheet panel-card" data-tab="brush" id="panel-brush">
           <h2 className="kicker">{TOOLS[tool].label}</h2>
-          {tool === "select" ? (
+          {pixel ? (
+            <>
+              {tool !== "pixelfill" && (
+                <label className="slider">
+                  <span>Size</span>
+                  <input type="range" min={1} max={4} value={pxSize} onChange={(e) => setPxSize(+e.target.value)} />
+                  <span className="mono num">{pxSize}</span>
+                </label>
+              )}
+              <p className="hint">
+                {tool === "pixelfill"
+                  ? "Fills the cells around the one you click that share its colour, reading every visible layer."
+                  : `${pxSize === 1 ? "One cell" : `${pxSize} × ${pxSize} cells`} at a time. Hold Shift for a straight line from where you start.`}
+              </p>
+            </>
+          ) : tool === "select" ? (
             <p className="hint">Draw around part of {activeLayer.name}. Drag inside it to move it, a corner to scale it, the round handle to turn it (Shift for 15° steps). Enter puts it down, Esc puts it back.</p>
           ) : (
             <>
@@ -1222,30 +1363,31 @@ function Studio({ sheet }: { sheet: Sheet }) {
         <section className="sheet panel-card" data-tab="sheet" id="panel-sheet">
           <h2 className="kicker">Paper</h2>
           <div className="papers" role="group" aria-label="Paper">
-            {PAPER_IDS.map((id) => (
+            {(pixel ? PLAIN_PAPERS : PAPER_IDS).map((id) => (
               <button key={id} className="paper-btn" aria-pressed={paper === id} aria-label={PAPERS[id].name} title={PAPERS[id].name} onClick={() => setPaper(id)}>
                 <span className={`paper-swatch p-${id}`} style={{ ["--pc" as string]: PAPERS[id].color }} />
               </button>
             ))}
           </div>
-          <p className="hint">{PAPERS[paper].name}. Charcoal catches on its grain.</p>
+          <p className="hint">{PAPERS[paper].name}. {PAPERS[paper].depth ? "Charcoal catches on its grain." : "No grain at all."}</p>
+          {pixel && <label className="check"><input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} /> Show the grid when zoomed in</label>}
         </section>
 
         <section className="sheet panel-card" data-tab="sheet">
           <h2 className="kicker">Symmetry</h2>
           <div className="seg" role="group" aria-label="Symmetry">
-            {SYMMETRY.map(([v, n]) => <button key={v || "off"} aria-pressed={sym === v} onClick={() => setSym(v)}>{n}</button>)}
+            {SYMMETRY.filter(([v]) => !pixel || v[0] !== "r").map(([v, n]) => <button key={v || "off"} aria-pressed={sym === v} onClick={() => setSym(v)}>{n}</button>)}
           </div>
         </section>
 
-        <section className="sheet panel-card" data-tab="sheet">
+        {!pixel && <section className="sheet panel-card" data-tab="sheet">
           <h2 className="kicker">Perspective</h2>
           <div className="seg" role="group" aria-label="Perspective guides">
             {PERSPECTIVE.map(([v, n]) => <button key={v} aria-pressed={guides.mode === v} onClick={() => setGuides((g) => ({ ...g, mode: v }))}>{n}</button>)}
           </div>
           {guides.mode > 0 && <label className="check"><input type="checkbox" checked={guides.snap} onChange={(e) => setGuides((g) => ({ ...g, snap: e.target.checked }))} /> Snap strokes to the guides</label>}
           <p className="hint">{guides.mode ? "Drag the blue points to move them. Guides stay out of the picture." : "Hold Shift for a straight line."}</p>
-        </section>
+        </section>}
 
         <section className="sheet panel-card" data-tab="sheet">
           <h2 className="kicker">This sheet</h2>
@@ -1253,12 +1395,16 @@ function Studio({ sheet }: { sheet: Sheet }) {
             <label htmlFor="sheet-title">Title</label>
             <input type="text" id="sheet-title" maxLength={60} placeholder="Untitled" autoComplete="off" value={sheetTitle} onChange={(e) => setSheetTitle(e.target.value)} />
           </div>
-          <div className="seg" role="group" aria-label="Sheet shape">
-            {SHAPE_IDS.map((id) => (
+          <div className="seg" role="group" aria-label="Kind of sheet">
+            <button aria-pressed={!pixel} disabled={shapeLocked && pixel} onClick={() => setShape("land")}>Drawing</button>
+            <button aria-pressed={pixel} disabled={shapeLocked && !pixel} onClick={() => setShape("px32")}>Pixel art</button>
+          </div>
+          <div className="seg" role="group" aria-label={pixel ? "Grid" : "Sheet shape"}>
+            {(pixel ? PIXEL_SHAPES : DRAW_SHAPES).map((id) => (
               <button key={id} aria-pressed={shape === id} disabled={shapeLocked && shape !== id} onClick={() => setShape(id)}>{SHAPES[id].name}</button>
             ))}
           </div>
-          <p className="hint">{shapeLocked ? "The shape is set once the drawing starts." : `${dims.w} × ${dims.h}. Choose before you draw.`}</p>
+          <p className="hint">{shapeLocked ? "The shape is set once the drawing starts." : pixel ? `${dims.grid} cells across. Choose before you draw.` : `${dims.w} × ${dims.h}. Choose before you draw.`}</p>
           <div className="stats">
             <div><b className="num">{drawn.toLocaleString()}</b><span>strokes</span></div>
             <div><b className="num">{fmtMin(ms / 60000)}</b><span>drawing time</span></div>
@@ -1269,7 +1415,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
         <section className="sheet panel-card opt">
           <h2 className="kicker">Keys</h2>
           <p className="keys">
-            {(Object.keys(TOOLS) as ToolId[]).map((t) => <span key={t}><kbd>{TOOLS[t].key.toUpperCase()}</kbd> {TOOLS[t].label.toLowerCase()} </span>)}
+            {(Object.keys(TOOLS) as ToolId[]).filter((t) => isPixelTool(t) === pixel).map((t) => <span key={t}><kbd>{TOOLS[t].key.toUpperCase()}</kbd> {TOOLS[t].label.toLowerCase()} </span>)}
             <span><kbd>[</kbd> <kbd>]</kbd> size </span><span><kbd>⌘Z</kbd> undo </span><span><kbd>Shift</kbd> straight line </span><span><kbd>Space</kbd> drag to move </span><span><kbd>⌘</kbd>+scroll or pinch to zoom </span><span><kbd>0</kbd> fit </span><span><kbd>R</kbd> <kbd>⇧R</kbd> turn </span><span><kbd>H</kbd> mirror view </span><span><kbd>Alt</kbd>+click pick colour </span><span><kbd>Enter</kbd> <kbd>Esc</kbd> put a selection down or back</span>
           </p>
         </section>
@@ -1301,9 +1447,10 @@ function Studio({ sheet }: { sheet: Sheet }) {
           <h2 id="export-h">Save it out</h2>
           <section>
             <h3>Picture</h3>
-            <div className="seg" role="group" aria-label="Picture size">
-              {[1, 2].map((v) => <button key={v} aria-pressed={scale === v} onClick={() => setScale(v)}>{dims.w * v} × {dims.h * v}</button>)}
+            <div className="seg" role="group" aria-label="Picture size" style={{ ["--n" as string]: exportScales.length }}>
+              {exportScales.map((v) => <button key={v} aria-pressed={scale === v} onClick={() => setScale(v)}>{Math.round(dims.w * v)} × {Math.round(dims.h * v)}</button>)}
             </div>
+            {pixel && <p>{scale < 1 ? "One pixel a cell, the picture's true size." : "Every cell sharp, as on the sheet."}</p>}
             <label className="check"><input type="checkbox" checked={clearBg} onChange={(e) => setClearBg(e.target.checked)} /> Leave out the paper (transparent)</label>
             <button className="btn btn-ink" onClick={savePNG} disabled={!!busy}><Icon name="download" />{busy === "png" ? "Making the PNG…" : "Download PNG"}</button>
           </section>

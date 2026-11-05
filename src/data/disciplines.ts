@@ -8,6 +8,8 @@ export interface Discipline {
   name: string;
   material: string;
   stage: number;
+  /** where its bench opens, once it is open */
+  to?: string;
   blurb: string;
   demo: Stroke[];
 }
@@ -22,7 +24,7 @@ const HEART = ["..XX.XX..", ".XXXXXXX.", "XXXXXXXXX", "XXXXXXXXX", ".XXXXXXX.", 
 
 export const DISCIPLINES: Discipline[] = [
   {
-    id: "painting", name: "Painting & drawing", material: "m-paper", stage: 0,
+    id: "painting", name: "Painting & drawing", material: "m-paper", stage: 0, to: "/studio",
     blurb: "Pencil, ink, marker and wash on paper. Layers and textured brushes arrive in Stage 1.",
     demo: make(11, (S) => {
       for (let i = 0; i < 4; i++) S.disc(820, 470, 230 - i * 50, "wash", i % 2 ? "#E26D3D" : "#C9392F", 26, 34);
@@ -34,7 +36,7 @@ export const DISCIPLINES: Discipline[] = [
     }),
   },
   {
-    id: "pixel", name: "Pixel art", material: "m-graph", stage: 3,
+    id: "pixel", name: "Pixel art", material: "m-graph", stage: 3, to: "/studio?new&kind=pixel",
     blurb: "A grid, a small palette, and every square placed on purpose.",
     demo: make(12, (S) => {
       const cell = 96, x0 = 368, y0 = 220;

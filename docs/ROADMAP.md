@@ -67,6 +67,10 @@ Detailed plan, milestones and open decisions: [STAGE2.md](STAGE2.md).
 - Frame-by-frame animation with onion skin, loops, GIF/MP4 export in the browser.
 - Process feed: replays play as you scroll.
 
+Detailed plan, milestones and open questions: [STAGE3.md](STAGE3.md).
+
+Progress, 3.1 (v0.10): pixel sheets of 16, 32, 64 or 128 cells square, or 64 × 48, chosen before the first stroke. A pixel pen, eraser and fill that work cell by cell, with Shift for straight lines, a brush of 1 to 4 cells and mirror symmetry that lands on the grid. Four palettes of Tilo's own beside the mixer, a grid when zoomed in, cells sharp at every zoom, two papers without grain, and a PNG at one pixel a cell. Pixel strokes are recording format 4; older recordings keep their format byte for byte. Next: 3.2, animation.
+
 ## Stage 4 — Social modes and public launch
 
 - Daily prompts on a schedule, entries, results.

@@ -25,8 +25,8 @@ interface Options {
 }
 
 // kept in step with the studio's lists (src/engine/paper.ts and stroke.ts)
-const PAPERS = new Set(["smooth", "cold", "newsprint", "kraft", "grey", "black"]);
-const SHAPES = new Set(["land", "port", "square"]);
+const PAPERS = new Set(["smooth", "cold", "newsprint", "kraft", "grey", "black", "plain", "plaindark"]);
+const SHAPES = new Set(["land", "port", "square", "px16", "px32", "px64", "px128", "pxland"]);
 const BLENDS = new Set(["source-over", "multiply", "screen", "overlay", "darken", "lighten", "soft-light", "color-burn"]);
 const OPS = new Set(["move", "dup", "merge"]);
 /** a subject piece is drawn against a 10:00 clock; the recording may run a little past it */

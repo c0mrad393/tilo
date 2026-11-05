@@ -1,5 +1,6 @@
 import { floodFill } from "./brushes";
 import { PAPERS, shadeGrain, type PaperId } from "./paper";
+import { fillCells, paintCells } from "./pixel";
 import { fromArr, partway, setOn } from "./select";
 import { mirrored } from "./symmetry";
 import { drawStroke, pointsOf, type LayerDef, type SheetSize, type Stroke } from "./stroke";
@@ -63,6 +64,7 @@ export class Painter {
     if (s.tool === "dup" || s.tool === "merge") return this.layerOp(s);
     const ctx = this.canvas(this.layerOf(s)).getContext("2d")!;
     if (s.tool === "move") return this.move(ctx, s, 1);
+    if (s.tool === "pixelfill") return this.pixelFill(ctx, s);
     if (s.tool !== "fill") return drawStroke(ctx, s, this.k, undefined, this.paper ?? "smooth", this.sheet);
     // fill looks at every visible layer, so it stops at lines drawn on other layers too
     for (const copy of mirrored(s, this.sheet.w, this.sheet.h)) {
@@ -142,6 +144,7 @@ export class Painter {
         w.globalCompositeOperation = "source-over";
         const ls = live.stroke;
         if (ls.tool === "fill") this.previewFill(w, ls);
+        else if (ls.tool === "pixelfill") this.pixelFill(w, ls);
         else if (ls.tool === "move") this.move(w, ls, live.upto === undefined ? 1 : live.upto / Math.max(1, pointsOf(ls)));
         else drawStroke(w, ls, this.k, live.upto, this.paper ?? "smooth", this.sheet);
         src = this.work;
@@ -161,6 +164,21 @@ export class Painter {
     sc.clearRect(0, 0, this.width, this.height);
     this.render(sc, undefined, "sample");
     floodFill(w, sample, s.p[0] * this.k, s.p[1] * this.k, s.c, s.a ?? 1);
+  }
+
+  /* fills cells, reading the visible layers at cell centres the way the fill tool does */
+  private pixelFill(ctx: CanvasRenderingContext2D, s: Stroke) {
+    if (s.p.length < 3) return;
+    const sample = (this.sample ??= this.blank());
+    const sc = sample.getContext("2d", { willReadFrequently: true })!;
+    sc.clearRect(0, 0, this.width, this.height);
+    this.render(sc, undefined, "sample");
+    const { grid, mask } = fillCells(s, this.sheet, sc.getImageData(0, 0, this.width, this.height), this.k);
+    ctx.save();
+    ctx.globalAlpha = s.a ?? 1;
+    ctx.fillStyle = s.c;
+    paintCells(ctx, grid, mask, this.k);
+    ctx.restore();
   }
 
   /** The colour under a point of the composite, as #rrggbb. */

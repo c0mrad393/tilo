@@ -1546,6 +1546,13 @@ button.stamp[aria-pressed="true"] {
 .studio-sheet[data-tool="select"] .ring {
   display: none;
 }
+/* pixel tools outline the cell under the pointer on the sheet itself */
+.studio-sheet[data-tool^="pixel"] .ring {
+  display: none;
+}
+.studio-sheet[data-tool^="pixel"]:not(.can-pan, .is-panning) .studio-canvas {
+  cursor: crosshair;
+}
 .remix-banner {
   position: absolute;
   top: 12px;
@@ -1639,7 +1646,7 @@ button.stamp[aria-pressed="true"] {
   border-top: 1px solid var(--paper-rule);
 }
 .export .seg {
-  grid-template-columns: repeat(2, max-content);
+  grid-template-columns: repeat(var(--n, 2), max-content);
 }
 .export .seg button {
   white-space: nowrap;

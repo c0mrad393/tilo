@@ -2,7 +2,7 @@
    shades the sheet and decides where dry media (charcoal, pencil) skip, so the grain you see
    is the grain that catches the charcoal. */
 
-export type PaperId = "smooth" | "cold" | "newsprint" | "kraft" | "grey" | "black";
+export type PaperId = "smooth" | "cold" | "newsprint" | "kraft" | "grey" | "black" | "plain" | "plaindark";
 
 export interface PaperDef {
   name: string;
@@ -23,7 +23,12 @@ export const PAPERS: Record<PaperId, PaperDef> = {
   kraft: { name: "Kraft", color: "#C8A57A", depth: 0.14, pits: 0.4, octaves: [[24, 0.35], [6, 0.3], [2, 0.35]], seed: 17 },
   grey: { name: "Toned grey", color: "#9C9E9B", depth: 0.1, pits: 0.36, octaves: [[10, 0.4], [3, 0.6]], seed: 23 },
   black: { name: "Black card", color: "#232224", depth: 0.08, pits: 0.36, octaves: [[8, 0.4], [2.5, 0.6]], seed: 29 },
+  // no grain at all: for pixel art, and for anyone who wants a flat sheet
+  plain: { name: "Plain white", color: "#FFFFFF", depth: 0, pits: 0, octaves: [[2.4, 1]], seed: 31 },
+  plaindark: { name: "Plain dark", color: "#1B1B1F", depth: 0, pits: 0, octaves: [[2.4, 1]], seed: 37 },
 };
+/** papers with no grain, the only ones a pixel sheet takes */
+export const PLAIN_PAPERS: PaperId[] = ["plain", "plaindark"];
 export const PAPER_IDS = Object.keys(PAPERS) as PaperId[];
 export const paperOf = (id?: string | null): PaperId => (id && id in PAPERS ? (id as PaperId) : "smooth");
 
@@ -89,6 +94,7 @@ function shadeTile(id: PaperId) {
 
 /** Shades whatever is already in `rect` of `ctx` with the paper's grain. `k` is pixels per sheet unit. */
 export function shadeGrain(ctx: CanvasRenderingContext2D, id: PaperId, k: number, w: number, h: number) {
+  if (!PAPERS[id]?.depth) return;
   const pat = ctx.createPattern(shadeTile(id), "repeat");
   if (!pat) return;
   pat.setTransform(new DOMMatrix().scale(k));
