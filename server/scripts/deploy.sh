@@ -6,11 +6,12 @@ set -euo pipefail
 HOST=${TILO_HOST:-tilo}
 DIR=${TILO_DIR:-tilo}
 
-# what the stack builds from: the API's image needs the studio's engine (src/engine). The
-# server's own .env (and .env.before-restore) stay as they are.
+# what the stack builds from: the API's image needs the studio's engine (src/engine) and the
+# wall's rules and subjects (src/data/wall*.ts, art.ts). The server's own .env (and
+# .env.before-restore) stay as they are.
 rsync -az --delete --relative \
   --exclude node_modules --include .env.example --exclude '.env*' --exclude 'api/dist' \
-  ./package.json ./src/engine ./server "$HOST:$DIR/"
+  ./package.json ./src/engine ./src/data/art.ts ./src/data/wall.ts ./src/data/wall-art.ts ./server "$HOST:$DIR/"
 
 ssh "$HOST" bash -s "$DIR" <<'REMOTE'
 set -euo pipefail
