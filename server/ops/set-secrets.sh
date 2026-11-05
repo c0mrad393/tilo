@@ -36,4 +36,5 @@ ask "$ENV" CF_ZONE_ID "Cloudflare zone id of tiloart.com (Overview page, right c
 ask "$ENV" CF_API_TOKEN "Cloudflare API token with Zone > Cache Purge"
 ask "$BACKUP" R2_ACCESS_KEY_ID "R2 Access Key ID"
 ask "$BACKUP" R2_SECRET_ACCESS_KEY "R2 Secret Access Key"
+ask "$BACKUP" BACKUP_PING_URL "Daily backup check URL (healthchecks.io ping URL; optional)"
 echo "Done. Nothing was printed; check with: grep -c '=.' $ENV"
