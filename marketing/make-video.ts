@@ -1,5 +1,7 @@
-/* Tilo's first social video: 9:16, 1080 x 1920, 30 fps, about 33 seconds, with the strokes' own sound (marketing/sound.ts; a silent copy is written too, for music
-   in the app you post from; its library is licensed for that). The timelapses are the sample
+/* Tilo's first social video: 9:16, 1080 x 1920, 30 fps, about 33 seconds, set to "Inspired" by
+   Kevin MacLeod (incompetech.com, CC BY 4.0: the post has to credit it). The track isn't in the
+   repository: put Inspired.mp3 in marketing/music/ (from incompetech.com). Without it, or for
+   music added in the app you post from, there is the silent copy. The timelapses are the sample
    pieces replayed by the studio's own engine, stroke by stroke, so they are what the site shows.
    The phone screens are marketing/shots/*.png (node marketing/shoot.mjs).
    Usage, from the repository root: npm run video [-- frames DIR]
@@ -7,20 +9,20 @@
 
 import { createCanvas, GlobalFonts, loadImage, type Canvas, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { letters } from "../src/components/Logo";
 import { SAMPLES } from "../src/data/samples";
 import { Replayer } from "../src/engine/replay";
 import { Sketch } from "../src/engine/sketch";
-import { drawnCount, layersOf, sizeOf, type Piece, type Stroke } from "../src/engine/stroke";
-import * as sound from "./sound";
+import { drawnCount, layersOf, sizeOf, type Piece } from "../src/engine/stroke";
 
 Object.assign(globalThis, { document: { createElement: () => createCanvas(1, 1) } });
 const { DOMMatrix, ImageData, Path2D } = await import("@napi-rs/canvas");
 Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
 
 const W = 1080, H = 1920, FPS = 30;
+const MUSIC = join(process.cwd(), "marketing", "music", "Inspired.mp3"), MUSIC_LIFT = 80.1;
 // run from the repository root (the script itself runs from a bundle in server/api/dist)
 const HERE = join(process.cwd(), "marketing");
 const FONTS = join(process.cwd(), "node_modules", "@fontsource-variable");
@@ -208,14 +210,7 @@ function phone(x: SKRSContext2D, img: Image, cx: number, cy: number, w: number, 
 
 /* ---------- the logo writes itself ---------- */
 const logoCanvas = createCanvas(560, 280);
-const LOGO = letters(INK);
-const logoRep = new Replayer(logoCanvas as unknown as HTMLCanvasElement, LOGO, null, 400);
-/** draws a replay at `pos` and lets the sound hear the strokes it passed */
-function play(rep: Replayer, strokes: Stroke[], pos: number, gain: number, sheetW: number) {
-  const idx = rep.draw(pos);
-  sound.heard(rep, strokes, pos, idx, gain, sheetW);
-  return idx;
-}
+const logoRep = new Replayer(logoCanvas as unknown as HTMLCanvasElement, letters(INK), null, 400);
 const logoPink = createCanvas(560, 280);
 new Replayer(logoPink as unknown as HTMLCanvasElement, letters(PINK), null, 400).draw(1);
 
@@ -241,20 +236,6 @@ const thumbs = SAMPLES.map((p) => {
 
 const T = { s1: 0, s2: 3.2, s3: 11.2, s4: 16.2, s5: 23.0, s6: 29.0, end: 33.0 };
 
-// the cuts: a page turning between scenes, sheets landing, the phone sliding in, a chime at the end
-for (const at of [T.s2, T.s3, T.s4, T.s5, T.s6]) sound.cue({ at: at - 0.25, kind: "whoosh", gain: 0.1, dur: 0.5, up: false });
-SAMPLES.forEach((_, i) => sound.cue({ at: T.s4 + 0.3 + i * 0.12, kind: "tap", gain: 0.12 }));
-sound.cue({ at: T.s5 + 0.15, kind: "whoosh", gain: 0.22, dur: 0.7 });
-sound.cue({ at: T.s5 + 2.95, kind: "whoosh", gain: 0.12, dur: 0.6 });
-sound.cue({ at: T.s6 + 0.8, kind: "tap", gain: 0.12 });
-sound.cue({ at: T.s6 + 0.85, kind: "chime", gain: 0.022 });
-// from the reveal on, three soft chords under the quiet scenes: A minor, F, then C under the chime
-const CHORDS = [
-  { from: T.s4, to: T.s5 + 0.4, notes: [220, 329.6, 523.3, 659.3] },
-  { from: T.s5, to: T.s6 + 0.4, notes: [174.6, 261.6, 440, 523.3] },
-  { from: T.s6, to: T.end, notes: [261.6, 392, 659.3, 784] },
-];
-
 function frame(x: SKRSContext2D, t: number) {
   ground(x);
 
@@ -262,7 +243,7 @@ function frame(x: SKRSContext2D, t: number) {
   if (t < T.s2) {
     const a = life(t, -1, T.s2);
     x.globalAlpha = a;
-    play(logoRep, LOGO, span(t, 0.1, 1.2, (p) => 1 - Math.pow(1 - p, 2)), a, 400);
+    logoRep.draw(span(t, 0.1, 1.2, (p) => 1 - Math.pow(1 - p, 2)));
     x.drawImage(logoCanvas, 80, 210, 360, 180);
     const lx = 80, size = Math.min(220, (220 * 920) / measureHead(x, "NOT PROMPTS.", 220));
     const lines: [string, string, number][] = [["DRAWN BY", BLUE, 720], ["HANDS,", BLUE, 940], ["NOT PROMPTS.", PINK, 1160]];
@@ -271,9 +252,7 @@ function frame(x: SKRSContext2D, t: number) {
       if (k <= 0) return;
       if (i === 1) {
         const hw = measureHead(x, text, size);
-        const hp = span(t, 1.5, 2.2, inOut);
-        highlighter(x, lx + size * 0.02, lx + hw * 0.96, y - size * 0.34, size * 0.74, hp);
-        if (hp > 0 && hp < 1) sound.stroke("marker", 0.8, hp * 0.6 - 0.4, a);
+        highlighter(x, lx + size * 0.02, lx + hw * 0.96, y - size * 0.34, size * 0.74, span(t, 1.5, 2.2, inOut));
       }
       x.save();
       x.globalAlpha = a * k;
@@ -294,7 +273,7 @@ function frame(x: SKRSContext2D, t: number) {
     headline(x, "WATCH IT", 90, 440, 140, INK);
     headline(x, "BEING MADE.", 90, 580, 140, INK);
     const pos = span(t, T.s2 + 0.4, T.s3 - 0.9, (p) => p);
-    const idx = play(hero.rep, hero.piece.strokes, pos, a, sizeOf(hero.piece).w);
+    const idx = hero.rep.draw(pos);
     drawPlate(x, hero, 90, 690);
     trace(x, 90, 690 + hero.h + 50, hero.w, pos);
     kicker(x, `Stroke ${Math.min(idx + 1, hero.piece.strokes.length)} of ${drawnCount(hero.piece.strokes)}`, 90, 690 + hero.h + 130, INK, "left", 28);
@@ -313,7 +292,7 @@ function frame(x: SKRSContext2D, t: number) {
     const i = clamp(Math.floor((t - T.s3) / each), 0, montage.length - 1);
     const local = clamp((t - T.s3 - i * each) / each);
     const pl = montage[i];
-    play(pl.rep, pl.piece.strokes, clamp(local * 1.25), a * 0.85, sizeOf(pl.piece).w);
+    pl.rep.draw(clamp(local * 1.25));
     drawPlate(x, pl, 90, 690);
     kicker(x, pl.piece.title, 90, 690 + pl.h + 80, INK, "left", 28);
     x.globalAlpha = 1;
@@ -375,7 +354,7 @@ function frame(x: SKRSContext2D, t: number) {
   if (t >= T.s6) {
     const a = span(t, T.s6, T.s6 + 0.4);
     x.globalAlpha = a;
-    play(logoRep, LOGO, span(t, T.s6, T.s6 + 1.1, (p) => 1 - Math.pow(1 - p, 2)), a * 0.55, 400);
+    logoRep.draw(span(t, T.s6, T.s6 + 1.1, (p) => 1 - Math.pow(1 - p, 2)));
     x.drawImage(logoCanvas, 540 - 300, 560, 600, 300);
     const k = span(t, T.s6 + 0.8, T.s6 + 1.4);
     x.globalAlpha = a * k;
@@ -396,7 +375,6 @@ const frames = Math.round(T.end * FPS);
 if (mode === "frames") {
   mkdirSync(dir, { recursive: true });
   // the replays only run forward, so the stills go in time order
-  sound.at(-1);
   for (const t of [1.0, 2.9, 6.0, 9.5, 12.5, 15.0, 17.0, 19.5, 22.0, 24.5, 27.5, 30.0, 32.5]) {
     frame(ctx, t);
     writeFileSync(join(dir, `t${t.toFixed(1).padStart(4, "0")}.png`), await canvas.encode("png"));
@@ -405,12 +383,11 @@ if (mode === "frames") {
 } else {
   const out = join(HERE, "out");
   mkdirSync(out, { recursive: true });
-  const silent = join(out, "tilo-intro-silent.mp4"), file = join(out, "tilo-intro.mp4"), track = join(out, "tilo-intro.wav");
+  const silent = join(out, "tilo-intro-silent.mp4"), file = join(out, "tilo-intro.mp4");
   const ff = spawn("ffmpeg", ["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${W}x${H}`, "-r", String(FPS), "-i", "-",
     "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart", silent], { stdio: ["pipe", "inherit", "inherit"] });
   const t0 = Date.now();
   for (let i = 0; i < frames; i++) {
-    sound.at(i);
     frame(ctx, i / FPS);
     const data = ctx.getImageData(0, 0, W, H).data;
     if (!ff.stdin.write(Buffer.from(data.buffer, data.byteOffset, data.byteLength))) await new Promise((r) => ff.stdin.once("drain", r));
@@ -418,10 +395,14 @@ if (mode === "frames") {
   }
   ff.stdin.end();
   await new Promise((r) => ff.on("close", r));
-  writeFileSync(track, sound.wav(sound.render(frames, FPS, CHORDS)));
-  // the sound at the loudness Instagram and TikTok play at, so it isn't turned down or up
-  const mux = spawn("ffmpeg", ["-y", "-loglevel", "error", "-i", silent, "-i", track, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
-    "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", file], { stdio: "inherit" });
-  await new Promise((r) => mux.on("close", r));
-  console.log("wrote", file, "and", silent);
+  console.log("wrote", silent);
+  if (existsSync(MUSIC)) {
+    // the track's lift at 80.1 s lands on the reveal ("An AI drew all of these"); in and out with fades,
+    // at the loudness Instagram and TikTok play at
+    const from = MUSIC_LIFT - T.s4;
+    const mux = spawn("ffmpeg", ["-y", "-loglevel", "error", "-i", silent, "-ss", String(from), "-t", String(T.end), "-i", MUSIC, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
+      "-af", `afade=t=in:d=0.6,afade=t=out:st=${T.end - 2.5}:d=2.5,loudnorm=I=-16:TP=-1.5:LRA=11`, "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", file], { stdio: "inherit" });
+    await new Promise((r) => mux.on("close", r));
+    console.log("wrote", file);
+  } else console.log(`no ${MUSIC}: only the silent copy`);
 }
