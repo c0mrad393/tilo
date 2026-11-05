@@ -299,6 +299,23 @@ accountant how gifts to a private person are taxed in Georgia.
   admin account, restore tested.
 - Done when: the first invited group is in.
 
+Progress (2026-11-05): the server is live and accounts are open on tiloart.com.
+- The app stays on the Cloudflare Worker (it keeps working when the server is down), and the
+  Worker sends /auth/v1, /rest/v1, /api, /files and crawler previews through a Cloudflare
+  Tunnel to Caddy on the VPS. The VPS has only SSH open; Caddy refuses anything without the
+  Worker's EDGE_SECRET. This replaces "80 and 443 limited to Cloudflare's addresses".
+- Deploys: `npm run server:deploy` from the Mac (rsync, rebuild, wait until healthy) instead
+  of GitHub Actions; the app still deploys on every push.
+- Backups: nightly, age-encrypted to a key kept off the server, to Cloudflare R2, 8 days
+  daily and 4 weeks weekly, with a daily check at healthchecks.io. Restored from R2 on
+  2026-11-05 with matching counts.
+- Monitoring: UptimeRobot on /api/health, which also fails when the disk is under 10%.
+- Mail: Resend for sign-in links; hello@ and legal@ forward to Gmail (Cloudflare Email
+  Routing), with Gmail sending as them through Resend.
+- The terms and privacy policy name the operator and every service that handles data.
+- Left: invite codes for members, a feedback box on every page, error reports, the
+  accessibility and performance pass, and the first invited group.
+
 Total: about 9 weeks.
 
 ## Running costs at beta size
