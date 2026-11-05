@@ -4,8 +4,10 @@
    music added in the app you post from, there is the silent copy. The timelapses are the sample
    pieces replayed by the studio's own engine, stroke by stroke, so they are what the site shows.
    The phone screens are marketing/shots/*.png (node marketing/shoot.mjs).
-   Usage, from the repository root: npm run video [-- frames DIR]
-     writes marketing/out/tilo-intro.mp4; with `frames DIR` it writes a few PNG stills to check. */
+   Usage, from the repository root: npm run video [-- frames DIR | assets | assets-stills DIR]
+     no argument: marketing/out/tilo-intro.mp4 (and -silent); `frames DIR`: stills of it to check;
+     `assets`: the profile pictures, the Reel cover and one 15-second clip per sample in out/clips;
+     `assets-stills DIR`: stills of those clips. */
 
 import { createCanvas, GlobalFonts, loadImage, type Canvas, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { spawn } from "node:child_process";
@@ -366,43 +368,145 @@ function frame(x: SKRSContext2D, t: number) {
   }
 }
 
+/* ---------- the profile picture and the Reel cover ---------- */
+function logoAt(x: SKRSContext2D, color: string, cx: number, cy: number, w: number) {
+  const c = createCanvas(Math.round(w), Math.round(w / 2));
+  new Replayer(c as unknown as HTMLCanvasElement, letters(color), null, 400).draw(1);
+  x.drawImage(c, cx - w / 2, cy - w / 4);
+}
+/** a square for the round avatar: everything inside the middle circle */
+function profile(bg: string, ink: string) {
+  const c = createCanvas(1080, 1080), x = c.getContext("2d");
+  x.fillStyle = bg;
+  x.fillRect(0, 0, 1080, 1080);
+  logoAt(x, ink, 540, 560, 720);
+  return c;
+}
+/** the cover for the intro Reel: the promise in the middle, where the grid's 3:4 crop keeps it */
+function cover() {
+  const c = createCanvas(W, H), x = c.getContext("2d");
+  ground(x);
+  logoAt(x, INK, 540, 470, 420);
+  const size = Math.min(230, (230 * 920) / measureHead(x, "NOT PROMPTS.", 230));
+  const hw = measureHead(x, "HANDS,", size);
+  headline(x, "DRAWN BY", 80, 860, size, BLUE);
+  highlighter(x, 80 + size * 0.02, 80 + hw * 0.96, 1070 - size * 0.34, size * 0.74, 1);
+  headline(x, "HANDS,", 80, 1070, size, BLUE);
+  headline(x, "NOT PROMPTS.", 80, 1280, size, PINK);
+  serif(x, "A free studio and gallery for art made stroke by stroke.", 80, 1420, 50, 900, SOFT, true);
+  return c;
+}
+
+/* ---------- one sample, replayed on its own: a short clip per piece ---------- */
+const CLIP = { draw: 0.4, done: 11.4, dare: 12.0, end: 15.0 };
+/** a headline broken into lines that fit, at most `max` lines */
+function headLines(x: SKRSContext2D, text: string, size: number, maxW: number) {
+  const lines: string[] = [];
+  for (const w of text.toUpperCase().split(" ")) {
+    const t = lines.length ? `${lines[lines.length - 1]} ${w}` : w;
+    if (lines.length && measureHead(x, t, size) <= maxW) lines[lines.length - 1] = t;
+    else lines.push(w);
+  }
+  return lines;
+}
+function clipFrame(x: SKRSContext2D, pl: Plate, no: number, t: number) {
+  ground(x);
+  const a = Math.min(span(t, 0, 0.4), 1);
+  x.globalAlpha = a;
+  const size = 110, lines = headLines(x, pl.piece.title, size, 900);
+  // the whole block (kicker to the dare) centred between 200 and 1540, clear of TikTok's caption
+  const block = 120 + (lines.length - 1) * size * 0.95 + 70 + pl.h + 310;
+  const y0 = Math.max(200, 200 + (1340 - block) / 2);
+  kicker(x, `AI-made sample · ${String(no).padStart(2, "0")} of ${SAMPLES.length}`, 90, y0, PINK);
+  lines.forEach((l, i) => headline(x, l, 90, y0 + 120 + i * size * 0.95, size, INK));
+  const top = y0 + 120 + (lines.length - 1) * size * 0.95 + 70;
+  const pos = span(t, CLIP.draw, CLIP.done, (p) => 1 - Math.pow(1 - p, 1.6));
+  const idx = pl.rep.draw(pos);
+  const px = (W - pl.w) / 2;
+  drawPlate(x, pl, px, top);
+  const below = top + pl.h;
+  trace(x, px, below + 46, pl.w, pos);
+  kicker(x, `Stroke ${Math.min(idx + 1, pl.piece.strokes.length).toLocaleString("en")} of ${drawnCount(pl.piece.strokes).toLocaleString("en")} · drawn by Claude, in code`, px, below + 120, INK, "left", 26);
+  // the dare, once the piece is finished
+  const d = span(t, CLIP.dare, CLIP.dare + 0.6);
+  if (d > 0) {
+    x.globalAlpha = a * d;
+    x.save();
+    x.translate(0, (1 - d) * 24);
+    headline(x, "CAN YOU BEAT IT BY HAND?", 540, below + 230, 96, PINK, "center");
+    kicker(x, "tiloart.com · free, in your browser", 540, below + 300, INK, "center", 30);
+    x.restore();
+  }
+  x.globalAlpha = 1;
+}
+const clipPlates = new Map<number, Plate>();
+const plateFor = (p: Piece, i: number) => clipPlates.get(i) ?? clipPlates.set(i, plate(p, clipWidth(p))).get(i)!;
+/** the width a sample's plate gets, so tall sheets still leave room for the dare */
+const clipWidth = (p: Piece) => ({ land: 900, square: 760, port: 600 })[p.shape ?? "land"] ?? 900;
+
 /* ---------- out ---------- */
+async function encode(file: string, frameCount: number, draw: (x: SKRSContext2D, t: number) => void) {
+  const c = createCanvas(W, H), x = c.getContext("2d");
+  const ff = spawn("ffmpeg", ["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${W}x${H}`, "-r", String(FPS), "-i", "-",
+    "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart", file], { stdio: ["pipe", "inherit", "inherit"] });
+  for (let i = 0; i < frameCount; i++) {
+    draw(x, i / FPS);
+    const data = x.getImageData(0, 0, W, H).data;
+    if (!ff.stdin.write(Buffer.from(data.buffer, data.byteOffset, data.byteLength))) await new Promise((r) => ff.stdin.once("drain", r));
+  }
+  ff.stdin.end();
+  await new Promise((r) => ff.on("close", r));
+}
+/** the silent video with `seconds` of the track from `from`, faded in and out, at the loudness
+    Instagram and TikTok play at */
+async function withMusic(silent: string, file: string, from: number, seconds: number) {
+  const mux = spawn("ffmpeg", ["-y", "-loglevel", "error", "-i", silent, "-ss", String(from), "-t", String(seconds), "-i", MUSIC, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
+    "-af", `afade=t=in:d=0.6,afade=t=out:st=${seconds - 2.5}:d=2.5,loudnorm=I=-16:TP=-1.5:LRA=11`, "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", file], { stdio: "inherit" });
+  await new Promise((r) => mux.on("close", r));
+}
+
 const [mode, dir] = process.argv.slice(2);
-const canvas = createCanvas(W, H);
-const ctx = canvas.getContext("2d");
-const frames = Math.round(T.end * FPS);
+const out = join(HERE, "out");
+mkdirSync(out, { recursive: true });
+const music = existsSync(MUSIC);
+if (!music) console.log(`no ${MUSIC}: silent copies only`);
 
 if (mode === "frames") {
   mkdirSync(dir, { recursive: true });
+  const canvas = createCanvas(W, H), ctx = canvas.getContext("2d");
   // the replays only run forward, so the stills go in time order
   for (const t of [1.0, 2.9, 6.0, 9.5, 12.5, 15.0, 17.0, 19.5, 22.0, 24.5, 27.5, 30.0, 32.5]) {
     frame(ctx, t);
     writeFileSync(join(dir, `t${t.toFixed(1).padStart(4, "0")}.png`), await canvas.encode("png"));
   }
   console.log("stills in", dir);
-} else {
-  const out = join(HERE, "out");
-  mkdirSync(out, { recursive: true });
-  const silent = join(out, "tilo-intro-silent.mp4"), file = join(out, "tilo-intro.mp4");
-  const ff = spawn("ffmpeg", ["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${W}x${H}`, "-r", String(FPS), "-i", "-",
-    "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart", silent], { stdio: ["pipe", "inherit", "inherit"] });
-  const t0 = Date.now();
-  for (let i = 0; i < frames; i++) {
-    frame(ctx, i / FPS);
-    const data = ctx.getImageData(0, 0, W, H).data;
-    if (!ff.stdin.write(Buffer.from(data.buffer, data.byteOffset, data.byteLength))) await new Promise((r) => ff.stdin.once("drain", r));
-    if (i % 150 === 0) console.log(`frame ${i} of ${frames}, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+} else if (mode === "assets" || mode === "assets-stills") {
+  writeFileSync(join(out, "profile-blue.png"), await profile(BLUE, PAPER).encode("png"));
+  writeFileSync(join(out, "profile-cream.png"), await profile(GROUND, INK).encode("png"));
+  writeFileSync(join(out, "cover.png"), await cover().encode("png"));
+  const clips = join(out, "clips");
+  mkdirSync(clips, { recursive: true });
+  for (const [i, p] of SAMPLES.entries()) {
+    const name = `tilo-${String(i + 1).padStart(2, "0")}-${p.id}`;
+    if (mode === "assets-stills") {
+      const pl = plate(p, clipWidth(p)), c = createCanvas(W, H), x = c.getContext("2d");
+      for (const t of [6, 14.5]) {
+        clipFrame(x, pl, i + 1, t);
+        writeFileSync(join(dir, `${name}-${t}.png`), await c.encode("png"));
+      }
+      continue;
+    }
+    const silent = join(clips, `${name}-silent.mp4`);
+    await encode(silent, Math.round(CLIP.end * FPS), (x, t) => clipFrame(x, plateFor(p, i), i + 1, t));
+    // each clip gets a different stretch of the track
+    if (music) await withMusic(silent, join(clips, `${name}.mp4`), 12 + i * 31, CLIP.end);
+    console.log("clip", name);
   }
-  ff.stdin.end();
-  await new Promise((r) => ff.on("close", r));
+  console.log("assets in", out);
+} else {
+  const silent = join(out, "tilo-intro-silent.mp4");
+  await encode(silent, Math.round(T.end * FPS), frame);
   console.log("wrote", silent);
-  if (existsSync(MUSIC)) {
-    // the track's lift at 80.1 s lands on the reveal ("An AI drew all of these"); in and out with fades,
-    // at the loudness Instagram and TikTok play at
-    const from = MUSIC_LIFT - T.s4;
-    const mux = spawn("ffmpeg", ["-y", "-loglevel", "error", "-i", silent, "-ss", String(from), "-t", String(T.end), "-i", MUSIC, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
-      "-af", `afade=t=in:d=0.6,afade=t=out:st=${T.end - 2.5}:d=2.5,loudnorm=I=-16:TP=-1.5:LRA=11`, "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", file], { stdio: "inherit" });
-    await new Promise((r) => mux.on("close", r));
-    console.log("wrote", file);
-  } else console.log(`no ${MUSIC}: only the silent copy`);
+  // the track's lift at 80.1 s lands on the reveal ("An AI drew all of these")
+  if (music) await withMusic(silent, join(out, "tilo-intro.mp4"), MUSIC_LIFT - T.s4, T.end), console.log("wrote", join(out, "tilo-intro.mp4"));
 }
