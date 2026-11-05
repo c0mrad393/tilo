@@ -3,6 +3,7 @@ import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
 import { publicUrls, removeFiles, type Purge } from "./files.ts";
 import { newCode } from "./invites.ts";
+import type { Wall } from "./wall.ts";
 
 /* /api/me: the signed-in member's own account. Everything here acts only on whoever the
    session belongs to, so there is no id in any path. */
@@ -15,9 +16,10 @@ interface Options {
   serviceKey: string;
   site: string;
   purge: Purge;
+  wall: Wall;
 }
 
-export function account(sql: Sql, { member, filesDir, authUrl, serviceKey, site, purge }: Options) {
+export function account(sql: Sql, { member, filesDir, authUrl, serviceKey, site, purge, wall }: Options) {
   const app = new Hono<AuthEnv>();
   app.use("*", member);
   const admin = (path: string, init: RequestInit = {}) =>
@@ -103,6 +105,7 @@ export function account(sql: Sql, { member, filesDir, authUrl, serviceKey, site,
       feedback_sent: await sql`select kind, page, text, device, created from public.feedback where member = ${id}`,
       invite_used: (await sql`select code, used_at from public.invites where used_by = ${id}`)[0] ?? null,
       invites_made: await sql`select code, used_at from public.invites where made_by = ${id}`,
+      wall_marks: await sql`select wall, stroke, status, created from public.wall_marks where member = ${id} and status <> 'removed' order by id`,
     };
     const name = `tilo-${profile?.handle ?? "account"}-${data.exported.slice(0, 10)}.json`;
     c.header("content-disposition", `attachment; filename="${name}"`);
@@ -116,10 +119,13 @@ export function account(sql: Sql, { member, filesDir, authUrl, serviceKey, site,
     const body = await c.req.json().catch(() => null);
     if (body?.confirm !== true) return c.json({ error: "Send { \"confirm\": true } to delete the account." }, 400);
     const pieces = await sql<{ id: string; status: string; picture: "webp" | "jpg" }[]>`select id, status, picture from public.pieces where owner = ${id}`;
+    const walls = await wall.walls(id);
     const res = await admin(id, { method: "DELETE" });
     if (!res.ok && res.status !== 404) throw new Error(`Auth didn't delete the user: ${res.status} ${await res.text()}`);
     await Promise.all(pieces.map((p) => removeFiles(filesDir, p.id)));
     await purge(pieces.filter((p) => p.status === "live").flatMap((p) => publicUrls(site, p.id, p.picture)));
+    // their marks went with the account; the walls they were on are drawn without them
+    for (const no of walls) await wall.rebuild(no);
     return c.body(null, 204);
   });
 

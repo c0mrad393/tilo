@@ -623,13 +623,13 @@ function Log() {
   const [page, setPage] = useState(0);
   const { data, failed } = useLoad(async () => {
     const p = new URLSearchParams({
-      select: "id,action,piece,note,created,mod:profiles!mod_log_mod_fkey(handle),who:profiles!mod_log_profile_fkey(handle)",
+      select: "id,action,piece,wall,note,created,mod:profiles!mod_log_mod_fkey(handle),who:profiles!mod_log_profile_fkey(handle)",
       order: "created.desc",
       limit: String(LOG + 1),
       offset: String(page * LOG),
     });
     if (action) p.set("action", `eq.${action}`);
-    const rows = await call<{ id: number; action: string; piece: string | null; note: string; created: string; mod: { handle: string } | null; who: { handle: string } | null }[]>(`/rest/v1/mod_log?${p}`);
+    const rows = await call<{ id: number; action: string; piece: string | null; wall: number | null; note: string; created: string; mod: { handle: string } | null; who: { handle: string } | null }[]>(`/rest/v1/mod_log?${p}`);
     return { rows: rows.slice(0, LOG), more: rows.length > LOG };
   }, [action, page]);
   const actions = { ...LOGGED, role: "changed the role of", invite: "made invites:", uninvite: "withdrew an invite:", setting: "changed a setting:", claim: "answered a claim about" };
@@ -653,8 +653,9 @@ function Log() {
           {data.rows.map((l) => (
             <li key={l.id}>
               {when.format(new Date(l.created))}: {l.mod ? `@${l.mod.handle}` : "An admin"} {actions[l.action as keyof typeof actions] ?? l.action}{" "}
-              {l.piece ? <Link to={`/piece/${l.piece}`}>a piece</Link> : l.who ? <Link to={`/u/${l.who.handle}`}>@{l.who.handle}</Link> : null}
-              {l.note && <> {l.piece || l.who ? `· “${l.note}”` : l.note}</>}
+              {l.piece ? <Link to={`/piece/${l.piece}`}>a piece</Link> : l.wall !== null ? <Link to={`/wall/${l.wall}`}>Wall No. {l.wall}</Link> : null}
+              {!l.piece && l.who && <> {l.wall !== null ? "(" : ""}<Link to={`/u/${l.who.handle}`}>@{l.who.handle}</Link>{l.wall !== null ? ")" : ""}</>}
+              {l.note && <> {l.piece || l.who || l.wall !== null ? `· “${l.note}”` : l.note}</>}
             </li>
           ))}
         </ul>

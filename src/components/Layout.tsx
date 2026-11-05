@@ -56,10 +56,15 @@ function QueueLink() {
     // what needs a mod: each held piece, and each other piece or profile with open reports
     Promise.all([
       call<{ id: string }[]>("/rest/v1/pieces?status=eq.held&why=neq.check&select=id&limit=100"),
-      call<{ piece: string | null; profile: string | null }[]>("/rest/v1/reports?status=eq.open&select=piece,profile&limit=200"),
+      call<{ piece: string | null; profile: string | null; wall: number | null }[]>("/rest/v1/reports?status=eq.open&select=piece,profile,wall&limit=200"),
+      // marks the image check held on the wall, one item a member
+      call<{ member: string }[]>("/api/wall/mod/held").then((m) => new Set(m.map((k) => k.member)).size, () => 0),
       // admins answer takedown claims too
       profile.role === "admin" ? call<{ claims: unknown[] }>("/api/admin/claims").then((r) => r.claims.length) : 0,
-    ]).then(([held, reports, claims]) => setN(new Set([...held.map((p) => p.id), ...reports.map((r) => r.piece ?? r.profile)]).size + claims), () => {});
+    ]).then(
+      ([held, reports, marks, claims]) => setN(new Set([...held.map((p) => p.id), ...reports.map((r) => r.piece ?? r.profile ?? `wall ${r.wall}`)]).size + marks + claims),
+      () => {},
+    );
   }, [isMod, profile?.role, pathname]);
   if (!isMod) return null;
   // admins land on the queue too; the admin panel's other tabs sit beside it
@@ -92,7 +97,7 @@ export function Layout() {
             <nav className="nav" aria-label="Main">
               <NavLink to="/gallery" viewTransition>Gallery</NavLink>
               <NavLink to="/library" viewTransition>Your sheets</NavLink>
-              <a href="/#wall" className="opt">The wall</a>
+              <NavLink to="/wall" viewTransition className="opt">The wall</NavLink>
               <a href="/#benches" className="opt">Benches</a>
               {ACCOUNTS && <QueueLink />}
               {ACCOUNTS && <AccountLink />}

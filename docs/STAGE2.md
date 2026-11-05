@@ -346,6 +346,35 @@ Progress (2026-11-05): the server is live and accounts are open on tiloart.com.
 - Smoke test: 203 checks.
 - Left: the first invited group.
 
+### 2.9 The shared wall (0.9.0)
+
+The home page's wall was a local preview with example doodles. Now it is one wall on the
+server for everyone:
+
+- A subject every 3 days (WALL_DAYS in src/data/wall.ts), changing at midnight in Tbilisi.
+  Six subjects take turns (street, tree, aquarium, market, train, sky). Each one is an outline
+  Claude drew in code (src/data/wall-art.ts) that leaves room on purpose: empty windows, bare
+  branches, an empty sky. The page says the outline is AI-made and the marks are by hand.
+- Only signed-in members with a handle draw. Anyone can look. tilo-api checks every mark
+  (src/data/wall.ts has no imports, so the app and Node share it): the wall's three tools,
+  six inks and three sizes, on the sheet, at most 1,800 points. Limits: 20 marks a request,
+  150 in ten minutes and 1,500 on one wall a member, 60,000 on a wall.
+- The worker thread the image check runs in (now shared, with answers matched by id) keeps
+  the live wall drawn. Every 30 s (WALL_SETTLE_MS) it adds the new marks, checks the 24 tiles
+  they touched with nsfwjs, and writes files/wall/{no}.webp and a 600 px copy. A tile is held
+  only when it scores clearly more than the subject's bare outline does there (the tree's
+  outline alone scores 0.195). Held marks wait in /mod.
+- A page loads the latest picture plus the marks made since, then asks for new ones every 8 s
+  while the wall is on screen. When marks leave the wall its rev goes up, so pages start over.
+- A closed wall goes to the archive: /wall/past (a grid), /wall/{no} (the picture, who drew on
+  it and how much, but not which mark is whose). Mods rub marks out with a pick tool on /wall,
+  let held marks back or rub them out in /mod, and take a closed wall out of the archive (and
+  put it back from the log). A wall can be reported. A suspended member's marks leave every
+  wall for good. A deleted account's marks go with it, and its walls are drawn again.
+- Load: about 8 MB of memory for the live wall in the worker, around 300 KB of pictures a wall
+  (about 40 MB a year), and a small JSON request a viewer every 8 s.
+- Smoke test: 248 checks.
+
 Total: about 9 weeks.
 
 ## Running costs at beta size

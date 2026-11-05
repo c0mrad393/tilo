@@ -3,6 +3,7 @@ import { createMiddleware } from "hono/factory";
 import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
 import type { Move } from "./status.ts";
+import type { Wall } from "./wall.ts";
 
 /* Reports and moderation. Members file reports here (/api/reports); mods act on pieces,
    reports and members here (/api/mod). Mods read the queue itself through PostgREST, which
@@ -17,6 +18,7 @@ interface Options {
   holdAfter: number;
   /** reports one member may file in 24 hours */
   perDay: number;
+  wall: Wall;
 }
 
 const REASONS = new Set(["not-hand-made", "nsfw", "abuse", "spam", "copied", "other"]);
@@ -25,13 +27,14 @@ const note = (v: unknown) => String(v ?? "").trim().slice(0, 500);
 export function reports(sql: Sql, { member, move, holdAfter, perDay }: Options) {
   const app = new Hono<AuthEnv>();
 
-  // { piece } or { profile }, with a reason and a note
+  // { piece }, { profile } or { wall }, with a reason and a note (on the wall, where it is)
   app.post("/", member, async (c) => {
     const { id: me } = c.get("member");
     const body = await c.req.json().catch(() => null);
     const piece = typeof body?.piece === "string" ? body.piece : null;
     const profile = typeof body?.profile === "string" ? body.profile : null;
-    if (!piece === !profile) return c.json({ error: "Report a piece or a profile." }, 400);
+    const wall = Number.isInteger(body?.wall) ? (body.wall as number) : null;
+    if ([piece, profile, wall].filter((v) => v !== null).length !== 1) return c.json({ error: "Report a piece, a profile or the wall." }, 400);
     if (!REASONS.has(body?.reason)) return c.json({ error: "Pick a reason." }, 400);
     const [who] = await sql`select suspended from public.profiles where id = ${me}`;
     if (!who) return c.json({ error: "Pick a handle before you report." }, 400);
@@ -41,16 +44,18 @@ export function reports(sql: Sql, { member, move, holdAfter, perDay }: Options) 
 
     const [target] = piece
       ? await sql`select owner as id, status from public.pieces where id = ${piece} and status <> 'removed'`
-      : await sql`select id from public.profiles where id = ${profile}`;
+      : profile
+        ? await sql`select id from public.profiles where id = ${profile}`
+        : await sql`select null as id from public.walls where no = ${wall} and status <> 'hidden'`;
     if (!target) return c.json({ error: "There's nothing there to report." }, 404);
     if (target.id === me) return c.json({ error: "That's yours." }, 400);
 
     // one open report a member a thing: a second one adds nothing
     const [had] = await sql`
       select id from public.reports where reporter = ${me} and status = 'open'
-        and ${piece ? sql`piece = ${piece}` : sql`profile = ${profile}`}`;
+        and ${piece ? sql`piece = ${piece}` : profile ? sql`profile = ${profile}` : sql`wall = ${wall}`}`;
     if (!had)
-      await sql`insert into public.reports (piece, profile, reporter, reason, note) values (${piece}, ${profile}, ${me}, ${body.reason}, ${note(body.note)})`;
+      await sql`insert into public.reports (piece, profile, wall, reporter, reason, note) values (${piece}, ${profile}, ${wall}, ${me}, ${body.reason}, ${note(body.note)})`;
 
     // Tilo is for all ages: one report that a piece isn't, and it waits for a mod
     if (piece && target.status === "live") {
@@ -65,7 +70,7 @@ export function reports(sql: Sql, { member, move, holdAfter, perDay }: Options) 
   return app;
 }
 
-export function moderation(sql: Sql, { member, move, authUrl, serviceKey }: Options) {
+export function moderation(sql: Sql, { member, move, authUrl, serviceKey, wall }: Options) {
   const app = new Hono<AuthEnv & { Variables: { role: string } }>();
   app.use(
     "*",
@@ -77,8 +82,8 @@ export function moderation(sql: Sql, { member, move, authUrl, serviceKey }: Opti
       await next();
     }),
   );
-  const log = (mod: string, action: string, ref: { piece?: string; profile?: string }, text: string) =>
-    sql`insert into public.mod_log (mod, action, piece, profile, note) values (${mod}, ${action}, ${ref.piece ?? null}, ${ref.profile ?? null}, ${text})`;
+  const log = (mod: string, action: string, ref: { piece?: string; profile?: string; wall?: number }, text: string) =>
+    sql`insert into public.mod_log (mod, action, piece, profile, wall, note) values (${mod}, ${action}, ${ref.piece ?? null}, ${ref.profile ?? null}, ${ref.wall ?? null}, ${text})`;
   const close = (where: ReturnType<typeof sql>, status: "actioned" | "dismissed", by: string) =>
     sql`update public.reports set status = ${status}, closed_by = ${by}, closed_at = now() where status = 'open' and ${where}`;
 
@@ -118,8 +123,8 @@ export function moderation(sql: Sql, { member, move, authUrl, serviceKey }: Opti
     return c.json({ ok: true });
   });
 
-  // suspend: Auth bans the account, so it can't sign in, and its live pieces are hidden;
-  // unsuspend undoes both
+  // suspend: Auth bans the account, so it can't sign in, its live pieces are hidden and its
+  // marks are rubbed off the walls; unsuspend lets it in again and brings the pieces back
   app.post("/members/:id", async (c) => {
     const { id: me } = c.get("member");
     const id = c.req.param("id");
@@ -143,6 +148,9 @@ export function moderation(sql: Sql, { member, move, authUrl, serviceKey }: Opti
       ? await sql`select id from public.pieces where owner = ${id} and status = 'live'`
       : await sql`select id from public.pieces where owner = ${id} and status = 'hidden' and why = 'suspended'`;
     for (const p of pieces) await move(p.id, on ? { status: "hidden", why: "suspended" } : { status: "live" });
+    // their marks leave the walls for good: a wall moves on, and lifting a suspension doesn't
+    // bring them back
+    if (on) await wall.suspended(id);
     if (on) await close(sql`profile = ${id}`, "actioned", me);
     await log(me, action, { profile: id }, note(body.note));
     return c.json({ ok: true, pieces: pieces.length });

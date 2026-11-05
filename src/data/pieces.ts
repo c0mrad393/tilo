@@ -236,8 +236,8 @@ export async function setStamp(piece: string, kind: string, on: boolean, member:
 
 export type Reason = "nsfw" | "not-hand-made" | "copied" | "abuse" | "spam" | "other";
 
-/** Reports a piece or a member to the mods. */
-export const report = (target: { piece: string } | { profile: string }, reason: Reason, note: string) =>
+/** Reports a piece, a member or the wall to the mods. */
+export const report = (target: { piece: string } | { profile: string } | { wall: number }, reason: Reason, note: string) =>
   request("/api/reports", { method: "POST", json: { ...target, reason, note } });
 
 export type ModAction = "approve" | "hide" | "remove" | "dismiss" | "suspend" | "unsuspend";

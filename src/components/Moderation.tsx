@@ -35,6 +35,8 @@ const PIECE_REASONS: [Reason, string, string][] = [
   ["other", "Something else", "Say what in the note."],
 ];
 const PROFILE_REASONS = PIECE_REASONS.filter(([r]) => r !== "not-hand-made" && r !== "copied");
+const WALL_REASONS = PROFILE_REASONS;
+type Target = { piece: string } | { profile: string } | { wall: number };
 
 /** A picture of a piece. A piece that isn't live has its picture behind the sign-in, so it is
     fetched with the session and shown from memory. */
@@ -62,7 +64,7 @@ export function usePicture(piece: Pick<Published, "picture" | "status" | "checke
   return url;
 }
 
-export function ReportButton({ target, label }: { target: { piece: string } | { profile: string }; label: string }) {
+export function ReportButton({ target, label }: { target: Target; label: string }) {
   const { profile } = useAccount();
   const dlg = useRef<HTMLDialogElement>(null);
   const [reason, setReason] = useState<Reason | "">("");
@@ -70,7 +72,7 @@ export function ReportButton({ target, label }: { target: { piece: string } | { 
   const [state, setState] = useState<"" | "busy" | "sent">("");
   const [error, setError] = useState("");
   if (!profile) return null;
-  const reasons = "piece" in target ? PIECE_REASONS : PROFILE_REASONS;
+  const reasons = "piece" in target ? PIECE_REASONS : "wall" in target ? WALL_REASONS : PROFILE_REASONS;
   const open = () => {
     setReason("");
     setNote("");
@@ -121,7 +123,7 @@ export function ReportButton({ target, label }: { target: { piece: string } | { 
                 </p>
               )}
               <label className="field">
-                <span className="kicker">Note<span className="field-optional">optional</span></span>
+                <span className="kicker">Note<span className="field-optional">{"wall" in target ? "where on the wall" : "optional"}</span></span>
                 <textarea value={note} maxLength={500} rows={3} onChange={(e) => setNote(e.target.value)} />
               </label>
               {error && <p className="field-note is-error" role="alert">{error}</p>}

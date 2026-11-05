@@ -140,6 +140,7 @@ export function Privacy() {
         <li><b>Your account:</b> your email address, how you sign in (email link or Google), when you joined and last signed in, and which version of the terms you agreed to. If you sign in with Google, Google tells us your name and email address.</li>
         <li><b>Your profile:</b> handle, name and bio. These are public.</li>
         <li><b>Your pieces:</b> each recording, with every stroke, its time and its pen pressure; the picture the server draws from it; the title; and what the checks found. Pieces in the gallery are public, recordings included.</li>
+        <li><b>The wall:</b> every mark you add to the shared wall, and when. The marks are public, on the wall and in its archive of past walls; a past wall lists the handles of the people who drew on it and how many marks each made, but not which mark is whose (moderators can see that). The marks stay with the archive until you delete your account or a moderator rubs them out.</li>
         <li><b>What you do:</b> the stamps you give, who you follow, the reports and feedback you send. Counts of stamps and followers are public; who reported what is not.</li>
         <li><b>Feedback:</b> what you write in the feedback box, with the page you sent it from and your browser's name, window size and whether it has a touch screen, so a problem can be seen the way you saw it.</li>
         <li><b>Invites:</b> the invite codes you hand out, and who used them.</li>
@@ -160,7 +161,7 @@ export function Privacy() {
         We use your account, profile and pieces to provide Tilo to you, as these terms describe. We use sign-in records, the image check,
         reports and moderation because we have a legitimate interest in keeping accounts and the gallery safe, for all ages, and error
         reports because we have one in fixing what breaks. The image check
-        runs on Tilo's own server; it can only hold a piece back for a person to look at. We keep takedown claims because the law asks us to
+        runs on Tilo's own server, on pieces and on the wall; it can only hold a piece or a mark back for a person to look at. We keep takedown claims because the law asks us to
         handle them.
       </p>
 

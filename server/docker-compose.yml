@@ -153,6 +153,8 @@ services:
       TRUST_AFTER: ${TRUST_AFTER:-3}
       # members whose reports take a live piece out of the gallery (one is enough for "nsfw")
       REPORTS_TO_HOLD: ${REPORTS_TO_HOLD:-3}
+      # how long new marks on the wall wait before it is drawn and checked (ms)
+      WALL_SETTLE_MS: ${WALL_SETTLE_MS:-30000}
       # purges the edge cache when a piece leaves the gallery; empty on this computer
       CF_ZONE_ID: ${CF_ZONE_ID:-}
       CF_API_TOKEN: ${CF_API_TOKEN:-}

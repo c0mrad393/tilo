@@ -149,7 +149,10 @@ export function Home() {
       <section className="sec wrap" id="wall" aria-labelledby="wall-h">
         <header className="sec-head">
           <h2 id="wall-h">The wall</h2>
-          <p className="serif">One big sheet that everyone draws on. Pick a pen and add to it; drag with the hand to look around.</p>
+          <p className="serif">
+            One sheet for everyone, with a new subject every three days: an outline with room left on purpose. Members pick a pen and add to it; anyone can
+            look around with the hand. When its time is up it goes into the <Link to="/wall/past">archive of past walls</Link>.
+          </p>
         </header>
         <Wall />
       </section>

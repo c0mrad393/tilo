@@ -593,6 +593,99 @@ input[type="range"] {
   font-style: italic;
   color: var(--ground-soft);
 }
+.wall.picking {
+  cursor: crosshair;
+}
+.wall.picking .ring {
+  opacity: 0;
+}
+/* a mod's pick: the box dragged across the marks to rub out */
+.wall-band {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1.5px dashed var(--ink);
+  background: rgba(43, 55, 212, 0.08);
+  pointer-events: none;
+}
+.wall-actions {
+  padding: 10px 18px 0;
+}
+
+/* ---------- /wall and the archive ---------- */
+.wall-tabs {
+  margin-top: var(--s-2);
+}
+.past-walls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: var(--s-6) var(--s-5);
+  padding: 0;
+  list-style: none;
+}
+.past-wall {
+  display: grid;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+.past-wall-pic {
+  display: block;
+  margin-bottom: 6px;
+  transition: transform var(--d-fast);
+}
+.past-wall-pic img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+}
+.past-wall:hover .past-wall-pic,
+.past-wall:focus-visible .past-wall-pic {
+  transform: translateY(-3px);
+}
+.past-wall b {
+  font-size: 1.15rem;
+}
+.past-wall .serif {
+  color: var(--ground-soft);
+  font-size: 15px;
+}
+.past-one h2 {
+  margin: 4px 0 var(--s-4);
+}
+.past-one-pic {
+  margin-inline: 0;
+}
+.past-one-pic img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.past-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding: 0;
+  margin: 8px 0 var(--s-4);
+  list-style: none;
+}
+.past-people .serif {
+  color: var(--ground-soft);
+}
+.past-nav {
+  margin-top: var(--s-4);
+}
+.mark-thumbs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(45%, 1fr));
+  gap: 2px;
+}
+.mark-thumb {
+  display: block;
+  width: 100%;
+  height: auto;
+}
 
 /* ---------- on the press ---------- */
 .feed {
@@ -2127,7 +2220,8 @@ dialog::backdrop {
     height: 420px;
   }
   .tray,
-  .wall-msg {
+  .wall-msg,
+  .wall-actions {
     padding-inline: 0;
   }
   .player-wrap {

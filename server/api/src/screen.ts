@@ -22,32 +22,52 @@ interface Options {
   trustAfter: number;
 }
 
-export function screener(sql: Sql, { filesDir, move, trustAfter }: Options) {
+/** The one worker thread that draws and checks, shared by the screener and the wall, so the
+    image models are loaded once. Answers are matched to jobs by id. */
+export function painterThread() {
   let worker: Worker | null = null;
+  const pending = new Map<string, { resolve: (r: { id: string; error?: string }) => void; timer: NodeJS.Timeout }>();
+  const fail = (w: Worker, e: Error) => {
+    // a worker that broke or hung is replaced for the next job; what it had in hand fails
+    void w.terminate();
+    if (worker === w) worker = null;
+    for (const [id, p] of pending) {
+      clearTimeout(p.timer);
+      p.resolve({ id, error: e.message });
+    }
+    pending.clear();
+  };
+  const start = () => {
+    const w = new Worker(new URL("../dist/screen.mjs", import.meta.url));
+    w.on("message", (r: { id: string }) => {
+      const p = pending.get(r.id);
+      if (!p) return;
+      clearTimeout(p.timer);
+      pending.delete(r.id);
+      p.resolve(r);
+    });
+    w.on("error", (e) => fail(w, e));
+    return w;
+  };
+  return {
+    run<R extends { id: string }>(job: { id: string }) {
+      worker ??= start();
+      const w = worker;
+      return new Promise<R | { id: string; error: string }>((resolve) => {
+        const timer = setTimeout(() => fail(w, new Error("the worker took too long")), TIMEOUT_MS);
+        pending.set(job.id, { resolve: resolve as never, timer });
+        w.postMessage(job);
+      });
+    },
+    stop: () => worker?.terminate(),
+  };
+}
+export type PainterThread = ReturnType<typeof painterThread>;
+
+export function screener(sql: Sql, { filesDir, move, trustAfter, thread }: Options & { thread: PainterThread }) {
   const waiting: string[] = [];
   let busy = false;
-
-  const run = (job: Job) =>
-    new Promise<Result>((resolve) => {
-      worker ??= new Worker(new URL("../dist/screen.mjs", import.meta.url));
-      const w = worker;
-      const done = (r: Result) => {
-        clearTimeout(timer);
-        w.off("message", done);
-        w.off("error", fail);
-        resolve(r);
-      };
-      const fail = (e: Error) => {
-        // a worker that broke or hung is replaced for the next piece
-        void w.terminate();
-        if (worker === w) worker = null;
-        done({ id: job.id, error: e.message });
-      };
-      const timer = setTimeout(() => fail(new Error("the check took too long")), TIMEOUT_MS);
-      w.on("message", done);
-      w.on("error", fail);
-      w.postMessage(job);
-    });
+  const run = (job: Job) => thread.run<Result>(job) as Promise<Result>;
 
   async function check(id: string) {
     const [p] = await sql`
@@ -102,7 +122,6 @@ export function screener(sql: Sql, { filesDir, move, trustAfter }: Options) {
     async resume() {
       for (const { id } of await sql`select id from public.pieces where checked is null order by created`) this.add(id);
     },
-    stop: () => worker?.terminate(),
   };
 }
 export type Screener = ReturnType<typeof screener>;

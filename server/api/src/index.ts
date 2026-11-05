@@ -13,8 +13,9 @@ import { moderation, reports } from "./mod.ts";
 import { pieces } from "./pieces.ts";
 import { preview } from "./preview.ts";
 import { FORMAT, MAX_BYTES, summarise } from "./recording.ts";
-import { screener } from "./screen.ts";
+import { painterThread, screener } from "./screen.ts";
 import { statuses } from "./status.ts";
+import { wall as wallRoutes } from "./wall.ts";
 
 /* tilo-api: the part of the server that has to read what members send before it is stored,
    and everything that moves a piece's files. Simple writes (stamps, follows) go straight to
@@ -37,8 +38,10 @@ const edgeOrigin = process.env.EDGE_ORIGIN?.replace(/\/$/, "");
 const purgeOne = purger(process.env.CF_ZONE_ID, process.env.CF_API_TOKEN);
 const purge = (urls: string[]) => purgeOne(edgeOrigin ? [...urls, ...urls.map((u) => edgeOrigin + u.slice(site.length))] : urls);
 const move = statuses(sql, { filesDir, site, purge });
-const screen = screener(sql, { filesDir, move, trustAfter: Number(process.env.TRUST_AFTER ?? 3) });
+const thread = painterThread();
+const screen = screener(sql, { filesDir, move, trustAfter: Number(process.env.TRUST_AFTER ?? 3), thread });
 const admin = { authUrl: env("AUTH_URL"), serviceKey: env("SERVICE_ROLE_KEY") };
+const wall = wallRoutes(sql, { member, filesDir, thread, site, purge });
 
 const app = new Hono<AuthEnv>().basePath("/api");
 
@@ -56,7 +59,7 @@ app.get("/health", async (c) => {
 
 app.route(
   "/me",
-  account(sql, { member, filesDir, ...admin, site, purge }),
+  account(sql, { member, filesDir, ...admin, site, purge, wall }),
 );
 
 // link previews; Caddy sends crawlers asking for /piece/{id} and /u/{handle} here
@@ -64,12 +67,13 @@ app.route("/og", preview(sql, { publicUrl: site }));
 
 app.route("/pieces", pieces(sql, { member, filesDir, perDay: Number(process.env.PUBLISH_PER_DAY ?? 20), screener: screen, site, purge }));
 
-const modOptions = { member, move, ...admin, holdAfter: Number(process.env.REPORTS_TO_HOLD ?? 3), perDay: 30 };
+const modOptions = { member, move, ...admin, holdAfter: Number(process.env.REPORTS_TO_HOLD ?? 3), perDay: 30, wall };
 app.route("/reports", reports(sql, modOptions));
 app.route("/mod", moderation(sql, modOptions));
 app.route("/admin", adminRoutes(sql, { member }));
 app.route("/claims", claims(sql, { jwtSecret: env("JWT_SECRET"), site }));
 app.route("/errors", errors(sql));
+app.route("/wall", wall.app);
 
 // reads a recording and says what is in it
 app.post(
@@ -96,6 +100,7 @@ app.onError((e, c) => {
 
 await makeDirs(filesDir);
 void screen.resume();
+void wall.start();
 
 // what the privacy policy promises: Auth's sign-in log goes after 30 days, unused sessions
 // after 90, answered takedown claims after three years, and error reports 30 days after
@@ -124,7 +129,7 @@ if ("keepAliveTimeout" in server) server.keepAliveTimeout = 65_000;
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     server.close();
-    void screen.stop();
+    void thread.stop();
     void sql.end({ timeout: 5 }).then(() => process.exit(0));
   });
 }

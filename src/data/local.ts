@@ -95,7 +95,3 @@ export function stampCount(p: Piece, stamp: string, s: State = state) {
 export const stampTotal = (p: Piece, s: State = state) =>
   Object.values(p.stamps || {}).reduce((a, b) => a + b, 0) + Object.keys(s.stamps[p.id] || {}).length;
 
-export const wallMarks = {
-  load: () => read<Stroke[]>("wall", []),
-  save: (s: Stroke[]) => write("wall", s.slice(-400)),
-};

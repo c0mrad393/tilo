@@ -471,6 +471,86 @@ check((await adm("claims", {}, token)).status === 403, "a member can't read clai
 check((await call(`/rest/v1/agreements?select=terms`, { token: token2 })).body?.length === 0, "nor another member, what someone agreed to");
 psql(`update public.profiles set role = 'mod' where id = '${other.id}'`);
 
+// the shared wall: anyone looks, members draw, the server draws and checks it, mods rub out
+const ink = (x = 400, y = 300) => ({ tool: "ink", c: "#2B37D4", w: 6, p: [x, y, 50, x + 40, y + 10, 60, x + 80, y + 30, 55] });
+const draw = (strokes: unknown[], as: string | null | undefined = token, no?: number) => call("/api/wall/marks", { method: "POST", token: as ?? undefined, json: { strokes, no } });
+const live = await call("/api/wall");
+const wallNo: number = live.body?.no;
+check(live.status === 200 && Number.isInteger(wallNo) && typeof live.body.title === "string" && Array.isArray(live.body.marks), "anyone sees the live wall", live.body?.error ?? live.status);
+check(new Date(live.body.ends) > new Date() && new Date(live.body.ends).getUTCHours() === 20, "it ends at midnight in Tbilisi", live.body.ends);
+check((await draw([ink()], null)).status === 401, "drawing on the wall needs a session");
+check((await draw([{ ...ink(), c: "#00FF00" }])).status === 422, "only the wall's inks");
+check((await draw([{ ...ink(), tool: "spray" }])).status === 422, "only the wall's tools");
+check((await draw([{ ...ink(), p: [5000, 5000, 50] }])).status === 422, "only on the wall");
+check((await draw(Array.from({ length: 21 }, () => ink()))).status === 400, "20 marks at a time at most");
+const drew = await draw([ink(), ink(420, 330)], token, wallNo);
+const myMarks: number[] = drew.body?.ids ?? [];
+check(drew.status === 201 && myMarks.length === 2, "a member draws on the wall", drew);
+const since = await call(`/api/wall?no=${wallNo}&rev=${live.body.rev}&after=${live.body.marks.at(-1)?.id ?? live.body.after}`);
+check(since.body?.fresh === false && myMarks.every((id) => since.body.marks.some((m: { id: number }) => m.id === id)), "a page that has the wall gets only the new marks", since.body);
+check(!JSON.stringify(since.body).includes(userId!), "the wall doesn't say who drew what");
+let upto = 0;
+for (let i = 0; i < 200 && upto < myMarks[1]; i++) {
+  upto = Number(psql(`select snapshot_upto from public.walls where no = ${wallNo}`));
+  if (upto < myMarks[1]) await sleep(250);
+}
+check(upto >= myMarks[1], "the server draws the new marks into the wall's picture", upto);
+const pic = await fetch(`${BASE}/api/wall/img/${wallNo}.webp?v=smoke`);
+check(pic.status === 200 && pic.headers.get("content-type") === "image/webp" && /immutable/.test(pic.headers.get("cache-control") ?? ""), "the picture is served, and cached by its version", pic.status);
+check(psql(`select string_agg(status, ',' order by id) from public.wall_marks where id in (${myMarks})`) === "live,live", "the image check leaves plain marks up");
+check((await call("/rest/v1/wall_marks?select=id", { token: token2 })).status >= 400, "the wall's tables aren't reachable through PostgREST");
+// limits: the burst, and suspended members
+psql(`insert into public.wall_marks (wall, member, stroke) select ${wallNo}, '${userId}', '{"tool":"ink","c":"#2B37D4","w":6,"p":[1,1,50]}' from generate_series(1, 149)`);
+check((await draw([ink(), ink()])).status === 429, "150 marks in ten minutes is the most");
+psql(`delete from public.wall_marks where member = '${userId}' and stroke->'p' = '[1,1,50]'`);
+// reports and mods
+check((await report({ wall: wallNo, reason: "nsfw", note: "top left" })).status === 201, "a member reports the wall");
+check((await report({ wall: 99999, reason: "nsfw" })).status === 404, "only a wall there is");
+check((await report({ wall: wallNo, piece: pid, reason: "spam" })).status === 400, "a report is about one thing");
+check((await call(`/api/wall/mod/${wallNo}/marks?x=380&y=280&w=200&h=100`, { token })).status === 403, "only mods look up who drew what");
+const there = await call(`/api/wall/mod/${wallNo}/marks?x=380&y=280&w=200&h=100`, { token: token2 });
+check(myMarks.every((id) => there.body?.some((m: { id: number; handle: string }) => m.id === id && m.handle === handle)), "a mod sees the marks in a part of the wall, and who drew them", there.body);
+const wallMod = (no: number, json: unknown, as = token2) => call(`/api/wall/mod/${no}`, { method: "POST", token: as, json });
+const revBefore = Number(psql(`select rev from public.walls where no = ${wallNo}`));
+const erased = await wallMod(wallNo, { action: "erase", ids: [myMarks[0]], note: "smoke" });
+check(erased.status === 200 && erased.body.marks === 1, "a mod rubs a mark out", erased);
+check(psql(`select status from public.wall_marks where id = ${myMarks[0]}`) === "removed" && Number(psql(`select rev from public.walls where no = ${wallNo}`)) > revBefore, "it's off the wall, and open pages draw it again", revBefore);
+check((await call(`/api/wall?no=${wallNo}&rev=${revBefore}&after=0`)).body?.fresh === true, "a page with the old wall gets it all again");
+check(psql(`select count(*) from public.mod_log where wall = ${wallNo} and action = 'erase' and profile = '${userId}'`) === "1", "the log says which wall and whose marks");
+check(psql(`select string_agg(distinct status, ',') from public.reports where wall = ${wallNo} and reporter = '${other.id}'`) === "actioned", "rubbing out closes the wall's reports");
+psql(`update public.wall_marks set status = 'held' where id = ${myMarks[1]}`);
+const held = await call("/api/wall/mod/held", { token: token2 });
+check(held.body?.some?.((m: { id: number; handle: string }) => m.id === myMarks[1] && m.handle === handle), "mods see the marks the image check held", held.body);
+check((await wallMod(wallNo, { action: "restore", ids: [myMarks[1]] })).status === 200 && psql(`select status from public.wall_marks where id = ${myMarks[1]}`) === "live", "a mod lets a held mark back");
+check((await wallMod(wallNo, { action: "hide" })).status === 409, "the live wall can't be hidden");
+// the wall turns: the old one goes into the archive and the next subject goes up
+psql(`update public.walls set ends = now() where no = ${wallNo}`);
+let next: any = null;
+for (let i = 0; i < 160 && !(next?.no > wallNo); i++) {
+  next = (await call("/api/wall")).body;
+  if (!(next?.no > wallNo)) await sleep(250);
+}
+check(next?.no === wallNo + 1 && next.theme !== live.body.theme && next.marks.length === 0, "when its time is up a new wall goes up, with the next subject", next);
+check(psql(`select status || ':' || marks || ':' || artists from public.walls where no = ${wallNo}`).startsWith("closed:"), "the old one is closed, with its count");
+check((await draw([ink()], token, wallNo)).body?.closed === true, "marks for the old wall are refused");
+const past = await call("/api/wall/past");
+const archived = past.body?.find?.((w: { no: number }) => w.no === wallNo);
+check(!!archived && (await fetch(BASE + archived.small)).status === 200, "the archive lists it, with its picture", past.body);
+const onePast = await call(`/api/wall/past/${wallNo}`);
+check(onePast.body?.people?.some((p: { handle: string }) => p.handle === handle) && onePast.body.next === null, "a past wall says who drew on it", onePast.body);
+check((await wallMod(wallNo, { action: "hide" })).status === 200 && (await call(`/api/wall/past/${wallNo}`)).status === 404, "a mod takes a wall out of the archive");
+check((await fetch(`${BASE}/api/wall/img/${wallNo}.webp`)).status === 404, "and its picture goes");
+check((await wallMod(wallNo, { action: "show" })).status === 200 && (await call(`/api/wall/past/${wallNo}`)).status === 200, "and puts it back");
+// a suspended member's marks leave the walls
+const onNew = await draw([ink(700, 500)], token, wallNo + 1);
+check(onNew.status === 201, "members draw on the new wall", onNew);
+check((await mod(`members/${userId}`, { action: "suspend", note: "smoke wall" })).status === 200, "a mod suspends the member again");
+check(psql(`select count(*) from public.wall_marks where member = '${userId}' and status <> 'removed'`) === "0", "their marks are rubbed off every wall");
+check((await draw([ink()], token)).status === 403, "a suspended member can't draw");
+check((await mod(`members/${userId}`, { action: "unsuspend" })).status === 200, "the suspension is lifted again");
+const kept = await draw([ink(900, 600)], token);
+check(kept.status === 201, "and they draw again", kept);
+
 // the daily limit counts every piece of the last 24 hours, published or not
 psql(`insert into public.pieces (id, owner, title, strokes, format, bytes, checked)
   select 'fill${tag}' || n, '${userId}', 'Filler', 1, 3, 1, now() from generate_series(1, 20) n`);
@@ -491,6 +571,7 @@ check(
 );
 check(exported.body.agreed_to?.terms === terms.body && exported.body.claims_sent?.length === 1, "the export has what they agreed to and the claims they sent", exported.body.agreed_to);
 check(exported.body.invites_made?.length === 2 && exported.body.feedback_sent?.[0]?.kind === "problem", "and the codes they handed out and the feedback they sent", exported.body.invites_made);
+check(exported.body.wall_marks?.length === 1 && exported.body.wall_marks[0].stroke?.tool === "ink", "and their marks on the wall", exported.body.wall_marks?.length);
 check(/attachment; filename="tilo-smoke_/.test(exported.headers.get("content-disposition") ?? ""), "the export downloads as a file");
 check((await call("/api/me", { token, method: "DELETE", json: {} })).status === 400, "deleting needs an explicit confirm");
 const gone = await call("/api/me", { token, method: "DELETE", json: { confirm: true } });
@@ -498,6 +579,7 @@ check(gone.status === 204, "the member deletes their account", gone);
 check((await call("/rest/v1/rpc/profile_page", { method: "POST", json: { handle } })).body === null, "their profile is gone");
 check(psql(`select count(*) from public.pieces where owner = '${userId}'`) === "0", "their pieces are gone");
 check(psql(`select count(*) from public.follows where followee = '${userId}'`) === "0", "follows of them are gone");
+check(psql(`select count(*) from public.wall_marks where member = '${userId}'`) === "0", "their marks on the wall are gone");
 check((await fetch(`${BASE}/files/img/${pid}.webp`)).status === 404, "their published files are gone");
 check(psql(`select remix_of is null from public.pieces where id = '${remixed.body?.id}'`) === "t", "a remix of theirs stays, without the link");
 check(psql(`select count(*) from public.invites where used_by = '${userId}'`) === "0", "the invite no longer points at them");
