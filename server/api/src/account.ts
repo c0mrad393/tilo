@@ -106,6 +106,8 @@ export function account(sql: Sql, { member, filesDir, authUrl, serviceKey, site,
       invite_used: (await sql`select code, used_at from public.invites where used_by = ${id}`)[0] ?? null,
       invites_made: await sql`select code, used_at from public.invites where made_by = ${id}`,
       wall_marks: await sql`select wall, stroke, status, created from public.wall_marks where member = ${id} and status <> 'removed' order by id`,
+      // the schools they teach in; the pupils' names and drawings are the school's, not theirs
+      teaching: await sql`select s.name as school, s.city, t.status, t.lead, t.created from public.teachers t join public.schools s on s.id = t.school where t.member = ${id}`,
     };
     const name = `tilo-${profile?.handle ?? "account"}-${data.exported.slice(0, 10)}.json`;
     c.header("content-disposition", `attachment; filename="${name}"`);

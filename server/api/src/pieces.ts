@@ -25,8 +25,8 @@ interface Options {
 }
 
 // kept in step with the studio's lists (src/engine/paper.ts and stroke.ts)
-const PAPERS = new Set(["smooth", "cold", "newsprint", "kraft", "grey", "black", "plain", "plaindark"]);
-const SHAPES = new Set(["land", "port", "square", "px16", "px32", "px64", "px128", "pxland"]);
+export const PAPERS = new Set(["smooth", "cold", "newsprint", "kraft", "grey", "black", "plain", "plaindark"]);
+export const SHAPES = new Set(["land", "port", "square", "px16", "px32", "px64", "px128", "pxland"]);
 const BLENDS = new Set(["source-over", "multiply", "screen", "overlay", "darken", "lighten", "soft-light", "color-burn"]);
 const OPS = new Set(["move", "dup", "merge"]);
 /** a subject piece is drawn against a 10:00 clock; the recording may run a little past it */
@@ -40,7 +40,7 @@ export class Refused extends Error {
   }
 }
 
-interface Layer {
+export interface Layer {
   id: number;
   name: string;
   blend: string;
@@ -50,7 +50,7 @@ interface Layer {
 }
 
 /** The layer stack as the studio sent it, reduced to the fields the app reads. */
-function layersFrom(v: unknown): Layer[] {
+export function layersFrom(v: unknown): Layer[] {
   if (v === undefined || v === null) return [];
   if (!Array.isArray(v) || v.length > 64) throw new Refused("The layers don't make sense.", 400);
   return v.map((l) => {
@@ -127,7 +127,7 @@ export function check(meta: Record<string, unknown>, rec: Uint8Array): Draft & {
 }
 
 /** a piece's id: ten letters and digits, too many to guess (52 bits) */
-const newId = () => {
+export const newId = () => {
   const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
   return [...randomBytes(10)].map((b) => abc[b % 36]).join("");
 };

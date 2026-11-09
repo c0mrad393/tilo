@@ -13,6 +13,7 @@ import { moderation, reports } from "./mod.ts";
 import { pieces } from "./pieces.ts";
 import { preview } from "./preview.ts";
 import { FORMAT, MAX_BYTES, summarise } from "./recording.ts";
+import { school as schoolRoutes } from "./school.ts";
 import { painterThread, screener } from "./screen.ts";
 import { statuses } from "./status.ts";
 import { wall as wallRoutes } from "./wall.ts";
@@ -42,6 +43,7 @@ const thread = painterThread();
 const screen = screener(sql, { filesDir, move, trustAfter: Number(process.env.TRUST_AFTER ?? 3), thread });
 const admin = { authUrl: env("AUTH_URL"), serviceKey: env("SERVICE_ROLE_KEY") };
 const wall = wallRoutes(sql, { member, filesDir, thread, site, purge });
+const school = schoolRoutes(sql, { member, jwtSecret: env("JWT_SECRET"), filesDir, thread });
 
 const app = new Hono<AuthEnv>().basePath("/api");
 
@@ -74,6 +76,7 @@ app.route("/admin", adminRoutes(sql, { member }));
 app.route("/claims", claims(sql, { jwtSecret: env("JWT_SECRET"), site }));
 app.route("/errors", errors(sql));
 app.route("/wall", wall.app);
+app.route("/school", school.app);
 
 // reads a recording and says what is in it
 app.post(
@@ -101,6 +104,7 @@ app.onError((e, c) => {
 await makeDirs(filesDir);
 void screen.resume();
 void wall.start();
+void school.resume();
 
 // what the privacy policy promises: Auth's sign-in log goes after 30 days, unused sessions
 // after 90, answered takedown claims after three years, and error reports 30 days after

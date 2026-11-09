@@ -21,6 +21,27 @@ import { apply as xfApply, boundsOf, invert as xfInvert, isIdentity, snapped, to
 import { BASE_LAYER, DRAW_SHAPES, fmtMin, isOp, isPixelShape, layersOf, PIXEL_SHAPES, SHAPES, TOOLS, type Blend, type LayerDef, type ShapeId, type Stroke, type ToolGroup, type ToolId } from "../engine/stroke";
 
 const NO_STROKES: Stroke[] = [];
+
+/** The studio opened for a pupil (Tilo for schools): their work is kept on the server, not in
+    the library, and "Publish" becomes "Hand in". `simple` gives the younger pupils fewer tools. */
+export interface Seat {
+  /** where the back arrow and Esc go */
+  back: string;
+  title: string;
+  brief: string;
+  due: string;
+  /** the task's colours, when it fixes them */
+  palette: string[] | null;
+  simple: boolean;
+  /** a note from the teacher that sent the work back */
+  note: string;
+  save(d: { title: string; strokes: Stroke[]; layers: LayerDef[]; paper: PaperId; minutes: number }): Promise<void>;
+  handIn(): Promise<void>;
+}
+/* the younger pupils' tools, and their crayon box */
+const KID_TOOLS = new Set<ToolId>(["pencil", "marker", "gouache", "spray", "fill", "eraser", "pixel", "pixelerase", "pixelfill"]);
+const KID_NAMES: Partial<Record<ToolId, string>> = { pencil: "Pencil", marker: "Felt tip", gouache: "Paint", spray: "Spray", fill: "Fill", eraser: "Rubber", pixel: "Pen", pixelerase: "Rubber", pixelfill: "Fill" };
+const CRAYONS = ["#232323", "#8E9196", "#FFFFFF", "#8A5530", "#D9A867", "#F3C7A0", "#E0392B", "#EF79AE", "#F2861E", "#F6CB2C", "#8CC63F", "#2E9B47", "#1F8A8A", "#5DB7EE", "#2C64D4", "#7A4BC4"];
 const plural = (n: number, w: string) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
 
 /* colours you mixed or picked up, newest first, kept on this device */
@@ -134,22 +155,24 @@ export function StudioRoute() {
 
 /* Everything drawn goes through a Painter, one canvas per layer at sheet size; the screen
    shows it through a zoomable view. The sheet saves itself to the library as you work. */
-function Studio({ sheet }: { sheet: Sheet }) {
+export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const nav = useNavigate();
   const remix = sheet.remixOf ? findPiece(sheet.remixOf) : undefined;
   // signed in with a handle, "Pin" becomes "Publish": the piece goes to the shared gallery
   const { profile } = useAccount();
-  const publishing = ACCOUNTS && !!profile;
+  const publishing = ACCOUNTS && !!profile && !seat;
+  const kid = !!seat?.simple;
+  const usable = (t: ToolId) => !kid || KID_TOOLS.has(t);
   const [sending, setSending] = useState<"" | "busy" | string>("");
   const [remixable, setRemixable] = useState(true);
   const [promptMode, setPromptMode] = useState(!!sheet.subject);
-  const [tool, setTool] = useState<ToolId>(isPixelShape(sheet.shape) ? "pixel" : "ink");
-  const [color, setColor] = useState(promptMode ? PROMPT.palette[0] : isPixelShape(sheet.shape) ? PIXEL_PALETTES[0][1][0] : FREE[0]);
+  const [tool, setTool] = useState<ToolId>(isPixelShape(sheet.shape) ? "pixel" : kid ? "marker" : "ink");
+  const [color, setColor] = useState(seat?.palette?.[0] ?? (promptMode ? PROMPT.palette[0] : isPixelShape(sheet.shape) ? PIXEL_PALETTES[0][1][0] : kid ? CRAYONS[6] : FREE[0]));
   const [recent, setRecent] = useState<string[]>(recentColours.get);
   const [mixing, setMixing] = useState(false);
   // on a narrow screen the settings fold into tabs under the sheet; none open leaves the sheet the room
   const [tab, setTab] = useState<PanelTab | null>(null);
-  const [size, setSize] = useState(8);
+  const [size, setSize] = useState(kid ? 16 : 8);
   // a pixel brush is 1 to 4 cells across
   const [pxSize, setPxSize] = useState(1);
   const [pxPal, setPxPal] = useState(0);
@@ -202,7 +225,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const [title, setTitle] = useState("");
   const [enter, setEnter] = useState(true);
 
-  const palette = promptMode ? PROMPT.palette : pixel ? PIXEL_PALETTES[pxPal][1] : FREE;
+  const palette = seat?.palette ?? (promptMode ? PROMPT.palette : pixel ? PIXEL_PALETTES[pxPal][1] : kid ? CRAYONS : FREE);
   const timeLeft = PROMPT.minutes * 60000 - ms;
   const toastTimer = useRef(0);
   const say = (t: string) => {
@@ -412,7 +435,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
 
   const commit = useCallback((s: Stroke) => {
     s.t = Date.now();
-    if (!isOp(s) && s.tool !== "eraser" && s.tool !== "smudge" && s.tool !== "pixelerase" && !FREE.includes(s.c) && !PROMPT.palette.includes(s.c) && !pixelColours.has(s.c)) setRecent((r) => recentColours.set(remember(r, s.c)));
+    if (!isOp(s) && s.tool !== "eraser" && s.tool !== "smudge" && s.tool !== "pixelerase" && !FREE.includes(s.c) && !PROMPT.palette.includes(s.c) && !pixelColours.has(s.c) && !CRAYONS.includes(s.c)) setRecent((r) => recentColours.set(remember(r, s.c)));
     painter.current!.apply(s);
     const next = [...(applied.current ?? []), s];
     applied.current = next;
@@ -447,11 +470,13 @@ function Studio({ sheet }: { sheet: Sheet }) {
   }, [tool, active, applySel]);
 
   // ---------- saving to the library ----------
+  const [saving, setSaving] = useState<"" | "busy" | "done" | "failed">("");
   const saved = useRef(sheet.count > 0 || sheet.updated !== sheet.created);
   const lastSave = useRef(0);
   const saveFailed = useRef(false);
   // fields set once and kept on every later save (pinning)
   const kept = useRef<Partial<Sheet>>({});
+  const handedIn = useRef(false);
   // what the last save wrote, so an unchanged sheet isn't written again (and its date kept)
   const sig = [strokes, layers, ms, paper, shape, guides, sheetTitle, promptMode];
   const savedSig = useRef<unknown[]>(sig);
@@ -461,14 +486,29 @@ function Studio({ sheet }: { sheet: Sheet }) {
     Object.assign(kept.current, extra);
     const { snap, sig } = snapshot.current();
     if (!saved.current && !snap.strokes.length) return;
+    // a drawing being handed in, or handed in, is not saved over
+    if (handedIn.current) return;
     if (!Object.keys(extra).length && sig.every((v, i) => v === savedSig.current[i])) return;
     savedSig.current = sig;
     lastSave.current = Date.now();
     let thumb: Blob | undefined;
     try {
-      thumb = await thumbnail(painter.current!);
+      thumb = seat ? undefined : await thumbnail(painter.current!);
     } catch {
       thumb = undefined;
+    }
+    if (seat) {
+      setSaving("busy");
+      try {
+        await seat.save({ title: snap.title, strokes: snap.strokes, layers: snap.layers, paper: snap.paper, minutes: snap.ms / 60000 });
+        saved.current = true;
+        setSaving("done");
+      } catch {
+        // tried again with the next change, or when the page is left
+        savedSig.current = [];
+        setSaving("failed");
+      }
+      return;
     }
     try {
       await library.put({ ...snap, thumb });
@@ -483,11 +523,12 @@ function Studio({ sheet }: { sheet: Sheet }) {
       if (!saveFailed.current) say("This browser won't let Tilo keep sheets, so export before you leave");
       saveFailed.current = true;
     }
-  }, [nav]);
+  }, [nav, seat]);
   useEffect(() => {
+    if (seat) return;
     openSheet = saved.current ? sheet.id : "";
     if (saved.current && !sheet.pinned) lastSheet.set(sheet.id);
-  }, [sheet]);
+  }, [sheet, seat]);
   useEffect(() => {
     if (!saved.current && !strokes.length) return;
     // quiet while you draw, but never more than ten seconds behind
@@ -942,7 +983,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
         box.current?.classList.add("can-pan");
         return;
       }
-      const t = (Object.keys(TOOLS) as ToolId[]).find((id) => TOOLS[id].key === k && isPixelTool(id) === pixel);
+      const t = (Object.keys(TOOLS) as ToolId[]).find((id) => TOOLS[id].key === k && isPixelTool(id) === pixel && usable(id));
       if (t) setTool(t);
       if (k === "[") (pixel ? setPxSize((s) => Math.max(1, s - 1)) : setSize((s) => Math.max(1, s - (s > 20 ? 4 : 1))));
       if (k === "]") (pixel ? setPxSize((s) => Math.min(4, s + 1)) : setSize((s) => Math.min(80, s + (s >= 20 ? 4 : 1))));
@@ -954,7 +995,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
       if (k === "enter" && sel.current) applySel();
       if (k === "escape") {
         if (sel.current) cancelSel();
-        else nav("/", { viewTransition: true });
+        else nav(seat?.back ?? "/", { viewTransition: true });
       }
     };
     const keyUp = (e: KeyboardEvent) => {
@@ -1042,6 +1083,34 @@ function Studio({ sheet }: { sheet: Sheet }) {
     patchLayer(activeLayer.id, { gone: true });
     setActive(below.id);
     say(`Merged into ${below.name}`);
+  };
+
+  // ---------- hand in (pupils) ----------
+  const handDlg = useRef<HTMLDialogElement>(null);
+  const [handing, setHanding] = useState("");
+  const openHand = () => {
+    applySel();
+    if (!strokes.length) return say("The sheet is empty. Draw something first.");
+    setTitle(sheetTitle);
+    setHanding("");
+    handDlg.current!.showModal();
+  };
+  const doHand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setHanding("busy");
+    handedIn.current = true;
+    try {
+      const name = title.trim() || seat!.title;
+      setSheetTitle(name);
+      await seat!.save({ title: name, strokes, layers, paper, minutes: ms / 60000 });
+      savedSig.current = [strokes, layers, ms, paper, shape, guides, name, promptMode];
+      await seat!.handIn();
+      handDlg.current!.close();
+      nav(seat!.back, { viewTransition: true });
+    } catch (err) {
+      handedIn.current = false;
+      setHanding(err instanceof Error ? err.message : "Handing in didn't work. Try again.");
+    }
   };
 
   // ---------- pin and export ----------
@@ -1142,33 +1211,38 @@ function Studio({ sheet }: { sheet: Sheet }) {
   const drawn = allStrokes.filter((s) => !isOp(s)).length;
   const shapeLocked = strokes.length > 0 || !!remix;
   const dot = Math.max(3, Math.min(44, size * 1.1));
-  const subtitle = remix ? `Remix of “${remix.title}” by @${remix.by}` : promptMode ? `Subject No. ${PROMPT.no} · ${PROMPT.title} · 6 inks, 10:00 on the clock` : `${PAPERS[paper].name} · no clock`;
+  const subtitle = seat ? [seat.due, saving === "busy" ? "Saving…" : saving === "failed" ? "Not saved yet, trying again" : saving === "done" ? "Saved to your class" : ""].filter(Boolean).join(" · ") : remix ? `Remix of “${remix.title}” by @${remix.by}` : promptMode ? `Subject No. ${PROMPT.no} · ${PROMPT.title} · 6 inks, 10:00 on the clock` : `${PAPERS[paper].name} · no clock`;
 
   return (
-    <main className="studio" id="main">
+    <main className={`studio${seat ? " is-seat" : ""}${kid ? " is-kid" : ""}`} id="main">
       <div className="studio-top">
-        <button className="icon-btn" onClick={() => nav("/", { viewTransition: true })} aria-label="Back to Tilo"><Icon name="back" /></button>
+        <button className="icon-btn" onClick={() => nav(seat?.back ?? "/", { viewTransition: true })} aria-label={seat ? "Back to your class" : "Back to Tilo"}><Icon name="back" /></button>
         <h1 className="studio-title">
-          {sheetTitle || (promptMode ? PROMPT.title : "Blank sheet")}
+          {sheetTitle || seat?.title || (promptMode ? PROMPT.title : "Blank sheet")}
           <small>{subtitle}</small>
         </h1>
         <span className="sp" />
         {promptMode && <span className={`timer mono num${timeLeft < 60000 ? " is-warn" : ""}`}>{timeLeft > 0 ? fmtMin(timeLeft / 60000) : "Time's up"}</span>}
         <button className="icon-btn" onClick={undo} disabled={!strokes.length} aria-label="Undo" title="Undo · ⌘Z"><Icon name="undo" /></button>
         <button className="icon-btn" onClick={redoOne} disabled={!redo.length} aria-label="Redo" title="Redo · ⇧⌘Z"><Icon name="redo" /></button>
-        <Link className="icon-btn hide-xs" to="/library" viewTransition aria-label="Your sheets" title="Your sheets"><Icon name="sheets" /></Link>
-        <button className="icon-btn" onClick={() => { applySel(); if (!strokes.length && !base.length) return say("Draw something first, then save it out"); exportDlg.current!.showModal(); }} aria-label="Export" title="Export a PNG or a timelapse"><Icon name="download" /></button>
+        {!seat && <Link className="icon-btn hide-xs" to="/library" viewTransition aria-label="Your sheets" title="Your sheets"><Icon name="sheets" /></Link>}
+        {!kid && <button className="icon-btn" onClick={() => { applySel(); if (!strokes.length && !base.length) return say("Draw something first, then save it out"); exportDlg.current!.showModal(); }} aria-label="Export" title="Export a PNG or a timelapse"><Icon name="download" /></button>}
         <button className="btn btn-line" onClick={() => { applySel(); if (!strokes.length && !base.length) return say("Draw something first, then watch it back"); setReplayKey((k) => k + 1); replayDlg.current!.showModal(); }} aria-label="Replay your sheet"><Icon name="replay" /><span className="hide-s">Replay</span></button>
-        <button className="btn btn-ink" onClick={openPin}><Icon name="pin" /><span className="hide-s">{publishing ? "Publish" : "Pin to gallery"}</span><span className="show-s">{publishing ? "Publish" : "Pin"}</span></button>
+        {seat ? (
+          <button className="btn btn-ink" onClick={openHand}><Icon name="next" />Hand in</button>
+        ) : (
+          <button className="btn btn-ink" onClick={openPin}><Icon name="pin" /><span className="hide-s">{publishing ? "Publish" : "Pin to gallery"}</span><span className="show-s">{publishing ? "Publish" : "Pin"}</span></button>
+        )}
       </div>
 
       <div className="studio-tools" role="toolbar" aria-label="Brushes and tools">
-        {(pixel ? PIXEL_GROUPS : GROUPS).map(([g, label]) => (
+        {(kid ? [["kid", "Tools"] as [ToolGroup | "kid", string]] : pixel ? PIXEL_GROUPS : GROUPS).map(([g, label]) => (
           <div key={g} className="tool-group" role="group" aria-label={label}>
             <span className="tool-group-name kicker" aria-hidden="true">{label}</span>
-            {(Object.keys(TOOLS) as ToolId[]).filter((t) => TOOLS[t].group === g).map((t) => (
+            {(Object.keys(TOOLS) as ToolId[]).filter((t) => (g === "kid" ? isPixelTool(t) === pixel : TOOLS[t].group === g) && usable(t)).map((t) => (
               <button key={t} className="tool" aria-pressed={tool === t} aria-label={`${TOOLS[t].label} (${TOOLS[t].key.toUpperCase()})`} title={`${TOOLS[t].label} · ${TOOLS[t].key.toUpperCase()}`} onClick={() => setTool(t)}>
                 <Icon name={t} />
+                {kid && <span className="tool-name" aria-hidden="true">{KID_NAMES[t] ?? TOOLS[t].label}</span>}
               </button>
             ))}
           </div>
@@ -1204,7 +1278,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
 
       <aside className="studio-panel" aria-label="Sheet settings" data-tab={tab ?? "none"}>
         <div className="panel-tabs" role="group" aria-label="Settings">
-          {PANEL_TABS.map(([k, label]) => (
+          {PANEL_TABS.filter(([k]) => !kid || k !== "layers").map(([k, label]) => (
             <button key={k} className="panel-tab" aria-pressed={tab === k} aria-controls={`panel-${k}`} onClick={() => setTab((t) => (t === k ? null : k))}>
               {k === "colour" && <span className="chip" style={{ ["--c" as string]: color }} aria-hidden="true" />}
               {k === "brush" ? TOOLS[tool].label : label}
@@ -1213,9 +1287,17 @@ function Studio({ sheet }: { sheet: Sheet }) {
           ))}
         </div>
         <div className="panel-cards">
+        {seat && (seat.brief || seat.note) && (
+          <section className="sheet panel-card seat-brief" data-tab="colour">
+            <h2 className="kicker">{seat.title}</h2>
+            {seat.brief && <p>{seat.brief}</p>}
+            {seat.note && <p className="seat-note"><b>Your teacher says:</b> {seat.note}</p>}
+          </section>
+        )}
+
         <section className="sheet panel-card" data-tab="colour" id="panel-colour">
           <h2 className="kicker">Colour</h2>
-          {pixel && !promptMode && (
+          {pixel && !promptMode && !seat?.palette && (
             <label className="select">
               <span>Palette</span>
               <select value={pxPal} onChange={(e) => setPxPal(+e.target.value)}>
@@ -1230,10 +1312,11 @@ function Studio({ sheet }: { sheet: Sheet }) {
               </button>
             ))}
           </div>
-          {!remix && (
+          {seat?.palette && <p className="hint">Your teacher picked these colours for this task.</p>}
+          {!remix && !seat && (
             <label className="check"><input type="checkbox" checked={promptMode} onChange={(e) => setPromptMode(e.target.checked)} /> Use the inks of Subject No. {PROMPT.no} only</label>
           )}
-          {!promptMode && (
+          {!promptMode && !seat?.palette && (
             <>
               {recent.length > 0 && (
                 <div className="pal recent" role="group" aria-label="Recent colours">
@@ -1250,7 +1333,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
                 <Icon name={mixing ? "up" : "down"} size={16} />
               </button>
               {mixing && <ColorPicker value={color} onChange={setColor} />}
-              <p className="hint hint-keys">Hold Alt and click the sheet to pick a colour up.</p>
+              {!kid && <p className="hint hint-keys">Hold Alt and click the sheet to pick a colour up.</p>}
             </>
           )}
         </section>
@@ -1268,8 +1351,10 @@ function Studio({ sheet }: { sheet: Sheet }) {
               )}
               <p className="hint">
                 {tool === "pixelfill"
-                  ? "Fills the cells around the one you click that share its colour, reading every visible layer."
-                  : `${pxSize === 1 ? "One cell" : `${pxSize} × ${pxSize} cells`} at a time. Hold Shift for a straight line from where you start.`}
+                  ? kid
+                    ? "Fills the cells around the one you tap that share its colour."
+                    : "Fills the cells around the one you click that share its colour, reading every visible layer."
+                  : `${pxSize === 1 ? "One cell" : `${pxSize} × ${pxSize} cells`} at a time.${kid ? "" : " Hold Shift for a straight line from where you start."}`}
               </p>
             </>
           ) : tool === "select" ? (
@@ -1283,12 +1368,12 @@ function Studio({ sheet }: { sheet: Sheet }) {
                   <span className="mono num">{size}</span>
                 </label>
               )}
-              <label className="slider">
+              {!kid && <label className="slider">
                 <span>Opacity</span>
                 <input type="range" min={5} max={100} step={5} value={Math.round(opacity * 100)} onChange={(e) => setOpacity(+e.target.value / 100)} />
                 <span className="mono num">{Math.round(opacity * 100)}</span>
-              </label>
-              {tool !== "fill" && (
+              </label>}
+              {tool !== "fill" && !kid && (
                 <label className="slider" title="The brush trails the pointer on a string, which smooths out shaky lines">
                   <span>Steady</span>
                   <input type="range" min={0} max={100} step={5} value={steady} onChange={(e) => setSteady(+e.target.value)} />
@@ -1300,7 +1385,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
           )}
         </section>
 
-        <section className="sheet panel-card" data-tab="layers" id="panel-layers">
+        {!kid && <section className="sheet panel-card" data-tab="layers" id="panel-layers">
           <div className="card-head">
             <h2 className="kicker">Layers</h2>
             <button className="icon-btn" onClick={addLayer} aria-label="Add a layer" title="Add a layer"><Icon name="plus" size={18} /></button>
@@ -1358,7 +1443,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
               <button className="icon-btn" onClick={() => askDelete(activeLayer)} aria-label="Delete the layer" title="Delete the layer"><Icon name="trash" size={18} /></button>
             </div>
           </div>
-        </section>
+        </section>}
 
         <section className="sheet panel-card" data-tab="sheet" id="panel-sheet">
           <h2 className="kicker">Paper</h2>
@@ -1380,13 +1465,13 @@ function Studio({ sheet }: { sheet: Sheet }) {
           </div>
         </section>
 
-        {!pixel && <section className="sheet panel-card" data-tab="sheet">
+        {!pixel && !kid && <section className="sheet panel-card" data-tab="sheet">
           <h2 className="kicker">Perspective</h2>
           <div className="seg" role="group" aria-label="Perspective guides">
             {PERSPECTIVE.map(([v, n]) => <button key={v} aria-pressed={guides.mode === v} onClick={() => setGuides((g) => ({ ...g, mode: v }))}>{n}</button>)}
           </div>
           {guides.mode > 0 && <label className="check"><input type="checkbox" checked={guides.snap} onChange={(e) => setGuides((g) => ({ ...g, snap: e.target.checked }))} /> Snap strokes to the guides</label>}
-          <p className="hint">{guides.mode ? "Drag the blue points to move them. Guides stay out of the picture." : "Hold Shift for a straight line."}</p>
+          <p className="hint">{guides.mode ? "Drag the blue points to move them. Guides stay out of the picture." : kid ? "" : "Hold Shift for a straight line."}</p>
         </section>}
 
         <section className="sheet panel-card" data-tab="sheet">
@@ -1395,7 +1480,7 @@ function Studio({ sheet }: { sheet: Sheet }) {
             <label htmlFor="sheet-title">Title</label>
             <input type="text" id="sheet-title" maxLength={60} placeholder="Untitled" autoComplete="off" value={sheetTitle} onChange={(e) => setSheetTitle(e.target.value)} />
           </div>
-          <div className="seg" role="group" aria-label="Kind of sheet">
+          {!seat && <><div className="seg" role="group" aria-label="Kind of sheet">
             <button aria-pressed={!pixel} disabled={shapeLocked && pixel} onClick={() => setShape("land")}>Drawing</button>
             <button aria-pressed={pixel} disabled={shapeLocked && !pixel} onClick={() => setShape("px32")}>Pixel art</button>
           </div>
@@ -1404,23 +1489,39 @@ function Studio({ sheet }: { sheet: Sheet }) {
               <button key={id} aria-pressed={shape === id} disabled={shapeLocked && shape !== id} onClick={() => setShape(id)}>{SHAPES[id].name}</button>
             ))}
           </div>
-          <p className="hint">{shapeLocked ? "The shape is set once the drawing starts." : pixel ? `${dims.grid} cells across. Choose before you draw.` : `${dims.w} × ${dims.h}. Choose before you draw.`}</p>
+          <p className="hint">{shapeLocked ? "The shape is set once the drawing starts." : pixel ? `${dims.grid} cells across. Choose before you draw.` : `${dims.w} × ${dims.h}. Choose before you draw.`}</p></>}
           <div className="stats">
             <div><b className="num">{drawn.toLocaleString()}</b><span>strokes</span></div>
             <div><b className="num">{fmtMin(ms / 60000)}</b><span>drawing time</span></div>
           </div>
-          <p className="hint">Saved on this device as you draw. <Link to="/library" viewTransition>All your sheets</Link> · <button type="button" className="link-btn" onClick={openFeedback}>Send feedback</button></p>
+          {seat ? (
+            <p className="hint">Saved to your class as you draw, so you can carry on from any computer.</p>
+          ) : (
+            <p className="hint">Saved on this device as you draw. <Link to="/library" viewTransition>All your sheets</Link> · <button type="button" className="link-btn" onClick={openFeedback}>Send feedback</button></p>
+          )}
         </section>
 
-        <section className="sheet panel-card opt">
+        {!kid && <section className="sheet panel-card opt">
           <h2 className="kicker">Keys</h2>
           <p className="keys">
             {(Object.keys(TOOLS) as ToolId[]).filter((t) => isPixelTool(t) === pixel).map((t) => <span key={t}><kbd>{TOOLS[t].key.toUpperCase()}</kbd> {TOOLS[t].label.toLowerCase()} </span>)}
             <span><kbd>[</kbd> <kbd>]</kbd> size </span><span><kbd>⌘Z</kbd> undo </span><span><kbd>Shift</kbd> straight line </span><span><kbd>Space</kbd> drag to move </span><span><kbd>⌘</kbd>+scroll or pinch to zoom </span><span><kbd>0</kbd> fit </span><span><kbd>R</kbd> <kbd>⇧R</kbd> turn </span><span><kbd>H</kbd> mirror view </span><span><kbd>Alt</kbd>+click pick colour </span><span><kbd>Enter</kbd> <kbd>Esc</kbd> put a selection down or back</span>
           </p>
-        </section>
+        </section>}
         </div>
       </aside>
+
+      {seat && (
+        <dialog ref={handDlg} aria-labelledby="hand-h">
+          <form className="small-sheet sheet" onSubmit={doHand}>
+            <h2 id="hand-h">Hand it in?</h2>
+            <p>Your teacher gets it with its whole recording, so they can watch how you drew it. After this you can't change it, unless they send it back to you.</p>
+            <div className="field"><label htmlFor="hand-title">Give it a title</label><input type="text" id="hand-title" maxLength={60} placeholder={seat.title} autoComplete="off" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+            {handing && handing !== "busy" && <p className="field-note is-error" role="alert">{handing}</p>}
+            <div className="row"><button type="button" className="btn btn-quiet" onClick={() => handDlg.current!.close()}>Keep drawing</button><button type="submit" className="btn btn-ink" disabled={handing === "busy"}>{handing === "busy" ? "Handing in…" : "Hand it in"}</button></div>
+          </form>
+        </dialog>
+      )}
 
       <dialog ref={pinDlg} aria-labelledby="pin-h">
         <form className="small-sheet sheet" onSubmit={doPin}>

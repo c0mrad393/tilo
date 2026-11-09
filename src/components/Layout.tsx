@@ -81,14 +81,16 @@ const today = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric"
 export function Layout() {
   usePress();
   const { pathname } = useLocation();
-  const inStudio = pathname.startsWith("/studio");
+  // the studio has the screen to itself, a pupil's drawing included; pupils' pages carry their own bar
+  const inStudio = pathname.startsWith("/studio") || /^(\/demo)?\/class\/draw\//.test(pathname);
+  const pupils = /^(\/demo)?\/class(\/|$)/.test(pathname);
   // a page opened for the first time is fetched before it shows; the bar says so
   const loading = useNavigation().state === "loading";
   return (
     <>
       <div className="nav-progress" data-on={loading ? "" : undefined} role="progressbar" aria-label="Opening the page" aria-hidden={!loading} />
       {!inStudio && <a className="skip" href="#main">Skip to the page</a>}
-      {!inStudio && (
+      {!inStudio && !pupils && (
         <header className="mast wrap">
           <div className="mast-row">
             <NavLink to="/" viewTransition className="logo" aria-label="Tilo home">
@@ -99,6 +101,7 @@ export function Layout() {
               <NavLink to="/library" viewTransition>Your sheets</NavLink>
               <NavLink to="/wall" viewTransition className="opt">The wall</NavLink>
               <a href="/#benches" className="opt">Benches</a>
+              <NavLink to="/schools" viewTransition className="opt">Schools</NavLink>
               {ACCOUNTS && <QueueLink />}
               {ACCOUNTS && <AccountLink />}
               <NavLink to="/studio" viewTransition className="btn btn-ink"><span className="nav-long">Open the studio</span><span className="nav-short">Studio</span></NavLink>
@@ -114,7 +117,7 @@ export function Layout() {
         </header>
       )}
       <Outlet />
-      {!inStudio && (
+      {!inStudio && !pupils && (
         <footer className="wrap">
           <div className="colophon">
             <section>

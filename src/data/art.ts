@@ -91,7 +91,7 @@ export function glow(S: Sketch, cx: number, cy: number, r: number, c: string, ri
 }
 
 /** where a closed polygon crosses the horizontal line y, as pairs of x */
-function crossings(poly: Pt[], y: number) {
+export function crossings(poly: Pt[], y: number) {
   const xs: number[] = [];
   for (let i = 0; i < poly.length; i++) {
     const [ax, ay] = poly[i], [bx, by] = poly[(i + 1) % poly.length];

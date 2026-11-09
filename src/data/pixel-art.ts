@@ -5,13 +5,13 @@ import type { Sketch } from "../engine/sketch";
    artist blocks one in: the ground with one fill, then a colour at a time, a row of cells per
    stroke. So the replay builds up colour by colour, and every cell is a real pixel stroke. */
 
-type Grid = (string | null)[][];
+export type Grid = (string | null)[][];
 
 const W = 1280;
 
 /** Turns a grid of colours into strokes: the first colour as a fill of the empty sheet, then
     each colour in `order` (any left out come last), one stroke per run of cells in a row. */
-function lay(S: Sketch, grid: Grid, order: string[]) {
+export function lay(S: Sketch, grid: Grid, order: string[]) {
   const rows = grid.length, cols = grid[0].length, cell = W / cols, g = cols;
   const at = (c: number) => (c + 0.5) * cell;
   const seen = [...new Set(grid.flat().filter((c): c is string => !!c))];
@@ -33,11 +33,11 @@ function lay(S: Sketch, grid: Grid, order: string[]) {
   }
 }
 
-const blank = (cols: number, rows: number, c: string): Grid => Array.from({ length: rows }, () => Array<string | null>(cols).fill(c));
-const set = (g: Grid, c: number, r: number, colour: string) => {
+export const blank = (cols: number, rows: number, c: string): Grid => Array.from({ length: rows }, () => Array<string | null>(cols).fill(c));
+export const set = (g: Grid, c: number, r: number, colour: string) => {
   if (r >= 0 && r < g.length && c >= 0 && c < g[0].length) g[r][c] = colour;
 };
-const inEllipse = (c: number, r: number, cx: number, cy: number, rx: number, ry: number) => ((c + 0.5 - cx) / rx) ** 2 + ((r + 0.5 - cy) / ry) ** 2 <= 1;
+export const inEllipse = (c: number, r: number, cx: number, cy: number, rx: number, ry: number) => ((c + 0.5 - cx) / rx) ** 2 + ((r + 0.5 - cy) / ry) ** 2 <= 1;
 /** a 4 × 4 ordered dither: whether a cell `t` (0-1) of the way to the next colour has turned */
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const dither = (c: number, r: number, t: number) => t > (BAYER[(r % 4) * 4 + (c % 4)] + 0.5) / 16;
@@ -50,7 +50,7 @@ function bands(c: number, r: number, stops: [number, string][]) {
   return stops[stops.length - 1][1];
 }
 /** cells around a shape (`inside`), the outline a pixel artist draws last */
-function outline(g: Grid, inside: (c: number, r: number) => boolean, colour: string) {
+export function outline(g: Grid, inside: (c: number, r: number) => boolean, colour: string) {
   for (let r = 0; r < g.length; r++)
     for (let c = 0; c < g[0].length; c++)
       if (!inside(c, r) && (inside(c - 1, r) || inside(c + 1, r) || inside(c, r - 1) || inside(c, r + 1))) set(g, c, r, colour);

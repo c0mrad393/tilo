@@ -1,4 +1,4 @@
-import { decode, FORMAT } from "../../../src/engine/codec.ts";
+import { decode, encode, FORMAT } from "../../../src/engine/codec.ts";
 
 /* Reading a recording on the server, with the same codec the studio writes it with.
    For now this only describes it; the proof-of-hand checks (2.5) build on the same pass. */
@@ -29,4 +29,4 @@ export function summarise(bytes: Uint8Array): Summary {
   };
 }
 
-export { decode, FORMAT };
+export { decode, encode, FORMAT };

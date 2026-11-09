@@ -196,5 +196,35 @@ export function admin(sql: Sql, { member }: { member: MiddlewareHandler<AuthEnv>
     return c.json({ ok: true });
   });
 
+  // schools (docs/SCHOOLS.md): a new school waits until an admin has checked it is real
+  app.get("/schools", async (c) => {
+    const status = c.req.query("status");
+    const schools = await sql`
+      select s.id, s.name, s.city, s.status, s.created, s.decided_at, pr.handle as by, u.email,
+        (select count(*)::int from public.teachers t where t.school = s.id and t.status = 'active') as teachers,
+        (select count(*)::int from public.classes k where k.school = s.id) as classes,
+        (select count(*)::int from public.pupils p join public.classes k on k.id = p.class where k.school = s.id) as pupils
+      from public.schools s
+      left join public.profiles pr on pr.id = s.created_by
+      left join public.account_facts() u on u.id = s.created_by
+      where ${status === "pending" || status === "active" || status === "closed" ? sql`s.status = ${status}` : sql`true`}
+      order by s.status = 'pending' desc, s.created desc limit 200`;
+    return c.json({ schools });
+  });
+
+  app.post("/schools/:id", async (c) => {
+    const { id: me } = c.get("member");
+    const id = c.req.param("id");
+    const action = (await c.req.json().catch(() => null))?.action;
+    const to = action === "approve" || action === "reopen" ? "active" : action === "close" ? "closed" : null;
+    if (!to) return c.json({ error: "Approve, close or reopen." }, 400);
+    const [s] = await sql`
+      update public.schools set status = ${to}, decided_by = ${me}, decided_at = now()
+      where id = ${id} and status <> ${to} returning name, created_by`;
+    if (!s) return c.json({ error: "No school like that, or it is that already." }, 404);
+    await sql`insert into public.mod_log (mod, action, profile, school, note) values (${me}, 'school', ${s.created_by}, ${id}, ${`${action}: ${s.name}`.slice(0, 500)})`;
+    return c.json({ ok: true });
+  });
+
   return app;
 }

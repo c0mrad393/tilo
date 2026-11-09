@@ -14,8 +14,10 @@ remixes and the wall work as they do now.
 | | what | ships as |
 |---|---|---|
 | 3.1 | Pixel editor: pixel sheets, pixel tools, palettes, grid, crisp export, publishing | 0.10 |
-| 3.2 | Animation: frames, onion skin, timing, loop, GIF and video export, animated pieces in the gallery | 0.11 |
-| 3.3 | Process feed: a vertical feed of replays that play as they scroll into view | 0.12 |
+| 3.2 | Animation: frames, onion skin, timing, loop, GIF and video export, animated pieces in the gallery | 0.12 |
+| 3.3 | Process feed: a vertical feed of replays that play as they scroll into view | 0.13 |
+
+0.11 went to Tilo for schools ([SCHOOLS.md](SCHOOLS.md)), so animation moved to 0.12.
 
 ## 3.1 Pixel editor
 

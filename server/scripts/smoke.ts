@@ -596,6 +596,117 @@ await settled(tidy.body?.id);
 check((await call(`/api/pieces/${tidy.body?.id}`, { method: "DELETE", token })).status === 204, "the artist takes a piece down");
 check((await fetch(`${BASE}/api/pieces/${tidy.body?.id}/rec`, { headers: { authorization: `Bearer ${token}` } })).status === 404, "its files go with it");
 
+// Tilo for schools: a teacher registers a school, an admin lets it in, a colleague joins;
+// a class gets pupils and a task; a pupil signs in with pictures, draws, hands in; the image
+// check passes it; the teacher reviews it and shows it, in the class and by a link
+const sch = (path: string, init: { method?: string; json?: unknown; body?: BodyInit } = {}, as: string | null | undefined = token) => call(`/api/school${path}`, { ...init, token: as ?? undefined });
+const asPupil = (path: string, ptoken: string | null | undefined, init: { method?: string; json?: unknown; body?: BodyInit } = {}) => sch(path, init, ptoken ?? null);
+const recOf = (work: string, as?: string) => fetch(`${BASE}/api/school/works/${work}/rec`, { headers: as ? { authorization: `Bearer ${as}` } : {} });
+check((await sch("/mine")).body?.schools?.length === 0, "a member teaches nowhere yet");
+check((await sch("/mine", {}, null)).status === 401, "the teachers' side needs an account");
+const reg = await sch("/schools", { method: "POST", json: { name: `Smoke School ${tag}`, city: "Tbilisi" } });
+const sid: string = reg.body?.id;
+check(reg.status === 201 && !!sid, "a teacher registers a school", reg);
+const s1 = (await sch("/mine")).body?.schools?.[0];
+check(s1?.status === "pending" && s1.me === "active" && /^TEACH-[A-Z2-9]{6}$/.test(s1.code), "it waits for Tilo's check, with a teacher code", s1);
+check((await sch("/classes", { method: "POST", json: { school: sid, name: "3B Art", ages: "6-8" } })).status === 403, "no classes before Tilo has checked the school");
+psql(`update public.profiles set role = 'admin' where id = '${other.id}'`);
+check((await adm("schools", {}, token)).status === 403, "only admins see the schools waiting");
+const waitingSchools = await adm("schools?status=pending");
+check(waitingSchools.body?.schools?.some((x: { id: string; by: string; email: string }) => x.id === sid && x.by === handle && x.email === email), "an admin sees it waiting, with who registered it", waitingSchools.body);
+check((await adm(`schools/${sid}`, { method: "POST", json: { action: "approve" } })).status === 200 && psql(`select status from public.schools where id = '${sid}'`) === "active", "an admin lets it in");
+check(psql(`select count(*) from public.mod_log where school = '${sid}' and action = 'school'`) === "1", "which is logged");
+psql(`update public.profiles set role = 'mod' where id = '${other.id}'`);
+
+const madeClass = await sch("/classes", { method: "POST", json: { school: sid, name: "3B Art", ages: "6-8" } });
+const cid: string = madeClass.body?.id;
+check(madeClass.status === 201 && !!cid, "the teacher makes a class", madeClass);
+const joined = await sch("/schools/join", { method: "POST", json: { code: s1.code.toLowerCase() } }, token2);
+check(joined.status === 201, "a colleague asks to join with the teacher code", joined);
+const colleague = (await sch("/mine", {}, token2)).body?.schools?.[0];
+check(colleague?.me === "pending" && colleague.code === "" && colleague.teachers.length === 0, "until approved they see neither the code nor who teaches there", colleague);
+check((await sch(`/classes/${cid}`, {}, token2)).status === 404, "nor the classes");
+check((await sch(`/schools/${sid}/teachers/${other.id}`, { method: "POST", json: { ok: true } }, token2)).status === 400, "nobody approves themselves");
+check((await sch(`/schools/${sid}/teachers/${other.id}`, { method: "POST", json: { ok: true } })).status === 204, "a teacher there approves them");
+check((await sch(`/classes/${cid}`, {}, token2)).status === 200, "and then they open the school's classes");
+
+check((await sch(`/classes/${cid}/pupils`, { method: "POST", json: { names: ["Nino B.", "Luka K.", "   "] } })).status === 201, "the teacher adds pupils, one name a line");
+const classPage = (await sch(`/classes/${cid}`)).body;
+const nino = classPage?.pupils?.find((p: { name: string }) => p.name === "Nino B.");
+const luka = classPage?.pupils?.find((p: { name: string }) => p.name === "Luka K.");
+check(classPage?.pupils?.length === 2 && nino?.pictures?.length === 3 && new Set(nino.pictures).size === 3, "each gets three different pictures for ages 6 to 8", classPage?.pupils);
+const code: string = classPage?.cls?.code ?? "";
+check(/^[A-Z]+-\d{4}$/.test(code), "the class has a code to sign in with", code);
+const door = await sch(`/door/${code}`, {}, null);
+check(door.status === 200 && door.body.pupils.length === 2 && door.body.pupils.every((p: object) => !("pictures" in p)), "the class's door lists the names, never the pictures", door.body);
+check((await sch("/door/NOPE-0000", {}, null)).status === 404, "a wrong code opens no class");
+const signIn = (pupil: { id: string }, pictures: number[], c = code) => sch("/signin", { method: "POST", json: { code: c, pupil: pupil.id, pictures } }, null);
+check((await signIn(nino, [...nino.pictures].reverse())).status === 403, "the wrong pictures don't sign in");
+const good = await signIn(nino, nino.pictures, code.toLowerCase());
+const ninoTok: string | undefined = good.body?.token;
+check(good.status === 200 && !!ninoTok && good.body.name === "Nino B.", "the right ones do", good);
+check((await call("/api/me", { token: ninoTok })).status === 401, "a pupil's token isn't a member's");
+check((await call("/rest/v1/profiles?limit=1", { token: ninoTok })).status === 401, "and PostgREST refuses it");
+for (let i = 0; i < 5; i++) await signIn(luka, [...luka.pictures].reverse());
+check((await signIn(luka, luka.pictures)).status === 429, "five wrong tries lock a pupil, even with the right pictures after");
+check((await sch(`/pupils/${luka.id}`, { method: "PATCH", json: { newPictures: true } })).status === 204, "the teacher gives them new pictures");
+const luka2 = (await sch(`/classes/${cid}`)).body?.pupils?.find((p: { id: string }) => p.id === luka.id);
+const lukaIn = await signIn(luka, luka2?.pictures ?? []);
+const lukaTok: string | undefined = lukaIn.body?.token;
+check(lukaIn.status === 200 && !!lukaTok, "which lifts the lock", lukaIn);
+
+const task = await sch(`/classes/${cid}/tasks`, { method: "POST", json: { title: "My house", brief: "Draw it.", shape: "land", palette: null, due: "2026-12-01" } });
+check(task.status === 201, "the teacher sets a task", task);
+check((await sch(`/classes/${cid}/tasks`, { method: "POST", json: { title: "Bad", shape: "land", palette: ["red"] } })).status === 400, "a task's colours are colours");
+const home = await asPupil("/pupil", ninoTok);
+check(home.status === 200 && home.body.tasks[0]?.title === "My house" && home.body.tasks[0].due === "2026-12-01" && home.body.cls.name === "3B Art", "the pupil sees it", home.body);
+const started = await asPupil("/pupil/works", ninoTok, { method: "POST", json: { task: task.body?.id } });
+const wid: string = started.body?.id;
+check(started.status === 201 && !!wid, "the pupil starts on it", started);
+check((await asPupil("/pupil/works", ninoTok, { method: "POST", json: { task: task.body?.id } })).body?.id === wid, "starting again opens the same drawing");
+check((await asPupil(`/pupil/works/${wid}/hand-in`, ninoTok, { method: "POST" })).status === 422, "an empty sheet can't be handed in");
+const saveWork = (as: string | undefined, rec: Uint8Array = encode(strokes)) => {
+  const form = new FormData();
+  form.set("meta", JSON.stringify({ title: "Our house", layers: LAYERS, paper: "smooth", minutes: 3.2 }));
+  form.set("rec", new Blob([rec as Uint8Array<ArrayBuffer>]), "rec.tl");
+  return asPupil(`/pupil/works/${wid}`, as, { method: "PUT", body: form });
+};
+check((await saveWork(lukaTok)).status === 422, "a classmate can't save over it");
+check((await saveWork(ninoTok)).status === 204, "the drawing saves to the server as they draw");
+check((await recOf(wid, lukaTok)).status === 404, "a classmate can't see it before it is shown");
+check((await recOf(wid, token)).status === 200, "its teacher can");
+check((await recOf(wid)).status === 401 && (await fetch(`${BASE}/files/school/${wid}.tl`)).status === 404, "nobody else, and Caddy never serves it");
+check((await asPupil(`/pupil/works/${wid}/hand-in`, ninoTok, { method: "POST" })).status === 204, "the pupil hands it in");
+check((await saveWork(ninoTok)).status === 409, "a handed-in drawing can't change");
+let checked = "";
+for (let i = 0; i < 240 && !["ok", "held"].includes(checked); i++) {
+  checked = psql(`select checked from public.works where id = '${wid}'`);
+  if (!["ok", "held"].includes(checked)) await sleep(250);
+}
+check(checked === "ok", "the image check passes it", checked);
+check((await sch(`/works/${wid}/review`, { method: "POST", json: { status: "reviewed", stamps: ["Bold colours", "Not a stamp"], note: "Lovely!", shown: true } })).status === 204, "the teacher reviews it and shows it to the class");
+check(psql(`select array_to_string(stamps, ',') || ':' || shown from public.works where id = '${wid}'`) === "Bold colours:true" || psql(`select array_to_string(stamps, ',') || ':' || shown from public.works where id = '${wid}'`) === "Bold colours:t", "only real stamps are kept");
+const classmate = await asPupil("/pupil", lukaTok);
+check(classmate.body?.gallery?.some((w: { id: string; by: string }) => w.id === wid && w.by === "Nino B."), "classmates see it in the class gallery", classmate.body?.gallery);
+check((await recOf(wid, lukaTok)).status === 200, "and replay it");
+const own = await asPupil("/pupil/works", lukaTok, { method: "POST", json: { task: null, shape: "px32" } });
+check(own.status === 201 && psql(`select shape || ' ' || paper from public.works where id = '${own.body?.id}'`) === "px32 plain", "a pupil starts a pixel drawing of their own", own);
+check((await sch(`/classes/${cid}/shows`, { method: "POST", json: { title: "Mixed", works: [wid, own.body?.id] } })).status === 400, "only reviewed drawings go in a show");
+const show = await sch(`/classes/${cid}/shows`, { method: "POST", json: { title: "Our houses!", about: "For parents.", works: [wid], names: false } });
+check(show.status === 201 && /^our-houses-[a-z0-9]{8}$/.test(show.body?.token ?? ""), "the teacher makes a show with a link", show);
+const shown = await sch(`/shows/${show.body?.token}`, {}, null);
+check(shown.status === 200 && shown.body.works.length === 1 && shown.body.works[0].by === null && shown.headers.get("x-robots-tag") === "noindex", "anyone with the link sees it, without names when the teacher says so", shown.body);
+check((await fetch(`${BASE}/api/school/shows/${show.body?.token}/rec/${wid}`)).status === 200 && (await fetch(`${BASE}/api/school/shows/${show.body?.token}/rec/${own.body?.id}`)).status === 404, "and replays the drawings in it, and only those");
+
+check((await sch(`/pupils/${nino.id}`, { method: "PATCH", json: { newPictures: true } })).status === 204 && (await asPupil("/pupil", ninoTok)).status === 401, "new pictures sign the pupil out");
+check((await sch(`/pupils/${nino.id}`, { method: "DELETE" })).status === 204, "the teacher removes a pupil");
+check(psql(`select count(*) from public.works where id = '${wid}'`) === "0" && psql(`select coalesce(array_length(works, 1), 0) from public.shows where class = '${cid}'`) === "0", "their drawings go with them, out of the show too");
+check((await sch(`/classes/${cid}`, { method: "PATCH", json: { archived: true } })).status === 204 && (await sch(`/door/${code}`, {}, null)).status === 404, "an archived class can't be signed in to");
+check((await asPupil("/pupil", lukaTok)).status === 401, "and its pupils are signed out");
+psql(`update public.profiles set role = 'admin' where id = '${other.id}'`);
+check((await adm(`schools/${sid}`, { method: "POST", json: { action: "close" } })).status === 200 && (await sch(`/classes/${cid}`)).status === 404, "an admin closes a school, and its classes close");
+psql(`update public.profiles set role = 'mod' where id = '${other.id}'`);
+
 // export, then delete the account for good
 const exported = await call("/api/me/export", { token });
 check(
@@ -605,6 +716,7 @@ check(
 );
 check(exported.body.agreed_to?.terms === terms.body && exported.body.claims_sent?.length === 1, "the export has what they agreed to and the claims they sent", exported.body.agreed_to);
 check(exported.body.invites_made?.length === 2 && exported.body.feedback_sent?.[0]?.kind === "problem", "and the codes they handed out and the feedback they sent", exported.body.invites_made);
+check(exported.body.teaching?.length === 1 && exported.body.teaching[0].lead === true, "and the schools they teach in", exported.body.teaching);
 check(exported.body.wall_marks?.length === 1 && exported.body.wall_marks[0].stroke?.tool === "ink", "and their marks on the wall", exported.body.wall_marks?.length);
 check(/attachment; filename="tilo-smoke_/.test(exported.headers.get("content-disposition") ?? ""), "the export downloads as a file");
 check((await call("/api/me", { token, method: "DELETE", json: {} })).status === 400, "deleting needs an explicit confirm");
@@ -620,6 +732,7 @@ check(psql(`select count(*) from public.invites where used_by = '${userId}'`) ==
 check(psql(`select used_at is not null from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`) === "t", "their invite stays used up");
 psql(`delete from public.invites where code = 'SMOKE-${tag.toUpperCase()}'`);
 psql(`delete from public.invites where code in ('${handedOut.join("','")}')`);
+psql(`delete from public.schools where id = '${sid}'`);
 
 // tidy up the second member, and what they did as a mod
 psql(`delete from public.mod_log where mod = '${other.id}'`);

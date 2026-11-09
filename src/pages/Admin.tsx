@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { AdminTabs } from "../components/AdminTabs";
 import { ACCOUNTS, call, type Profile, useAccount } from "../data/account";
 import { ModButtons } from "../components/Moderation";
-import { type Claim, claims, closeClaim, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite } from "../data/admin";
+import { type Claim, claims, closeClaim, decideSchool, type SchoolRow, schools, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite } from "../data/admin";
 import { ANSWER_IN } from "../data/legal";
 import { fromRow, type Published, SELECT } from "../data/pieces";
 import { PAPER, WALL } from "../data/wall";
@@ -818,6 +818,73 @@ function WallAdmin() {
   );
 }
 
+// ---------- schools ----------
+
+const SCHOOL_STATUS = { pending: "Waiting for a check", active: "Open", closed: "Closed" };
+
+/* A teacher registers a school and it waits here. Check that it is a real school and that the
+   teacher works there (their email's domain, the school's site) before letting it in. */
+function SchoolsAdmin() {
+  const [show, setShow] = useState<"" | SchoolRow["status"]>("pending");
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const { data, failed, reload } = useLoad(() => schools(show), [show]);
+  const decide = async (s: SchoolRow, action: "approve" | "close" | "reopen") => {
+    if (action === "close" && !confirm(`Close ${s.name}? Its teachers and pupils can't open their classes until it is reopened. Nothing is deleted.`)) return;
+    setBusy(s.id);
+    setError("");
+    try {
+      await decideSchool(s.id, action);
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't work.");
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <>
+      <div className="admin-filters">
+        <label className="field">
+          <span className="kicker">Show</span>
+          <select value={show} onChange={(e) => setShow(e.target.value as typeof show)}>
+            <option value="pending">Waiting for a check</option>
+            <option value="active">Open</option>
+            <option value="closed">Closed</option>
+            <option value="">All</option>
+          </select>
+        </label>
+      </div>
+      {error && <p className="field-note is-error" role="alert">{error}</p>}
+      {!data ? (
+        <Wait failed={failed} />
+      ) : !data.length ? (
+        <p className="empty serif">{show === "pending" ? "No school is waiting. Teachers register one on /teach." : "None here."}</p>
+      ) : (
+        <ul className="queue-log serif">
+          {data.map((s) => (
+            <li key={s.id}>
+              <b>{s.name}</b>{s.city && `, ${s.city}`} · {SCHOOL_STATUS[s.status]}
+              <p>
+                Registered {date(s.created)} by {s.by ? <Link to={`/u/${s.by}`}>@{s.by}</Link> : "a deleted account"}
+                {s.email && <> (<code>{s.email}</code>)</>}. {s.teachers} {s.teachers === 1 ? "teacher" : "teachers"}, {s.classes} {s.classes === 1 ? "class" : "classes"}, {s.pupils} {s.pupils === 1 ? "pupil" : "pupils"}.
+              </p>
+              <div className="row">
+                {s.status === "pending" && <button className="btn btn-ink" disabled={busy === s.id} onClick={() => decide(s, "approve")}>Let it in</button>}
+                {s.status === "closed" ? (
+                  <button className="btn btn-quiet" disabled={busy === s.id} onClick={() => decide(s, "reopen")}>Reopen</button>
+                ) : (
+                  <button className="btn btn-quiet" disabled={busy === s.id} onClick={() => decide(s, "close")}>{s.status === "pending" ? "Turn down" : "Close"}</button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 const SECTIONS: Record<string, [string, () => React.ReactElement]> = {
   "": ["Overview", Overview],
   members: ["Members", Members],
@@ -827,6 +894,7 @@ const SECTIONS: Record<string, [string, () => React.ReactElement]> = {
   feedback: ["Feedback", Feedback],
   errors: ["Errors", Errors],
   wall: ["The wall", WallAdmin],
+  schools: ["Schools", SchoolsAdmin],
   log: ["Log", Log],
 };
 

@@ -46,6 +46,16 @@ const router = createBrowserRouter([
           { path: "/takedown", lazy: () => import("./pages/Legal").then((m) => ({ Component: m.Takedown })) },
           { path: "/support", lazy: () => import("./pages/Support").then((m) => ({ Component: m.Support })) },
           { path: "/proof", lazy: () => import("./pages/Proof").then((m) => ({ Component: m.Proof })) },
+          // Tilo for schools; the same pages under /demo run the demo school in the browser
+          { path: "/schools", lazy: () => import("./pages/Class").then((m) => ({ Component: m.Schools })) },
+          { path: "/demo", lazy: () => import("./pages/Class").then((m) => ({ Component: m.DemoHome })) },
+          ...["", "/demo"].flatMap((d) => [
+            { path: `${d}/teach`, lazy: () => import("./pages/Teach").then((m) => ({ Component: m.Teach })) },
+            { path: `${d}/teach/:cls/:tab?`, lazy: () => import("./pages/Teach").then((m) => ({ Component: m.ClassRoom })) },
+            { path: `${d}/class`, lazy: () => import("./pages/Class").then((m) => ({ Component: m.ClassPage })) },
+            { path: `${d}/class/draw/:work`, lazy: () => import("./pages/SchoolStudio").then((m) => ({ Component: m.SchoolStudio })) },
+            { path: `${d}/show/:token`, lazy: () => import("./pages/Class").then((m) => ({ Component: m.Show })) },
+          ]),
           { path: "*", Component: NotFound },
         ],
       },

@@ -11,6 +11,7 @@ const TABS: [string, string][] = [
   ["/admin/feedback", "Feedback"],
   ["/admin/errors", "Errors"],
   ["/admin/wall", "Wall"],
+  ["/admin/schools", "Schools"],
   ["/admin/log", "Log"],
 ];
 

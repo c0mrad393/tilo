@@ -108,3 +108,22 @@ export interface ErrorReport {
 }
 export const errorReports = () => call<{ errors: ErrorReport[] }>("/api/admin/errors").then((r) => r.errors);
 export const fixedError = (sig: string) => request(`/api/admin/errors/${sig}`, { method: "DELETE" });
+
+/** a school on Tilo for schools; a new one waits for an admin (docs/SCHOOLS.md) */
+export interface SchoolRow {
+  id: string;
+  name: string;
+  city: string;
+  status: "pending" | "active" | "closed";
+  created: string;
+  decided_at: string | null;
+  /** the handle and email of the teacher who registered it */
+  by: string | null;
+  email: string | null;
+  teachers: number;
+  classes: number;
+  pupils: number;
+}
+export const schools = (status: "" | SchoolRow["status"]) =>
+  call<{ schools: SchoolRow[] }>(`/api/admin/schools${status ? `?status=${status}` : ""}`).then((r) => r.schools);
+export const decideSchool = (id: string, action: "approve" | "close" | "reopen") => call(`/api/admin/schools/${id}`, { method: "POST", json: { action } });

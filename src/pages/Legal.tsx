@@ -199,6 +199,17 @@ export function Privacy() {
         nothing about a visitor is kept.
       </p>
 
+      <h2 id="schools">Pupils in Tilo for schools</h2>
+      <p className="serif">
+        Pupils in <Link to="/schools">Tilo for schools</Link> have no account. Their school decides they use Tilo and is responsible for their data;
+        Tilo keeps it only to run the school's classes. That is the name their teacher typed (a first name and an initial is enough), a picture
+        password, the drawings they make in class with their recordings, and their teacher's stamps and notes. No email, no address, no
+        tracking, no ads. Their drawings are seen only by their teachers, by their class once a teacher shows them, and by whoever has the link
+        to a show their teacher made. A drawing handed in goes through the same image check as the gallery. When a teacher removes a pupil,
+        their name and drawings are deleted at once. A parent who wants a pupil's data seen, corrected or deleted asks the school, or
+        writes to <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and we work it out with the school.
+      </p>
+
       <h2 id="changes">Changes</h2>
       <p className="serif">
         If this policy changes in a way that matters, we'll say so on Tilo before it does. See also the <Link to="/terms">terms of use</Link>.

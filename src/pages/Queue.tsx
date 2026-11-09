@@ -133,6 +133,7 @@ export const LOGGED: Record<string, string> = {
   erase: "rubbed out marks on",
   restore: "let held marks back on",
   show: "put back",
+  school: "changed a school:",
 };
 
 /** One mark on its own, scaled to fit a small box. */
