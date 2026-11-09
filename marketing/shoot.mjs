@@ -1,6 +1,7 @@
 // Phone screenshots of tiloart.com for the social videos, through Chrome's DevTools protocol:
 // headless Chrome won't make a window narrower than 500px, so the phone size is emulated.
-// Usage: node marketing/shoot.mjs   (writes marketing/shots/*.png at 1170 x 2532)
+// Usage: node marketing/shoot.mjs [schools]   (writes marketing/shots/*.png at 1170 x 2532)
+//   no argument: the intro video's shots; `schools`: the schools video's, from the /demo school
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,14 +9,29 @@ import { join } from "node:path";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const SITE = process.env.SITE ?? "https://tiloart.com";
-const SHOTS = [
-  ["home", "/", 0],
-  ["studio", "/studio?remix=tilonightlamp", 0],
-  ["piece", "/piece/tilooldtown", 0],
-  ["piece-ai", "/piece/tilooldtown", 820],
-  ["gallery", "/gallery", 0],
-  ["beat", "/#beat", 0],
-];
+/** a script that taps the buttons with these names (text or aria-label), one after another */
+const tap = (...names) => `(async () => { for (const n of ${JSON.stringify(names)}) {
+  const b = [...document.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent).trim().startsWith(n) || b.textContent.trim().endsWith(n));
+  if (!b) throw new Error("no button " + n);
+  b.click(); await new Promise((r) => setTimeout(r, 700)); } })()`;
+// [name, path (null: stay on the page), scroll, script to run first]
+const SETS = {
+  intro: [
+    ["home", "/", 0],
+    ["studio", "/studio?remix=tilonightlamp", 0],
+    ["piece", "/piece/tilooldtown", 0],
+    ["piece-ai", "/piece/tilooldtown", 820],
+    ["gallery", "/gallery", 0],
+    ["beat", "/#beat", 0],
+  ],
+  // a pupil of 3B signs in with pictures (two of three tapped), sees their page; then a show
+  schools: [
+    ["school-pics", "/demo/class", 0, tap("3B Art", "Nino B.", "house", "fish")],
+    ["school-home", null, 0, tap("cat")],
+    ["school-show", "/demo/show/our-houses", 0],
+  ],
+};
+const SHOTS = SETS[process.argv[2] ?? "intro"];
 const out = join(import.meta.dirname, "shots");
 mkdirSync(out, { recursive: true });
 
@@ -41,12 +57,19 @@ const send = (method, params = {}) => new Promise((res) => { const n = ++id; pen
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
 await send("Emulation.setTouchEmulationEnabled", { enabled: true });
-// no entrance animations: every page as it looks once it has settled
-await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+// no entrance animations, and the light theme whatever this Mac is set to
+await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: "light" }] });
 
-for (const [name, path, scroll] of SHOTS) {
-  await send("Page.navigate", { url: SITE + path });
-  await wait(5000);
+for (const [name, path, scroll, script] of SHOTS) {
+  if (path) {
+    await send("Page.navigate", { url: SITE + path });
+    await wait(5000);
+  }
+  if (script) {
+    const r = await send("Runtime.evaluate", { expression: script, awaitPromise: true });
+    if (r.result?.exceptionDetails) throw new Error(`${name}: ${r.result.exceptionDetails.exception?.description}`);
+    await wait(2500);
+  }
   if (scroll) await send("Runtime.evaluate", { expression: `scrollTo(0, ${scroll})` });
   await wait(800);
   const { result } = await send("Page.captureScreenshot", { format: "png" });
