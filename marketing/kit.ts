@@ -249,17 +249,16 @@ export async function encode(file: string, frameCount: number, draw: (x: SKRSCon
 export async function withMusic(music: string, silent: string, file: string, from: number, seconds: number, keepDynamics = false) {
   const fades = `afade=t=in:d=0.6,afade=t=out:st=${seconds - 2.5}:d=2.5`;
   let norm = "loudnorm=I=-16:TP=-1.5:LRA=11";
-  // keepDynamics: a gentle compressor, then one gain for the whole clip and a limiter for the
-  // peaks, so a quiet opening stays quieter than the part where the music lifts (loudnorm alone
-  // would raise the quiet part to meet it)
+  // keepDynamics: measure the clip first, then one gain for all of it (loudnorm's linear mode),
+  // so a quieter opening stays quieter than the part where the music lifts. Nothing squeezes
+  // the sound; if the peaks don't allow one gain, loudnorm falls back to its usual way.
   if (keepDynamics) {
-    const squeeze = "acompressor=threshold=-42dB:ratio=1.8:attack=30:release=500";
-    const probe = spawn("ffmpeg", ["-hide_banner", "-ss", String(from), "-t", String(seconds), "-i", music, "-af", `${fades},${squeeze},loudnorm=print_format=json`, "-f", "null", "-"]);
+    const probe = spawn("ffmpeg", ["-hide_banner", "-ss", String(from), "-t", String(seconds), "-i", music, "-af", `${fades},loudnorm=I=-16:TP=-1.5:LRA=20:print_format=json`, "-f", "null", "-"]);
     let log = "";
     probe.stderr.on("data", (d) => (log += d));
     await new Promise((r) => probe.on("close", r));
     const m = JSON.parse(log.slice(log.lastIndexOf("{"), log.lastIndexOf("}") + 1));
-    norm = `${squeeze},volume=${(-16 - Number(m.input_i)).toFixed(2)}dB,alimiter=limit=0.84:level=false`;
+    norm = `loudnorm=I=-16:TP=-1.5:LRA=20:linear=true:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}`;
   }
   const mux = spawn("ffmpeg", ["-y", "-loglevel", "error", "-i", silent, "-ss", String(from), "-t", String(seconds), "-i", music, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
     "-af", `${fades},${norm}`, "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", file], { stdio: "inherit" });

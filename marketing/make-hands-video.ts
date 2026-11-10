@@ -1,7 +1,9 @@
-/* The hands video: what Tilo stands for, 9:16, 1080 x 1920, 30 fps, 36 seconds, set to "Reign"
-   by Kevin MacLeod (incompetech.com, CC BY 4.0: the post has to credit it). The track isn't in
-   the repository: put Reign.mp3 in marketing/music/. Its quiet piano runs under the prompt,
-   its pause under "nobody drew", and its power section comes in on "somebody did" (DROP).
+/* The hands video: what Tilo stands for, 9:16, 1080 x 1920, 30 fps, 36 seconds, set to
+   "Wildflowers" by Scott Buckley (scottbuckley.com.au, CC BY 4.0: the post has to credit it).
+   The tracks aren't in the repository: put Wildflowers.mp3 (and, for the other cut,
+   WithTheseHands.mp3, same composer and licence) in marketing/music/. Wildflowers eases off
+   under "nobody drew" and lifts on "somebody did" (DROP); With These Hands swells slowly the
+   whole way, for a calmer cut (tilo-hands-alt.mp4).
    Every claim in it is one the site makes (home page, /proof): no uploads in the hand-made
    gallery, recordings no hand could make turned away, the Recorded on Tilo badge as a
    deterrent and not a guarantee, the AI samples labelled and never badged. It shows no art
@@ -22,9 +24,10 @@ import { Replayer } from "../src/engine/replay";
 import { Sketch } from "../src/engine/sketch";
 import type { Piece } from "../src/engine/stroke";
 
-const MUSIC = join(process.cwd(), "marketing", "music", "Reign.mp3");
+const MUSIC = join(process.cwd(), "marketing", "music", "Wildflowers.mp3");
+const ALT = join(process.cwd(), "marketing", "music", "WithTheseHands.mp3"), ALT_FROM = 36;
 /** where the track's power section starts, and where in the video it lands */
-const TRACK_DROP = 111.25, DROP = 9.0;
+const TRACK_DROP = 75.0, DROP = 9.0;
 const T = { s2: 5.0, s3: DROP, s4: 14.0, s5: 20.0, s6: 26.0, s7: 31.0, end: 36.0 };
 
 const out = (p: number) => 1 - Math.pow(1 - clamp(p), 3);
@@ -410,4 +413,8 @@ if (mode === "frames") {
     await withMusic(MUSIC, silent, join(outDir, "tilo-hands.mp4"), TRACK_DROP - DROP, T.end, true);
     console.log("wrote", join(outDir, "tilo-hands.mp4"));
   } else console.log(`no ${MUSIC}: silent copy only`);
+  if (existsSync(ALT)) {
+    await withMusic(ALT, silent, join(outDir, "tilo-hands-alt.mp4"), ALT_FROM, T.end, true);
+    console.log("wrote", join(outDir, "tilo-hands-alt.mp4"));
+  }
 }
