@@ -17,6 +17,7 @@
     "server:deploy": "bash server/scripts/deploy.sh",
     "video": "esbuild marketing/make-video.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=server/api/dist/make-video.mjs && node server/api/dist/make-video.mjs",
     "video:schools": "esbuild marketing/make-school-video.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=server/api/dist/make-school-video.mjs && node server/api/dist/make-school-video.mjs",
+    "video:hands": "esbuild marketing/make-hands-video.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=server/api/dist/make-hands-video.mjs && node server/api/dist/make-hands-video.mjs",
     "samples": "esbuild server/scripts/make-samples.ts --bundle --platform=node --format=esm --packages=external --external:@napi-rs/canvas --log-level=warning --outfile=server/api/dist/make-samples.mjs && node server/api/dist/make-samples.mjs"
   },
   "dependencies": {

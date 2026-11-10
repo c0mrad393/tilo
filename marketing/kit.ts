@@ -246,9 +246,23 @@ export async function encode(file: string, frameCount: number, draw: (x: SKRSCon
 }
 /** the silent video with `seconds` of the track from `from`, faded in and out, at the loudness
     Instagram and TikTok play at */
-export async function withMusic(music: string, silent: string, file: string, from: number, seconds: number) {
+export async function withMusic(music: string, silent: string, file: string, from: number, seconds: number, keepDynamics = false) {
+  const fades = `afade=t=in:d=0.6,afade=t=out:st=${seconds - 2.5}:d=2.5`;
+  let norm = "loudnorm=I=-16:TP=-1.5:LRA=11";
+  // keepDynamics: a gentle compressor, then one gain for the whole clip and a limiter for the
+  // peaks, so a quiet opening stays quieter than the part where the music lifts (loudnorm alone
+  // would raise the quiet part to meet it)
+  if (keepDynamics) {
+    const squeeze = "acompressor=threshold=-42dB:ratio=1.8:attack=30:release=500";
+    const probe = spawn("ffmpeg", ["-hide_banner", "-ss", String(from), "-t", String(seconds), "-i", music, "-af", `${fades},${squeeze},loudnorm=print_format=json`, "-f", "null", "-"]);
+    let log = "";
+    probe.stderr.on("data", (d) => (log += d));
+    await new Promise((r) => probe.on("close", r));
+    const m = JSON.parse(log.slice(log.lastIndexOf("{"), log.lastIndexOf("}") + 1));
+    norm = `${squeeze},volume=${(-16 - Number(m.input_i)).toFixed(2)}dB,alimiter=limit=0.84:level=false`;
+  }
   const mux = spawn("ffmpeg", ["-y", "-loglevel", "error", "-i", silent, "-ss", String(from), "-t", String(seconds), "-i", music, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
-    "-af", `afade=t=in:d=0.6,afade=t=out:st=${seconds - 2.5}:d=2.5,loudnorm=I=-16:TP=-1.5:LRA=11`, "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", file], { stdio: "inherit" });
+    "-af", `${fades},${norm}`, "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", file], { stdio: "inherit" });
   await new Promise((r) => mux.on("close", r));
 }
 
