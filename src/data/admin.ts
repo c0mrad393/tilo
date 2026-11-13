@@ -20,6 +20,8 @@ export interface Stats {
   error_count: number;
   /** open takedown claims */
   claims: number;
+  /** people on the waiting list who haven't been sent a code */
+  waiting_list: number;
   /** pieces published on each of the last 14 days, oldest first */
   days: { day: string; n: number }[];
 }
@@ -127,3 +129,22 @@ export interface SchoolRow {
 export const schools = (status: "" | SchoolRow["status"]) =>
   call<{ schools: SchoolRow[] }>(`/api/admin/schools${status ? `?status=${status}` : ""}`).then((r) => r.schools);
 export const decideSchool = (id: string, action: "approve" | "close" | "reopen") => call(`/api/admin/schools/${id}`, { method: "POST", json: { action } });
+
+/** someone on the waiting list (/join); invite is the code they were sent */
+export interface WaitRow {
+  id: number;
+  email: string;
+  note: string;
+  source: string;
+  created: string;
+  invite: string | null;
+  invited_at: string | null;
+  /** when and by whom their code was used: they're in */
+  used_at: string | null;
+  used_by: string | null;
+}
+export const waitlist = (show: "waiting" | "sent" | "all") => call<{ waitlist: WaitRow[] }>(`/api/admin/waitlist?show=${show}`).then((r) => r.waitlist);
+/** emails each of them a code; one already sent an unused code gets it again */
+export const inviteFromWaitlist = (ids: number[]) =>
+  call<{ sent: number; failed: string[]; fault: string }>("/api/admin/waitlist/invite", { method: "POST", json: { ids } });
+export const dropFromWaitlist = (id: number) => request(`/api/admin/waitlist/${id}`, { method: "DELETE" });

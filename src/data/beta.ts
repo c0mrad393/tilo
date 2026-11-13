@@ -78,6 +78,30 @@ export const forgetInvite = () => {
   } catch {}
 };
 
+// ---- the waiting list ----
+
+/** where a waiting-list form is: the /join page, the handle step or the sign-in page */
+export type WaitSource = "join" | "account" | "sign-in";
+
+/** whether joining needs no code just now; null when the server didn't say */
+export async function signupOpen(): Promise<boolean | null> {
+  if (!ACCOUNTS) return null;
+  try {
+    const r = await fetch("/api/waitlist");
+    return r.ok ? ((await r.json()) as { open: boolean }).open : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Puts an address on the waiting list; no sign-in needed. `website` is the field only bots fill in. */
+export async function joinWaitlist(w: { email: string; note: string; source: WaitSource; website: string }) {
+  const r = await fetch("/api/waitlist", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(w) });
+  if (r.ok) return;
+  const b = await r.json().catch(() => null);
+  throw Object.assign(new Error(b?.error ?? `The server answered ${r.status}.`), { field: b?.field as string | undefined, open: b?.open === true });
+}
+
 // ---- feedback ----
 
 export type FeedbackKind = "problem" | "idea" | "other";

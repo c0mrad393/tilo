@@ -26,7 +26,7 @@ export const ANSWER_IN = "two working days";
     terms_version on the server (migration 0008); claim_handle refuses any other. Change
     both, in a new migration, when the terms change in a way members must agree to again. */
 export const TERMS_VERSION = "2026-11-04";
-export const UPDATED = "10 November 2026";
+export const UPDATED = "13 November 2026";
 
 export type ClaimKind = "copyright" | "abuse" | "privacy" | "other";
 export interface Claim {

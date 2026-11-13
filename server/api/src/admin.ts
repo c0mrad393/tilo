@@ -3,6 +3,7 @@ import { createMiddleware } from "hono/factory";
 import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
 import { newCode } from "./invites.ts";
+import { type Mailer, sendInvites, type WaitRow } from "./waitlist.ts";
 
 /* /api/admin: what only admins do. The numbers at a glance, members with their email
    addresses (which only Auth keeps), roles, invite codes and settings. Pieces, reports,
@@ -17,7 +18,7 @@ const SETTINGS: Record<string, Set<string>> = {
   invites_per_member: new Set(Array.from({ length: 11 }, (_, i) => String(i))),
 };
 
-export function admin(sql: Sql, { member }: { member: MiddlewareHandler<AuthEnv> }) {
+export function admin(sql: Sql, { member, mail }: { member: MiddlewareHandler<AuthEnv>; mail: Mailer }) {
   const app = new Hono<AuthEnv>();
   app.use(
     "*",
@@ -47,7 +48,8 @@ export function admin(sql: Sql, { member }: { member: MiddlewareHandler<AuthEnv>
         (select count(*)::int from public.feedback where not done) as feedback,
         (select count(*)::int from public.errors where last_seen > now() - interval '7 days') as errors,
         (select coalesce(sum(count), 0)::int from public.errors where last_seen > now() - interval '7 days') as error_count,
-        (select count(*)::int from public.claims where status = 'open') as claims`;
+        (select count(*)::int from public.claims where status = 'open') as claims,
+        (select count(*)::int from public.waitlist where invited_at is null) as waiting_list`;
     // pieces published on each of the last 14 days, oldest first, days without any included
     const days = await sql`
       select to_char(d, 'YYYY-MM-DD') as day, count(p.id)::int as n
@@ -128,6 +130,44 @@ export function admin(sql: Sql, { member }: { member: MiddlewareHandler<AuthEnv>
     const gone = await sql`delete from public.invites where code = ${code} and used_at is null returning code`;
     if (!gone.length) return c.json({ error: "No unused code like that." }, 404);
     await log(me, "uninvite", null, code);
+    return c.body(null, 204);
+  });
+
+  // the waiting list (waitlist.ts): ?show=waiting (the default, oldest first), sent or all
+  app.get("/waitlist", async (c) => {
+    const show = c.req.query("show") ?? "waiting";
+    const where = show === "sent" ? sql`where w.invited_at is not null` : show === "all" ? sql`` : sql`where w.invited_at is null`;
+    const rows = await sql<WaitRow[]>`
+      select w.id::int, w.email, w.note, w.source, w.created, w.invite, w.invited_at, i.used_at, p.handle as used_by
+      from public.waitlist w
+      left join public.invites i on i.code = w.invite
+      left join public.profiles p on p.id = i.used_by
+      ${where}
+      order by ${show === "waiting" ? sql`w.created` : sql`w.created desc`}
+      limit 500`;
+    return c.json({ waitlist: rows });
+  });
+
+  // { ids } emails each of them a code (a resend for one whose code is still unused)
+  app.post("/waitlist/invite", async (c) => {
+    const { id: me } = c.get("member");
+    const body = await c.req.json().catch(() => null);
+    const ids = Array.isArray(body?.ids) ? body.ids.filter((n: unknown) => Number.isSafeInteger(n)) : [];
+    if (!ids.length || ids.length > 50) return c.json({ error: "Pick 1 to 50 people at a time." }, 400);
+    const r = await sendInvites(sql, mail, me, ids);
+    if (!r.sent && r.failed.length) return c.json({ error: `The email didn't go: ${r.fault}`, ...r }, 502);
+    return c.json(r);
+  });
+
+  // someone asked to come off the list; an unused code they were sent is withdrawn too
+  app.delete("/waitlist/:id", async (c) => {
+    const { id: me } = c.get("member");
+    const id = Number(c.req.param("id"));
+    if (!Number.isSafeInteger(id)) return c.json({ error: "No one like that on the list." }, 404);
+    const [w] = await sql`delete from public.waitlist where id = ${id} returning invite`;
+    if (!w) return c.json({ error: "No one like that on the list." }, 404);
+    if (w.invite) await sql`delete from public.invites where code = ${w.invite} and used_at is null`;
+    await log(me, "waitlist", null, "took an address off the waiting list");
     return c.body(null, 204);
   });
 

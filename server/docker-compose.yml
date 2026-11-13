@@ -164,6 +164,13 @@ services:
       # for deleting accounts, through Auth's admin API
       AUTH_URL: http://auth:9999
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      # invite codes for the waiting list go out through the same mail server as Auth's email
+      SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_SENDER_NAME: ${SMTP_SENDER_NAME}
     volumes:
       - files:/srv/files
     healthcheck:

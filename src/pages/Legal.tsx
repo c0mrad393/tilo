@@ -150,6 +150,11 @@ export function Privacy() {
       <p className="serif">
         If you send a takedown claim, we keep the name, email address and details you give, to answer it.
       </p>
+      <p className="serif" id="waitlist">
+        If you join the waiting list on <Link to="/join">/join</Link>, we keep the email address you give, what you say you draw if you say,
+        which page you joined from and when, and the invite code we send you, so that we can email you a code and see who has come in. Nothing
+        else is sent to that address.
+      </p>
       <p className="serif">
         When a page breaks, with or without an account, your browser sends Tilo an error report: the page's address without anything after
         a <code>?</code>, the error and where in Tilo's code it happened, Tilo's version, and your browser's name and system, such as
@@ -158,7 +163,8 @@ export function Privacy() {
 
       <h2 id="why">Why</h2>
       <p className="serif">
-        We use your account, profile and pieces to provide Tilo to you, as these terms describe. We use sign-in records, the image check,
+        We use your account, profile and pieces to provide Tilo to you, as these terms describe, and a waiting-list address to send the code
+        you asked for. We use sign-in records, the image check,
         reports and moderation because we have a legitimate interest in keeping accounts and the gallery safe, for all ages, and error
         reports because we have one in fixing what breaks. The image check
         runs on Tilo's own server, on pieces and on the wall; it can only hold a piece or a mark back for a person to look at. We keep takedown claims because the law asks us to
@@ -169,7 +175,7 @@ export function Privacy() {
       <ul className="serif">
         <li><b>netcup GmbH</b> hosts Tilo's server, database and files, in Germany.</li>
         <li><b>Cloudflare, Inc.</b> carries every page and file between the server and you, and keeps copies of public pictures near you. It also stores Tilo's nightly backups, encrypted so that only Tilo can open them. It is in the USA and certified under the EU–US Data Privacy Framework.</li>
-        <li><b>{MAIL_SERVICE || "A mail service"}</b> sends the sign-in emails, so it sees your email address.</li>
+        <li><b>{MAIL_SERVICE || "A mail service"}</b> sends the sign-in emails and waiting-list invites, so it sees your email address.</li>
         <li><b>Google</b>: mail you send to <Mail to={CONTACT} /> or <Mail to={LEGAL} /> arrives in a Gmail inbox. Also, only if you choose to sign in with Google, Google tells us who you are.</li>
         {SUPPORT.via && <li><b>{SUPPORT.via}</b>, for gifts on the <Link to="/support">support page</Link>. Tilo only sees the name, message and amount the giver shares there, and keeps them as long as the law asks for records of money received.</li>}
       </ul>
@@ -182,6 +188,7 @@ export function Privacy() {
         <li>Sign-in records: 30 days. Sessions: until you sign out, or 90 days without use.</li>
         <li>Error reports: 30 days after that error last happened.</li>
         <li>Takedown claims: three years after they are answered, in case they are disputed.</li>
+        <li>The waiting list: 90 days after we send your code, or a year if we never do. Write to <Mail to={CONTACT} /> to come off it sooner.</li>
         <li>Moderation records stay after an account is deleted, without the account they were about.</li>
       </ul>
 

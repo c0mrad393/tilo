@@ -14,11 +14,13 @@
     "@tensorflow/tfjs-backend-wasm": "4.22.0",
     "buffer": "6.0.3",
     "hono": "4.13.13",
+    "nodemailer": "10.2.1",
     "nsfwjs": "4.4.0",
     "postgres": "3.4.9"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "@types/nodemailer": "8.0.2",
     "esbuild": "0.25.12"
   }
 }

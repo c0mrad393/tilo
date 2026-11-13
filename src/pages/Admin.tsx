@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { AdminTabs } from "../components/AdminTabs";
 import { ACCOUNTS, call, type Profile, useAccount } from "../data/account";
 import { ModButtons } from "../components/Moderation";
-import { type Claim, claims, closeClaim, decideSchool, type SchoolRow, schools, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite } from "../data/admin";
+import { type Claim, claims, closeClaim, decideSchool, type SchoolRow, schools, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite, type WaitRow, waitlist, inviteFromWaitlist, dropFromWaitlist } from "../data/admin";
 import { ANSWER_IN } from "../data/legal";
 import { fromRow, type Published, SELECT } from "../data/pieces";
 import { PAPER, WALL } from "../data/wall";
@@ -122,6 +122,7 @@ function Overview() {
     ["Waiting for a mod", s.waiting, "pieces", "/mod"],
     ["Open reports", s.reports, "pieces and profiles", "/mod"],
     ["Takedown claims", s.claims, `open, answer within ${ANSWER_IN}`, "/admin/claims"],
+    ["Waiting list", s.waiting_list, "waiting for a code", "/admin/invites"],
     ["Invites left", s.invites_left, `${s.invites_used} used`, "/admin/invites"],
     ["Feedback", s.feedback, "to read", "/admin/feedback"],
     ["Errors this week", s.errors, `${s.error_count.toLocaleString()} time${s.error_count === 1 ? "" : "s"} in all`, "/admin/errors"],
@@ -377,6 +378,110 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
   return <button className="btn btn-quiet" onClick={copy}>{done ? "Copied" : label}</button>;
 }
 
+const SOURCE: Record<string, string> = { join: "/join", account: "handle step", "sign-in": "sign-in page" };
+
+/* the waiting list: people without a code who left their address; each code goes out by email */
+function Waitlist({ onSent }: { onSent: () => void }) {
+  const [show, setShow] = useState<"waiting" | "sent" | "all">("waiting");
+  const { data, failed, reload } = useLoad(() => waitlist(show), [show]);
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null);
+  useEffect(() => setPicked(new Set()), [show]);
+  const waiting = data?.filter((w) => !w.invited_at) ?? [];
+  const send = async (ids: number[]) => {
+    if (!ids.length) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      const r = await inviteFromWaitlist(ids);
+      setStatus({
+        text: `Sent ${r.sent} code${r.sent === 1 ? "" : "s"} by email.${r.failed.length ? ` Didn't go to ${r.failed.join(", ")}: ${r.fault}` : ""}`,
+        error: r.failed.length > 0,
+      });
+      setPicked(new Set());
+      reload();
+      onSent();
+    } catch (err) {
+      setStatus({ text: err instanceof Error ? err.message : "That didn't work.", error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const drop = async (w: WaitRow) => {
+    if (!confirm(`Take ${w.email} off the list for good?${w.invite && !w.used_at ? " Their unused code is withdrawn too." : ""}`)) return;
+    await dropFromWaitlist(w.id).catch(() => {});
+    reload();
+  };
+  const toggle = (id: number) => {
+    const next = new Set(picked);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setPicked(next);
+  };
+  const next5 = waiting.slice(0, 5).map((w) => w.id);
+  return (
+    <section className="admin-card admin-waitlist" aria-labelledby="waitlist-h">
+      <h2 id="waitlist-h" className="kicker">Waiting list</h2>
+      <p className="field-note">
+        People without a code leave their address on <Link to="/join">/join</Link>. Sending makes a code and emails it with a link that fills it in; it shows under Invites as "waiting list". Oldest first.
+      </p>
+      <div className="admin-filters">
+        <label className="field">
+          <span className="kicker">Show</span>
+          <select value={show} onChange={(e) => setShow(e.target.value as typeof show)}>
+            <option value="waiting">Waiting</option>
+            <option value="sent">Sent a code</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        {show !== "sent" && (
+          <>
+            <button className="btn btn-ink" disabled={busy || !picked.size} onClick={() => send([...picked])}>
+              {busy ? "Sending…" : picked.size ? `Send ${picked.size} code${picked.size === 1 ? "" : "s"}` : "Send codes"}
+            </button>
+            <button className="btn btn-line" disabled={busy || !next5.length} onClick={() => send(next5)}>
+              Send the next {Math.min(5, waiting.length) || 5}
+            </button>
+          </>
+        )}
+      </div>
+      {status && <p className={`field-note${status.error ? " is-error" : ""}`} role={status.error ? "alert" : "status"}>{status.text}</p>}
+      {!data ? (
+        <Wait failed={failed} />
+      ) : !data.length ? (
+        <p className="empty serif">{show === "waiting" ? "Nobody is waiting." : "Nobody here."}</p>
+      ) : (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr><th><span className="sr-only">Pick</span></th><th>Email</th><th>Draws</th><th>From</th><th>Joined</th><th>Code</th><th /></tr>
+            </thead>
+            <tbody>
+              {data.map((w) => (
+                <tr key={w.id}>
+                  <td>{!w.invited_at && <input type="checkbox" aria-label={`Pick ${w.email}`} checked={picked.has(w.id)} onChange={() => toggle(w.id)} />}</td>
+                  <td>{w.email}</td>
+                  <td>{w.note || "–"}</td>
+                  <td>{SOURCE[w.source] ?? "–"}</td>
+                  <td>{date(w.created)}</td>
+                  <td>
+                    {w.used_at ? <>in, {w.used_by ? <Link to={`/u/${w.used_by}`}>@{w.used_by}</Link> : "account deleted"}</> : w.invited_at ? <>sent {date(w.invited_at)} <span className="mono">{w.invite}</span></> : "waiting"}
+                  </td>
+                  <td className="admin-actions">
+                    {w.invited_at && !w.used_at && <button className="btn btn-quiet" disabled={busy} onClick={() => send([w.id])}>Send again</button>}
+                    <button className="btn btn-quiet" onClick={() => drop(w)}>Remove</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Invites() {
   const [used, setUsed] = useState<"" | "yes" | "no">("no");
   const { data, failed, reload } = useLoad(() => invites(used || undefined), [used]);
@@ -405,6 +510,7 @@ function Invites() {
   };
   return (
     <>
+      <Waitlist onSent={reload} />
       <form className="admin-card admin-make" onSubmit={make}>
         <h2 className="kicker">Make invite codes</h2>
         <div className="admin-filters">

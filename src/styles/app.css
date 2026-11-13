@@ -4308,3 +4308,40 @@ label.work-tile:hover .plate {
     grid-template-columns: 144px minmax(0, 1fr) 300px;
   }
 }
+
+/* ---------- the waiting list (/join, the handle step) ---------- */
+.join-steps {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+  padding-left: 1.4em;
+  font-size: 17px;
+}
+.waitlist-ask {
+  justify-self: start;
+  margin-top: var(--s-2);
+}
+.waitlist-box {
+  margin-top: 0;
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--rule-soft);
+}
+.waitlist-done {
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+}
+.waitlist-done p {
+  margin: 0;
+}
+/* the field only bots fill in: off the page, out of the tab order and hidden from screen readers */
+.waitlist-trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}

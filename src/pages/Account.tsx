@@ -16,7 +16,8 @@ import {
   signOut,
   useAccount,
 } from "../data/account";
-import { forgetInvite, inviteLink, keepInvite, makeInvite, type MyInvites, myInvites, takeBackInvite } from "../data/beta";
+import { WaitlistForm } from "../components/Waitlist";
+import { forgetInvite, inviteLink, keepInvite, makeInvite, type MyInvites, myInvites, signupOpen, takeBackInvite } from "../data/beta";
 import { MIN_AGE, TERMS_VERSION } from "../data/legal";
 import { useLocal } from "../data/local";
 import { publishPin } from "../data/pieces";
@@ -72,8 +73,11 @@ function SignIn({ farewell }: { farewell: boolean }) {
   const [invite] = useState(keepInvite);
   const id = useId();
 
+  // whether joining needs a code, so a newcomer knows before the email round trip
+  const [open, setOpen] = useState<boolean | null>(null);
   useEffect(() => {
     providers().then((p) => setGoogle(p.google), () => {});
+    signupOpen().then(setOpen);
   }, []);
 
   const submit = async (e: FormEvent) => {
@@ -128,6 +132,11 @@ function SignIn({ farewell }: { farewell: boolean }) {
           </div>
         )}
         <p className="field-note serif">Signing in only matters for publishing, stamping and following. Drawing never needs an account.</p>
+        {open === false && !invite && (
+          <p className="field-note serif">
+            New here? Joining needs an invite code during the beta. No code yet? <Link to="/join" viewTransition>Join the waiting list</Link>.
+          </p>
+        )}
       </div>
     </Page>
   );
@@ -167,6 +176,8 @@ function PickHandle({ email }: { email: string }) {
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ text: string; field?: string } | null>(null);
+  // no code: the waiting list, with their address filled in
+  const [asking, setAsking] = useState(false);
   const { problem, checking } = useHandleCheck(handle);
   const id = useId();
 
@@ -238,6 +249,9 @@ function PickHandle({ email }: { email: string }) {
           <p id={`${id}-invite-note`} className={`field-note serif${inviteError ? " is-error" : ""}`}>
             {inviteError ?? "Tilo is in a closed beta. A member or the team gives you a code."}
           </p>
+          {!asking && !invite && (
+            <button type="button" className="link-btn waitlist-ask" onClick={() => setAsking(true)}>No code? Ask for one</button>
+          )}
         </div>
         <div className="account-agree-row">
           <label className="check account-agree">
@@ -265,6 +279,13 @@ function PickHandle({ email }: { email: string }) {
           <button type="button" className="btn btn-quiet" onClick={() => signOut()}>Not {email}? Sign out</button>
         </div>
       </form>
+      {asking && (
+        <section className="account-col waitlist-box" aria-labelledby={`${id}-wait`}>
+          <h2 id={`${id}-wait`} className="kicker">Ask for a code</h2>
+          <p className="serif">Join the waiting list and the team sends a code to this address when there's a place. Come back here with it, or press the link in the email.</p>
+          <WaitlistForm source="account" email={email} />
+        </section>
+      )}
     </Page>
   );
 }

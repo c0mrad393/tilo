@@ -38,6 +38,7 @@ const router = createBrowserRouter([
           { path: "/wall/:no", lazy: () => import("./pages/WallPage").then((m) => ({ Component: m.PastWallPage })) },
           { path: "/library", lazy: () => import("./pages/Library").then((m) => ({ Component: m.Library })) },
           { path: "/account", lazy: () => import("./pages/Account").then((m) => ({ Component: m.Account })) },
+          { path: "/join", lazy: () => import("./pages/Join").then((m) => ({ Component: m.Join })) },
           { path: "/u/:handle", lazy: () => import("./pages/Profile").then((m) => ({ Component: m.Profile })) },
           { path: "/mod", lazy: () => import("./pages/Queue").then((m) => ({ Component: m.Queue })) },
           { path: "/admin/:tab?", lazy: () => import("./pages/Admin").then((m) => ({ Component: m.Admin })) },

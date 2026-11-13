@@ -17,6 +17,7 @@ import { school as schoolRoutes } from "./school.ts";
 import { painterThread, screener } from "./screen.ts";
 import { statuses } from "./status.ts";
 import { wall as wallRoutes } from "./wall.ts";
+import { mailer, waitlist } from "./waitlist.ts";
 
 /* tilo-api: the part of the server that has to read what members send before it is stored,
    and everything that moves a piece's files. Simple writes (stamps, follows) go straight to
@@ -72,7 +73,8 @@ app.route("/pieces", pieces(sql, { member, filesDir, perDay: Number(process.env.
 const modOptions = { member, move, ...admin, holdAfter: Number(process.env.REPORTS_TO_HOLD ?? 3), perDay: 30, wall };
 app.route("/reports", reports(sql, modOptions));
 app.route("/mod", moderation(sql, modOptions));
-app.route("/admin", adminRoutes(sql, { member }));
+app.route("/admin", adminRoutes(sql, { member, mail: mailer(process.env, site) }));
+app.route("/waitlist", waitlist(sql));
 app.route("/claims", claims(sql, { jwtSecret: env("JWT_SECRET"), site }));
 app.route("/errors", errors(sql));
 app.route("/wall", wall.app);
@@ -107,15 +109,19 @@ void wall.start();
 void school.resume();
 
 // what the privacy policy promises: Auth's sign-in log goes after 30 days, unused sessions
-// after 90, answered takedown claims after three years, and error reports 30 days after
-// they were last seen
+// after 90, answered takedown claims after three years, error reports 30 days after they
+// were last seen, and a waiting-list address 90 days after its code went (a year if none did)
 const prune = async () => {
   try {
     const [n] = await sql`select * from public.prune_sign_ins()`;
     const gone = await sql`delete from public.claims where status = 'closed' and closed_at < now() - interval '3 years' returning id`;
     const faults = await sql`delete from public.errors where last_seen < now() - interval '30 days' returning sig`;
-    if (n.log || n.sessions || gone.length || faults.length)
-      console.log(`pruned ${n.log} sign-in records, ${n.sessions} sessions, ${gone.length} claims, ${faults.length} error reports`);
+    const waited = await sql`
+      delete from public.waitlist
+      where invited_at < now() - interval '90 days' or (invited_at is null and created < now() - interval '1 year')
+      returning id`;
+    if (n.log || n.sessions || gone.length || faults.length || waited.length)
+      console.log(`pruned ${n.log} sign-in records, ${n.sessions} sessions, ${gone.length} claims, ${faults.length} error reports, ${waited.length} waiting-list addresses`);
   } catch (e) {
     console.error("pruning failed", e);
   }

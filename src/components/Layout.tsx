@@ -86,6 +86,8 @@ export function Layout() {
   const pupils = /^(\/demo)?\/class(\/|$)/.test(pathname);
   // a page opened for the first time is fetched before it shows; the bar says so
   const loading = useNavigation().state === "loading";
+  // a member has their invite already; the footer's waiting-list line is for everyone else
+  const { profile } = useAccount();
   return (
     <>
       <div className="nav-progress" data-on={loading ? "" : undefined} role="progressbar" aria-label="Opening the page" aria-hidden={!loading} />
@@ -139,7 +141,7 @@ export function Layout() {
               <h2 className="kicker">This edition</h2>
               <p className="serif">
                 {ACCOUNTS
-                  ? `Version ${__APP_VERSION__}, closed beta. Your sheets live on this device until you publish them; the pieces by @tilo were drawn for the prototype.`
+                  ? <>Version {__APP_VERSION__}, closed beta. Your sheets live on this device until you publish them; the pieces by @tilo were drawn for the prototype.{!profile && <> No invite yet? <Link to="/join">Join the waiting list</Link>.</>}</>
                   : `Version ${__APP_VERSION__}, before accounts open. Your sheets and pins live on this device; the other pieces and artists are samples.`}
               </p>
             </section>
