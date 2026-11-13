@@ -1,0 +1,15 @@
+{
+  "voice": "af_heart",
+  "speed": 1.0,
+  "lines": [
+    ["hook", "Want to draw on Tilo, and show your work in the gallery? Here's how to get in. It takes a minute."],
+    ["join", "Go to tiloart dot com slash join, and leave your email. Tilo is in a closed beta, so we let people in a few at a time."],
+    ["mail", "When there's a place, your invite arrives by email. Press, Join Tilo."],
+    ["signin", "Sign in with that same address. There's no password. Tilo emails you a link, and one tap signs you in."],
+    ["handle", "Now pick your handle. Your invite code is already filled in. Tick the box, and you're a member."],
+    ["draw", "Open the studio, choose a pencil, ink, or pixels, and draw. Every stroke is recorded as you go."],
+    ["publish", "Publish it, and it hangs in the gallery with its recording, so anyone can replay how you drew it."],
+    ["social", "Then stamp the pieces you love, follow artists, and add your marks to the shared wall."],
+    ["cta", "Can't wait for your code? Start drawing now. No account needed. Your sheets stay on your device until you're in. Tiloart dot com slash join."]
+  ]
+}

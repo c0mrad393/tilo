@@ -41,12 +41,37 @@ SETS.tour = [
   ["tour-gallery", "/gallery", 0, null, 2600],
   ["tour-wall", "/wall", 0],
 ];
+/** a script that types into fields as a person would (React sees the change), and ticks boxes */
+const fill = (pairs) => `(async () => { for (const [sel, v] of ${JSON.stringify(pairs)}) {
+  const el = document.querySelector(sel); if (!el) throw new Error("no field " + sel);
+  if (v === true) { if (!el.checked) el.click(); continue; }
+  const set = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value").set;
+  set.call(el, v); el.dispatchEvent(new Event("input", { bubbles: true })); await new Promise((r) => setTimeout(r, 300)); } })()`;
+// the sign-up video, from a local server (SITE=http://localhost:4640), so nothing is sent to the
+// real site: join1 up to the sign-in email; join2 after it, with LINK the sign-in link Mailpit caught
+const CODE = "TILO-ABCD-2345";
+SETS.join1 = [
+  ["join-form", "/join", 330, fill([["input[type=email]", "you@example.com"], ["input[placeholder^=Ink]", "Ink sketches and pixel art"]])],
+  ["join-done", null, 380, tap("Put me on the list")],
+  ["invite-mail", `file://${join(import.meta.dirname, "shots", "invite-mail.html")}`, 0],
+  ["signin-form", `/account?invite=${CODE}`, 0, fill([["input[type=email]", "you@example.com"]])],
+  ["signin-sent", null, 0, tap("Email me a link")],
+];
+SETS.join2 = [
+  // the invite link's code waits on this device, as it would after the email's button
+  ["handle-prep", `/account?invite=${CODE}`, 0],
+  ["handle-form", process.env.LINK, 170, fill([["input[autocomplete=username]", "mariam_draws"], ["input[autocomplete=name]", "Mariam"], ["input[type=checkbox]", true]])],
+];
+// `node marketing/shoot.mjs one /path` shoots one page as it is, to see what a set will meet
+SETS.one = [["one", process.argv[3] ?? "/", 0]];
 const SHOTS = SETS[process.argv[2] ?? "intro"];
 const out = join(import.meta.dirname, "shots");
 mkdirSync(out, { recursive: true });
 
 const port = 9333;
 const chrome = spawn(CHROME, ["--headless=new", "--disable-gpu", "--hide-scrollbars", `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), "tilo-shoot-"))}`, "about:blank"], { stdio: "ignore" });
+// a set that throws must not leave Chrome running: the next run would reuse it, signed in
+process.on("exit", () => chrome.kill());
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let target;
@@ -73,7 +98,7 @@ await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-m
 const boxes = {};
 for (const [name, path, scroll, script, tall] of SHOTS) {
   if (path) {
-    await send("Page.navigate", { url: SITE + path });
+    await send("Page.navigate", { url: /^(https?|file):/.test(path) ? path : SITE + path });
     await wait(5000);
   }
   if (script) {
@@ -94,8 +119,10 @@ for (const [name, path, scroll, script, tall] of SHOTS) {
   }
   // where the canvases sit, so a video can play a replay on top of the screenshot
   const r = await send("Runtime.evaluate", { expression: `JSON.stringify([...document.querySelectorAll("canvas")].map((c) => { const b = c.getBoundingClientRect(); return [b.x, b.y + scrollY, b.width, b.height]; }).filter(([, , w, h]) => w > 100 && h > 60))`, returnByValue: true });
-  const els = await send("Runtime.evaluate", { expression: `JSON.stringify([...document.querySelectorAll("button, a")].map((e) => { const b = e.getBoundingClientRect(); return [(e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40), b.x, b.y + scrollY, b.width, b.height]; }).filter(([t, , , w, h]) => t && w > 0 && h > 0))`, returnByValue: true });
-  boxes[name] = { canvases: JSON.parse(r.result?.result?.value ?? "[]"), els: JSON.parse(els.result?.result?.value ?? "[]") };
+  const els = await send("Runtime.evaluate", { expression: `JSON.stringify([...document.querySelectorAll("button, a, label, input")].map((e) => { const b = e.getBoundingClientRect(); return [(e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40), b.x, b.y + scrollY, b.width, b.height]; }).filter(([t, , , w, h]) => t && w > 0 && h > 0))`, returnByValue: true });
+  // how far the page is scrolled in the picture: the boxes are in page pixels
+  const sy = await send("Runtime.evaluate", { expression: "scrollY", returnByValue: true });
+  boxes[name] = { scrollY: sy.result?.result?.value ?? 0, canvases: JSON.parse(r.result?.result?.value ?? "[]"), els: JSON.parse(els.result?.result?.value ?? "[]") };
   const { result } = await send("Page.captureScreenshot", tall ? { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width: 390, height: tall, scale: 1 } } : { format: "png" });
   writeFileSync(join(out, `${name}.png`), Buffer.from(result.data, "base64"));
   console.log("shot", name);
