@@ -14,7 +14,8 @@ const tap = (...names) => `(async () => { for (const n of ${JSON.stringify(names
   const b = [...document.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent).trim().startsWith(n) || b.textContent.trim().endsWith(n));
   if (!b) throw new Error("no button " + n);
   b.click(); await new Promise((r) => setTimeout(r, 700)); } })()`;
-// [name, path (null: stay on the page), scroll, script to run first]
+// [name, path (null: stay on the page), scroll, script to run first, tall]
+// tall: the page down to `tall` CSS pixels in one image, for scrolling inside the phone
 const SETS = {
   intro: [
     ["home", "/", 0],
@@ -31,6 +32,15 @@ const SETS = {
     ["school-show", "/demo/show/our-houses", 0],
   ],
 };
+// the site tour: real screens, signed out, as a visitor from a video sees them
+SETS.tour = [
+  ["tour-home", "/", 0, null, 2400],
+  ["tour-studio", "/studio?new", 0],
+  ["tour-pixel", "/studio?new&kind=pixel", 0],
+  ["tour-piece", "/piece/tilooldtown", 0, null, 1700],
+  ["tour-gallery", "/gallery", 0, null, 2600],
+  ["tour-wall", "/wall", 0],
+];
 const SHOTS = SETS[process.argv[2] ?? "intro"];
 const out = join(import.meta.dirname, "shots");
 mkdirSync(out, { recursive: true });
@@ -60,7 +70,8 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: true });
 // no entrance animations, and the light theme whatever this Mac is set to
 await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: "light" }] });
 
-for (const [name, path, scroll, script] of SHOTS) {
+const boxes = {};
+for (const [name, path, scroll, script, tall] of SHOTS) {
   if (path) {
     await send("Page.navigate", { url: SITE + path });
     await wait(5000);
@@ -72,9 +83,23 @@ for (const [name, path, scroll, script] of SHOTS) {
   }
   if (scroll) await send("Runtime.evaluate", { expression: `scrollTo(0, ${scroll})` });
   await wait(800);
-  const { result } = await send("Page.captureScreenshot", { format: "png" });
+  // a tall page draws its pictures as they scroll into view: go down it once first
+  if (tall) {
+    for (let y = 0; y <= tall; y += 400) {
+      await send("Runtime.evaluate", { expression: `scrollTo(0, ${y})` });
+      await wait(450);
+    }
+    await send("Runtime.evaluate", { expression: "scrollTo(0, 0)" });
+    await wait(1500);
+  }
+  // where the canvases sit, so a video can play a replay on top of the screenshot
+  const r = await send("Runtime.evaluate", { expression: `JSON.stringify([...document.querySelectorAll("canvas")].map((c) => { const b = c.getBoundingClientRect(); return [b.x, b.y + scrollY, b.width, b.height]; }).filter(([, , w, h]) => w > 100 && h > 60))`, returnByValue: true });
+  const els = await send("Runtime.evaluate", { expression: `JSON.stringify([...document.querySelectorAll("button, a")].map((e) => { const b = e.getBoundingClientRect(); return [(e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40), b.x, b.y + scrollY, b.width, b.height]; }).filter(([t, , , w, h]) => t && w > 0 && h > 0))`, returnByValue: true });
+  boxes[name] = { canvases: JSON.parse(r.result?.result?.value ?? "[]"), els: JSON.parse(els.result?.result?.value ?? "[]") };
+  const { result } = await send("Page.captureScreenshot", tall ? { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width: 390, height: tall, scale: 1 } } : { format: "png" });
   writeFileSync(join(out, `${name}.png`), Buffer.from(result.data, "base64"));
   console.log("shot", name);
 }
+writeFileSync(join(out, `${process.argv[2] ?? "intro"}-boxes.json`), JSON.stringify(boxes, null, 1));
 ws.close();
 chrome.kill();
