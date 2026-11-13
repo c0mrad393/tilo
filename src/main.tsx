@@ -41,6 +41,7 @@ const router = createBrowserRouter([
           { path: "/join", lazy: () => import("./pages/Join").then((m) => ({ Component: m.Join })) },
           { path: "/u/:handle", lazy: () => import("./pages/Profile").then((m) => ({ Component: m.Profile })) },
           { path: "/mod", lazy: () => import("./pages/Queue").then((m) => ({ Component: m.Queue })) },
+          { path: "/admin/member/:id", lazy: () => import("./pages/Admin").then((m) => ({ Component: m.Admin })) },
           { path: "/admin/:tab?", lazy: () => import("./pages/Admin").then((m) => ({ Component: m.Admin })) },
           { path: "/terms", lazy: () => import("./pages/Legal").then((m) => ({ Component: m.Terms })) },
           { path: "/privacy", lazy: () => import("./pages/Legal").then((m) => ({ Component: m.Privacy })) },

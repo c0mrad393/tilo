@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { AdminTabs } from "../components/AdminTabs";
 import { ACCOUNTS, call, type Profile, useAccount } from "../data/account";
 import { ModButtons } from "../components/Moderation";
-import { type Claim, claims, closeClaim, decideSchool, type SchoolRow, schools, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite, type WaitRow, waitlist, inviteFromWaitlist, dropFromWaitlist } from "../data/admin";
+import { type Claim, claims, closeClaim, decideSchool, type SchoolRow, schools, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite, type WaitRow, waitlist, inviteFromWaitlist, dropFromWaitlist, addNote, deleteMember, deleteNote, memberDetail, type MemberShow, type MemberSort, signOutMember } from "../data/admin";
+import { moderate } from "../data/pieces";
 import { ANSWER_IN } from "../data/legal";
 import { fromRow, type Published, SELECT } from "../data/pieces";
 import { PAPER, WALL } from "../data/wall";
@@ -42,19 +43,21 @@ const Wait = ({ failed }: { failed: boolean }) =>
 
 // ---------- overview ----------
 
-/* pieces published a day, for two weeks: one series, so no legend; each bar says its own number on hover and focus */
-function PublishedChart({ days }: { days: Stats["days"] }) {
-  const top = Math.max(1, ...days.map((d) => d.n));
-  const total = days.reduce((n, d) => n + d.n, 0);
+/* one count a day, for two weeks: one series, so no legend; each bar says its own number on hover and focus */
+function DayChart({ days, pick, what }: { days: Stats["days"]; pick: (d: Stats["days"][number]) => number; what: [string, string] }) {
+  const top = Math.max(1, ...days.map(pick));
+  const total = days.reduce((n, d) => n + pick(d), 0);
+  const [one, many] = what;
   return (
     <figure className="admin-chart">
-      <figcaption className="kicker">Pieces published, last 14 days · {total}</figcaption>
+      <figcaption className="kicker">{many[0].toUpperCase() + many.slice(1)}, last 14 days · {total}</figcaption>
       <div className="admin-bars" role="list">
         {days.map((d) => {
-          const label = `${day.format(new Date(d.day))}: ${d.n} piece${d.n === 1 ? "" : "s"}`;
+          const n = pick(d);
+          const label = `${day.format(new Date(d.day))}: ${n} ${n === 1 ? one : many}`;
           return (
             <span key={d.day} role="listitem" tabIndex={0} className="admin-bar" aria-label={label} data-tip={label}>
-              <i style={{ height: `${(d.n / top) * 100}%` }} />
+              <i style={{ height: `${(n / top) * 100}%` }} />
             </span>
           );
         })}
@@ -115,20 +118,46 @@ function InvitesSetting() {
 function Overview() {
   const { data: s, failed } = useLoad(stats, []);
   if (!s) return <Wait failed={failed} />;
+  // what waits for someone, in the order it should be done; only what isn't zero shows
+  const todo: [number, string, string, string, string][] = [
+    [s.claims, "takedown claim", "takedown claims", `open; the terms promise an answer within ${ANSWER_IN}`, "/admin/claims"],
+    [s.reports, "open report", "open reports", "on pieces and profiles", "/mod"],
+    [s.waiting, "piece", "pieces", "waiting for a mod to let them in", "/mod"],
+    [s.schools_pending, "school", "schools", "waiting to be checked and let in", "/admin/schools"],
+    [s.waiting_list, "person", "people", "on the waiting list without a code", "/admin/invites"],
+    [s.feedback, "piece of feedback", "pieces of feedback", "to read", "/admin/feedback"],
+    [s.errors, "error", "errors", `this week, ${s.error_count.toLocaleString()} time${s.error_count === 1 ? "" : "s"} in all`, "/admin/errors"],
+  ];
+  const waiting = todo.filter(([n]) => n > 0);
   const tiles: [string, number, string, string?][] = [
     ["Members", s.members, `${s.new_members} new this week`, "/admin/members"],
-    ["Signed in this week", s.signed_in, `${s.suspended} suspended`],
+    ["Signed in this week", s.signed_in, `${s.suspended} suspended`, "/admin/members"],
+    ["Artists", s.artists, "members with a piece"],
     ["In the gallery", s.live, `${s.hidden} hidden`, "/admin/pieces"],
-    ["Waiting for a mod", s.waiting, "pieces", "/mod"],
-    ["Open reports", s.reports, "pieces and profiles", "/mod"],
-    ["Takedown claims", s.claims, `open, answer within ${ANSWER_IN}`, "/admin/claims"],
-    ["Waiting list", s.waiting_list, "waiting for a code", "/admin/invites"],
+    ["Stamps this week", s.stamps, "given"],
+    ["Wall marks this week", s.wall_marks, "drawn", "/admin/wall"],
     ["Invites left", s.invites_left, `${s.invites_used} used`, "/admin/invites"],
-    ["Feedback", s.feedback, "to read", "/admin/feedback"],
-    ["Errors this week", s.errors, `${s.error_count.toLocaleString()} time${s.error_count === 1 ? "" : "s"} in all`, "/admin/errors"],
+    ["Mods and admins", s.staff, "on the team", "/admin/members"],
   ];
   return (
     <>
+      <section className="admin-card admin-todo" aria-labelledby="todo-h">
+        <h2 id="todo-h" className="kicker">Needs you</h2>
+        {waiting.length ? (
+          <ul>
+            {waiting.map(([n, one, many, sub, to]) => (
+              <li key={one}>
+                <Link to={to}>
+                  <b>{n.toLocaleString()}</b> {n === 1 ? one : many}
+                </Link>{" "}
+                <span className="serif">{sub}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="serif">Nothing is waiting. The queue, claims, feedback and errors are all clear.</p>
+        )}
+      </section>
       <div className="admin-tiles">
         {tiles.map(([name, n, sub, to]) => {
           const body = (
@@ -141,15 +170,42 @@ function Overview() {
           return to ? <Link key={name} to={to} className="admin-tile">{body}</Link> : <div key={name} className="admin-tile">{body}</div>;
         })}
       </div>
-      <PublishedChart days={s.days} />
+      <div className="admin-charts">
+        <DayChart days={s.days} pick={(d) => d.joined} what={["member joined", "members joined"]} />
+        <DayChart days={s.days} pick={(d) => d.n} what={["piece published", "pieces published"]} />
+      </div>
+    </>
+  );
+}
+
+// ---------- settings ----------
+
+function Settings() {
+  const { data: health } = useLoad(() => fetch("/api/health").then((r) => r.json() as Promise<{ ok: boolean; format: number; disk_free: number }>), []);
+  return (
+    <>
       <InvitesSetting />
+      <section className="admin-card">
+        <h2 className="kicker">Server</h2>
+        {health ? (
+          <dl className="admin-facts">
+            <div><dt>Status</dt><dd>{health.ok ? "Running" : "Short of disk space"}</dd></div>
+            <div><dt>Disk free</dt><dd>{Math.round(health.disk_free * 100)}%</dd></div>
+            <div><dt>Recording format</dt><dd>{health.format}</dd></div>
+            <div><dt>App version</dt><dd>{__APP_VERSION__}</dd></div>
+          </dl>
+        ) : (
+          <p className="serif">Checking…</p>
+        )}
+        <p className="field-note">Limits such as pieces a day and how many reports hold a piece are set on the server (server/.env) and change with a deploy.</p>
+      </section>
     </>
   );
 }
 
 // ---------- members ----------
 
-function RoleSelect({ m, me, onDone }: { m: Member; me: string; onDone: () => void }) {
+function RoleSelect({ m, me, onDone }: { m: Pick<Member, "id" | "role" | "handle">; me: string; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [want, setWant] = useState<Profile["role"] | null>(null);
   const [error, setError] = useState("");
@@ -198,9 +254,12 @@ function RoleSelect({ m, me, onDone }: { m: Member; me: string; onDone: () => vo
 
 function Members() {
   const { profile } = useAccount();
+  const deleted = (useLocation().state as { deleted?: string } | null)?.deleted;
   const [q, setQ] = useState("");
   const [typed, setTyped] = useState("");
   const [role, setRoleFilter] = useState("");
+  const [show, setShow] = useState<MemberShow>("");
+  const [sort, setSort] = useState<MemberSort>("");
   const [page, setPage] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => {
@@ -209,9 +268,10 @@ function Members() {
     }, 300);
     return () => clearTimeout(t);
   }, [typed]);
-  const { data, failed, reload } = useLoad(() => members({ q, role, page }), [q, role, page]);
+  const { data, failed, reload } = useLoad(() => members({ q, role, show, sort, page }), [q, role, show, sort, page]);
   return (
     <>
+      {deleted && <p className="notice serif" role="status">{deleted}</p>}
       <div className="admin-filters">
         <label className="field">
           <span className="kicker">Search</span>
@@ -224,6 +284,25 @@ function Members() {
             <option value="member">Members</option>
             <option value="mod">Mods</option>
             <option value="admin">Admins</option>
+          </select>
+        </label>
+        <label className="field">
+          <span className="kicker">Show</span>
+          <select value={show} onChange={(e) => (setShow(e.target.value as MemberShow), setPage(0))}>
+            <option value="">All</option>
+            <option value="new">Joined this week</option>
+            <option value="active">Signed in this month</option>
+            <option value="reported">With open reports</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </label>
+        <label className="field">
+          <span className="kicker">Order</span>
+          <select value={sort} onChange={(e) => (setSort(e.target.value as MemberSort), setPage(0))}>
+            <option value="">Newest first</option>
+            <option value="old">Oldest first</option>
+            <option value="active">Last signed in</option>
+            <option value="pieces">Most pieces</option>
           </select>
         </label>
       </div>
@@ -241,7 +320,7 @@ function Members() {
               {data.members.map((m) => (
                 <tr key={m.id}>
                   <td>
-                    <Link to={`/u/${m.handle}`}>@{m.handle}</Link>
+                    <Link to={`/admin/member/${m.id}`} viewTransition>@{m.handle}</Link>
                     {m.name && <span className="admin-sub">{m.name}</span>}
                     {m.suspended && <span className="admin-flag">suspended</span>}
                   </td>
@@ -259,7 +338,328 @@ function Members() {
         </div>
       )}
       <Pager page={page} more={!!data?.more} setPage={setPage} />
-      <p className="field-note">Suspend a member from their profile page.</p>
+      <p className="field-note">Open a member for everything about them, and to suspend, sign out, note or delete.</p>
+    </>
+  );
+}
+
+// ---------- one member ----------
+
+const REASON: Record<string, string> = { "not-hand-made": "not hand-made", nsfw: "not safe for all ages", abuse: "abuse", spam: "spam", copied: "copied", other: "other" };
+const PROVIDER: Record<string, string> = { email: "email link", google: "Google" };
+const ACTIONS: Record<string, string> = {
+  role: "changed their role:",
+  delete: "deleted the account:",
+  signout: "signed them out everywhere:",
+};
+
+/** a short sheet that asks once more before something that can't be undone */
+function useAsk() {
+  const ref = useRef<HTMLDialogElement>(null);
+  return { ref, open: () => ref.current?.showModal(), close: () => ref.current?.close() };
+}
+
+function MemberPage() {
+  const { id = "" } = useParams();
+  const { profile } = useAccount();
+  const navigate = useNavigate();
+  const { data: m, failed, reload } = useLoad(() => memberDetail(id), [id]);
+  const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [why, setWhy] = useState("");
+  const [note, setNote] = useState("");
+  const [typed, setTyped] = useState("");
+  const [reason, setReason] = useState("");
+  const suspendAsk = useAsk();
+  const deleteAsk = useAsk();
+
+  if (!m)
+    return failed ? (
+      <>
+        <h1>Member</h1>
+        <p className="empty serif" role="alert">No member here. They may have deleted their account. <Link to="/admin/members">All members</Link></p>
+      </>
+    ) : (
+      <Wait failed={false} />
+    );
+
+  const me = profile?.id ?? "";
+  const self = m.id === me;
+  const run = async (what: () => Promise<unknown>, done: string, after?: () => void) => {
+    setBusy(true);
+    setStatus(null);
+    try {
+      await what();
+      setStatus({ text: done });
+      after?.();
+      reload();
+    } catch (e) {
+      setStatus({ text: e instanceof Error ? e.message : "That didn't work.", error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const suspend = () =>
+    run(() => moderate("members", m.id, m.suspended ? "unsuspend" : "suspend", why.trim()), m.suspended ? "The suspension is lifted. Their pieces are back." : "Suspended. They can't sign in, their pieces are hidden and their wall marks are gone.", () => {
+      suspendAsk.close();
+      setWhy("");
+    });
+  const signOut = () => run(() => signOutMember(m.id), "Signed out everywhere. They sign in again with an email link.");
+  const saveNote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (note.trim()) void run(() => addNote(m.id, note.trim()), "Note kept.", () => setNote(""));
+  };
+  const erase = async () => {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const r = await deleteMember(m.id, typed, reason);
+      deleteAsk.close();
+      navigate("/admin/members", { state: { deleted: `@${m.handle} is deleted, with ${r.pieces} piece${r.pieces === 1 ? "" : "s"}.` } });
+    } catch (e) {
+      setStatus({ text: e instanceof Error ? e.message : "That didn't work.", error: true });
+      deleteAsk.close();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const a = m.account;
+  const c = m.counts;
+  const facts: [string, React.ReactNode][] = [
+    ["Email", a ? <a href={`mailto:${a.email}`}>{a.email}</a> : "–"],
+    ["Joined", when.format(new Date(m.created))],
+    ["Last signed in", a?.last_sign_in_at ? when.format(new Date(a.last_sign_in_at)) : "never"],
+    ["Signs in with", a?.providers.length ? a.providers.map((p) => PROVIDER[p] ?? p).join(", ") : "–"],
+    ["Email confirmed", a?.confirmed_at ? date(a.confirmed_at) : "not yet"],
+    ["Sessions open", a ? String(a.sessions) : "–"],
+    ["Agreed to the terms", m.agreed ? `version ${m.agreed.terms}, ${date(m.agreed.at)}` : "no record"],
+    [
+      "Came in with",
+      m.invite ? (
+        <>
+          <span className="mono">{m.invite.code}</span>
+          {m.invite.made_by ? <> from <Link to={`/u/${m.invite.made_by}`}>@{m.invite.made_by}</Link></> : null}
+          {m.invite.note && <span className="admin-sub">{m.invite.note}</span>}
+        </>
+      ) : (
+        "no code (sign-up was open)"
+      ),
+    ],
+  ];
+  if (m.schools.length) facts.push(["Teaches at", m.schools.map((x) => `${x.name}${x.lead ? " (registered it)" : ""}${x.status === "pending" ? ", waiting" : ""}`).join("; ")]);
+  const numbers: [string, number, string?][] = [
+    ["Pieces", c.pieces, `${c.live} live · ${c.held} waiting · ${c.hidden} hidden or removed`],
+    ["Stamps", c.stamps_got, `got · ${c.stamps_given} given`],
+    ["Followers", c.followers, `${c.following} following`],
+    ["Wall marks", c.wall_marks],
+    ["Reports sent", c.reports_filed],
+    ["Feedback sent", c.feedback],
+  ];
+  return (
+    <>
+      <p className="admin-back"><Link to="/admin/members" viewTransition>← All members</Link></p>
+      <header className="admin-member-head">
+        <h1>@{m.handle}</h1>
+        {m.name && <p className="serif">{m.name}</p>}
+        <p className="admin-member-flags">
+          <span className="admin-tag">{m.role}</span>
+          {m.suspended && <span className="admin-flag">suspended</span>}
+          {self && <span className="admin-tag">you</span>}
+          <Link to={`/u/${m.handle}`}>Public profile</Link>
+        </p>
+        {m.bio && <p className="serif admin-sub">{m.bio}</p>}
+      </header>
+      {status && <p className={`notice serif${status.error ? " notice-error" : ""}`} role={status.error ? "alert" : "status"}>{status.text}</p>}
+
+      <div className="admin-member-grid">
+        <section className="admin-card" aria-labelledby="m-account">
+          <h2 id="m-account" className="kicker">Account</h2>
+          <dl className="admin-facts">
+            {facts.map(([k, v]) => (
+              <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
+            ))}
+          </dl>
+        </section>
+
+        <section className="admin-card" aria-labelledby="m-do">
+          <h2 id="m-do" className="kicker">Actions</h2>
+          {self ? (
+            <p className="serif">This is you. Change your own account from <Link to="/account">your account page</Link>; another admin changes your role.</p>
+          ) : (
+            <>
+              <div className="admin-do">
+                <span>Role</span>
+                <RoleSelect m={m} me={me} onDone={reload} />
+              </div>
+              <div className="admin-do">
+                <span>{m.suspended ? "Suspended: can't sign in, pieces hidden" : "Suspend: no signing in, pieces hidden, wall marks rubbed out"}</span>
+                <button className="btn btn-line" disabled={busy} onClick={suspendAsk.open}>{m.suspended ? "Lift the suspension" : "Suspend"}</button>
+              </div>
+              <div className="admin-do">
+                <span>End every session, on every device{a ? ` (${a.sessions} open)` : ""}</span>
+                <button className="btn btn-line" disabled={busy || !a?.sessions} onClick={signOut}>Sign out everywhere</button>
+              </div>
+              {a && (
+                <div className="admin-do">
+                  <span>Write to them</span>
+                  <a className="btn btn-line" href={`mailto:${a.email}?subject=${encodeURIComponent("About your Tilo account")}`}>Email</a>
+                </div>
+              )}
+              <div className="admin-do admin-danger">
+                <span>
+                  Delete the account for good: pieces, recordings, stamps, follows and wall marks go with it. It can't be undone.
+                  {m.role === "admin" && " Make them a member first."}
+                </span>
+                <button className="btn btn-danger" disabled={busy || m.role === "admin"} onClick={deleteAsk.open}>Delete account</button>
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+
+      <div className="admin-tiles">
+        {numbers.map(([k, n, sub]) => (
+          <div key={k} className="admin-tile">
+            <span className="kicker">{k}</span>
+            <b>{n.toLocaleString()}</b>
+            {sub && <span className="serif">{sub}</span>}
+          </div>
+        ))}
+      </div>
+
+      <section className="admin-card" aria-labelledby="m-notes">
+        <h2 id="m-notes" className="kicker">Notes for admins</h2>
+        <p className="field-note">Only admins see these: a warning given, a talk had, why a role changed. They go when the account does.</p>
+        <form className="admin-filters" onSubmit={saveNote}>
+          <label className="field admin-note-field">
+            <span className="sr-only">New note</span>
+            <textarea value={note} maxLength={1000} rows={2} placeholder="e.g. Warned on 13 Nov about traced work; said it won't happen again." onChange={(e) => setNote(e.target.value)} />
+          </label>
+          <button className="btn btn-ink" disabled={busy || !note.trim()}>Keep note</button>
+        </form>
+        {m.notes.length > 0 && (
+          <ul className="queue-log serif">
+            {m.notes.map((n) => (
+              <li key={n.id}>
+                <p>{n.text}</p>
+                <span className="field-note">{n.author ? `@${n.author}` : "An admin"}, {when.format(new Date(n.created))} · </span>
+                <button className="link-btn" onClick={() => run(() => deleteNote(m.id, n.id), "Note deleted.")}>Delete</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="admin-card" aria-labelledby="m-pieces">
+        <h2 id="m-pieces" className="kicker">Pieces{c.pieces > m.pieces.length ? `, the latest ${m.pieces.length} of ${c.pieces}` : ""}</h2>
+        {m.pieces.length ? (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead><tr><th>Title</th><th>Where</th><th>Stamps</th><th>Published</th></tr></thead>
+              <tbody>
+                {m.pieces.map((p) => (
+                  <tr key={p.id}>
+                    <td><Link to={`/piece/${p.id}`}>{p.title}</Link>{p.ai && <span className="admin-tag">AI-made</span>}</td>
+                    <td>{p.status === "live" ? "in the gallery" : p.status}{p.why && p.status !== "live" ? ` (${p.why})` : ""}</td>
+                    <td>{p.stamps}</td>
+                    <td>{date(p.created)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="serif">No pieces published.</p>
+        )}
+      </section>
+
+      <section className="admin-card" aria-labelledby="m-reports">
+        <h2 id="m-reports" className="kicker">Reports about them and their pieces</h2>
+        {m.reports.length ? (
+          <ul className="queue-log serif">
+            {m.reports.map((r) => (
+              <li key={r.id}>
+                <b>{REASON[r.reason] ?? r.reason}</b>{r.piece ? <> on <Link to={`/piece/${r.piece}`}>“{r.title}”</Link></> : " on the profile"}, from {r.reporter ? `@${r.reporter}` : "a deleted account"}, {date(r.created)} · {r.status === "open" ? <Link to="/mod">open</Link> : r.status}
+                {r.note && <p>{r.note}</p>}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="serif">None.</p>
+        )}
+      </section>
+
+      {m.invited.length > 0 && (
+        <section className="admin-card" aria-labelledby="m-invited">
+          <h2 id="m-invited" className="kicker">Codes they handed out</h2>
+          <ul className="queue-log serif">
+            {m.invited.map((i) => (
+              <li key={i.code}>
+                <span className="mono">{i.code}</span>: {i.used_at ? <>used {date(i.used_at)}{i.used_by ? <> by <Link to={`/u/${i.used_by}`}>@{i.used_by}</Link></> : " (account deleted)"}</> : "not used yet"}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="admin-card" aria-labelledby="m-history">
+        <h2 id="m-history" className="kicker">What mods and admins did</h2>
+        {m.history.length ? (
+          <ul className="queue-log serif">
+            {m.history.map((l) => (
+              <li key={l.id}>
+                {when.format(new Date(l.created))}: {l.mod ? `@${l.mod}` : "A mod"} {ACTIONS[l.action] ?? LOGGED[l.action] ?? l.action}{" "}
+                {l.piece && <Link to={`/piece/${l.piece}`}>a piece</Link>}
+                {l.wall !== null && <Link to={`/wall/${l.wall}`}>Wall No. {l.wall}</Link>}
+                {l.note && <> · “{l.note}”</>}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="serif">Nothing yet.</p>
+        )}
+      </section>
+
+      <dialog ref={suspendAsk.ref} aria-labelledby="m-suspend-h">
+        <form className="small-sheet sheet" onSubmit={(e) => (e.preventDefault(), suspend())}>
+          <h2 id="m-suspend-h">{m.suspended ? `Let @${m.handle} back in?` : `Suspend @${m.handle}?`}</h2>
+          <p>
+            {m.suspended
+              ? "They can sign in again and the pieces hidden by the suspension go back in the gallery. Wall marks rubbed out stay out."
+              : "They can't sign in, their live pieces leave the gallery, and their marks are rubbed off the walls. Open reports about them are closed. You can lift it later."}
+          </p>
+          <label className="field">
+            <span className="kicker">Why, for the log</span>
+            <input value={why} maxLength={300} onChange={(e) => setWhy(e.target.value)} />
+          </label>
+          <div className="row">
+            <button type="button" className="btn btn-quiet" onClick={suspendAsk.close}>Cancel</button>
+            <button className="btn btn-ink" disabled={busy}>{m.suspended ? "Lift the suspension" : "Suspend"}</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog ref={deleteAsk.ref} aria-labelledby="m-delete-h">
+        <form className="small-sheet sheet" onSubmit={(e) => (e.preventDefault(), void erase())}>
+          <h2 id="m-delete-h">Delete @{m.handle} for good?</h2>
+          <p>
+            The account, its {c.pieces} piece{c.pieces === 1 ? "" : "s"} with their recordings, its stamps, follows, wall marks and notes are deleted
+            now, and can't be brought back. Their email address can sign up again with a new code. If they might come back, suspend them instead.
+          </p>
+          <label className="field">
+            <span className="kicker">Why, for the log</span>
+            <input value={reason} required maxLength={400} onChange={(e) => setReason(e.target.value)} />
+          </label>
+          <label className="field">
+            <span className="kicker">Type @{m.handle} to confirm</span>
+            <input value={typed} autoCapitalize="none" spellCheck={false} onChange={(e) => setTyped(e.target.value)} />
+          </label>
+          <div className="row">
+            <button type="button" className="btn btn-quiet" onClick={deleteAsk.close}>Cancel</button>
+            <button className="btn btn-danger" disabled={busy || !reason.trim() || typed.trim().replace(/^@/, "").toLowerCase() !== m.handle}>{busy ? "Deleting…" : "Delete for good"}</button>
+          </div>
+        </form>
+      </dialog>
     </>
   );
 }
@@ -733,16 +1133,27 @@ function Log() {
   const [page, setPage] = useState(0);
   const { data, failed } = useLoad(async () => {
     const p = new URLSearchParams({
-      select: "id,action,piece,wall,note,created,mod:profiles!mod_log_mod_fkey(handle),who:profiles!mod_log_profile_fkey(handle)",
+      select: "id,action,piece,wall,note,created,mod:profiles!mod_log_mod_fkey(handle),who:profiles!mod_log_profile_fkey(id,handle)",
       order: "created.desc",
       limit: String(LOG + 1),
       offset: String(page * LOG),
     });
     if (action) p.set("action", `eq.${action}`);
-    const rows = await call<{ id: number; action: string; piece: string | null; wall: number | null; note: string; created: string; mod: { handle: string } | null; who: { handle: string } | null }[]>(`/rest/v1/mod_log?${p}`);
+    const rows = await call<{ id: number; action: string; piece: string | null; wall: number | null; note: string; created: string; mod: { handle: string } | null; who: { id: string; handle: string } | null }[]>(`/rest/v1/mod_log?${p}`);
     return { rows: rows.slice(0, LOG), more: rows.length > LOG };
   }, [action, page]);
-  const actions = { ...LOGGED, role: "changed the role of", invite: "made invites:", uninvite: "withdrew an invite:", setting: "changed a setting:", claim: "answered a claim about" };
+  const actions = {
+    ...LOGGED,
+    role: "changed the role of",
+    invite: "made invites:",
+    uninvite: "withdrew an invite:",
+    setting: "changed a setting:",
+    claim: "answered a claim about",
+    waitlist: "on the waiting list:",
+    // the note says who: "deleted @handle and 3 pieces: why"
+    delete: "",
+    signout: "signed out everywhere:",
+  };
   return (
     <>
       <div className="admin-filters">
@@ -764,7 +1175,7 @@ function Log() {
             <li key={l.id}>
               {when.format(new Date(l.created))}: {l.mod ? `@${l.mod.handle}` : "An admin"} {actions[l.action as keyof typeof actions] ?? l.action}{" "}
               {l.piece ? <Link to={`/piece/${l.piece}`}>a piece</Link> : l.wall !== null ? <Link to={`/wall/${l.wall}`}>Wall No. {l.wall}</Link> : null}
-              {!l.piece && l.who && <> {l.wall !== null ? "(" : ""}<Link to={`/u/${l.who.handle}`}>@{l.who.handle}</Link>{l.wall !== null ? ")" : ""}</>}
+              {!l.piece && l.who && <> {l.wall !== null ? "(" : ""}<Link to={`/admin/member/${l.who.id}`}>@{l.who.handle}</Link>{l.wall !== null ? ")" : ""}</>}
               {l.note && <> {l.piece || l.who || l.wall !== null ? `· “${l.note}”` : l.note}</>}
             </li>
           ))}
@@ -1001,11 +1412,15 @@ const SECTIONS: Record<string, [string, () => React.ReactElement]> = {
   errors: ["Errors", Errors],
   wall: ["The wall", WallAdmin],
   schools: ["Schools", SchoolsAdmin],
+  settings: ["Settings", Settings],
   log: ["Log", Log],
+  // /admin/member/:id draws its own heading
+  member: ["", MemberPage],
 };
 
 export function Admin() {
-  const { tab = "" } = useParams();
+  const { tab: path = "", id } = useParams();
+  const tab = id ? "member" : path;
   const { ready, profile } = useAccount();
   const section = SECTIONS[tab];
   if (!ACCOUNTS || !section || (ready && profile?.role !== "admin")) return <NotFound />;
@@ -1019,8 +1434,8 @@ export function Admin() {
   return (
     <main id="main" tabIndex={-1} className="wrap queue-page admin-page">
       <AdminTabs />
-      <h1>{title}</h1>
-      <Section key={tab} />
+      {title && <h1>{title}</h1>}
+      <Section key={id ?? tab} />
     </main>
   );
 }

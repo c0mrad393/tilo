@@ -22,8 +22,19 @@ export interface Stats {
   claims: number;
   /** people on the waiting list who haven't been sent a code */
   waiting_list: number;
-  /** pieces published on each of the last 14 days, oldest first */
-  days: { day: string; n: number }[];
+  /** items in the mods' queue, each counted once (held pieces, reported things, held wall marks) */
+  queue: number;
+  /** schools waiting for an admin to let them in */
+  schools_pending: number;
+  /** mods and admins */
+  staff: number;
+  /** members with at least one piece */
+  artists: number;
+  /** marks on the wall and stamps given in the last 7 days */
+  wall_marks: number;
+  stamps: number;
+  /** pieces published (n) and members joined on each of the last 14 days, oldest first */
+  days: { day: string; n: number; joined: number }[];
 }
 
 export interface Member {
@@ -80,8 +91,60 @@ export const closeClaim = (id: number, outcome: string) => call(`/api/admin/clai
 
 export const stats = () => call<Stats>("/api/admin/stats");
 
-export const members = (q: { q?: string; role?: string; page?: number }) =>
-  call<{ members: Member[]; more: boolean }>(`/api/admin/members?${new URLSearchParams({ q: q.q ?? "", role: q.role ?? "", page: String(q.page ?? 0) })}`);
+export type MemberShow = "" | "suspended" | "active" | "new" | "reported";
+export type MemberSort = "" | "old" | "active" | "pieces";
+export const members = (q: { q?: string; role?: string; show?: MemberShow; sort?: MemberSort; page?: number }) =>
+  call<{ members: Member[]; more: boolean }>(
+    `/api/admin/members?${new URLSearchParams({ q: q.q ?? "", role: q.role ?? "", show: q.show ?? "", sort: q.sort ?? "", page: String(q.page ?? 0) })}`,
+  );
+
+/** everything the member page shows about one member (GET /api/admin/members/:id) */
+export interface MemberDetail {
+  id: string;
+  handle: string;
+  name: string;
+  bio: string;
+  role: Profile["role"];
+  suspended: boolean;
+  created: string;
+  account: {
+    email: string;
+    created_at: string;
+    last_sign_in_at: string | null;
+    confirmed_at: string | null;
+    providers: string[];
+    banned_until: string | null;
+    sessions: number;
+  } | null;
+  counts: {
+    pieces: number;
+    live: number;
+    held: number;
+    hidden: number;
+    stamps_got: number;
+    stamps_given: number;
+    followers: number;
+    following: number;
+    wall_marks: number;
+    reports_filed: number;
+    feedback: number;
+  };
+  agreed: { terms: string; at: string } | null;
+  invite: { code: string; note: string; used_at: string; made_by: string | null } | null;
+  invited: { code: string; used_at: string | null; used_by: string | null }[];
+  pieces: { id: string; title: string; status: string; why: string | null; ai: boolean; created: string; stamps: number }[];
+  reports: { id: number; reason: string; note: string; status: string; created: string; piece: string | null; title: string | null; reporter: string | null }[];
+  history: { id: number; action: string; note: string; piece: string | null; wall: number | null; created: string; mod: string | null }[];
+  notes: { id: number; text: string; created: string; author: string | null }[];
+  schools: { id: string; name: string; status: string; lead: boolean }[];
+}
+export const memberDetail = (id: string) => call<MemberDetail>(`/api/admin/members/${id}`);
+/** deletes the account for good; the handle is typed again to confirm */
+export const deleteMember = (id: string, handle: string, reason: string) =>
+  call<{ pieces: number }>(`/api/admin/members/${id}`, { method: "DELETE", json: { handle, reason } });
+export const signOutMember = (id: string) => call<{ sessions: number }>(`/api/admin/members/${id}/signout`, { method: "POST" });
+export const addNote = (id: string, text: string) => call(`/api/admin/members/${id}/notes`, { method: "POST", json: { text } });
+export const deleteNote = (id: string, note: number) => request(`/api/admin/members/${id}/notes/${note}`, { method: "DELETE" });
 
 export const setRole = (id: string, role: Profile["role"]) => call(`/api/admin/members/${id}`, { method: "POST", json: { role } });
 

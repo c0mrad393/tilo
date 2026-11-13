@@ -144,7 +144,7 @@ export function Privacy() {
         <li><b>What you do:</b> the stamps you give, who you follow, the reports and feedback you send. Counts of stamps and followers are public; who reported what is not.</li>
         <li><b>Feedback:</b> what you write in the feedback box, with the page you sent it from and your browser's name, window size and whether it has a touch screen, so a problem can be seen the way you saw it.</li>
         <li><b>Invites:</b> the invite codes you hand out, and who used them.</li>
-        <li><b>Moderation:</b> what moderators did about your pieces or account, and why.</li>
+        <li><b>Moderation:</b> what moderators did about your pieces or account, and why, and any notes admins keep about your account (a warning given, say). The notes are in your download.</li>
         <li><b>Sign-ins:</b> the IP address and browser of each sign-in and session, to keep accounts safe.</li>
       </ul>
       <p className="serif">
@@ -189,7 +189,7 @@ export function Privacy() {
         <li>Error reports: 30 days after that error last happened.</li>
         <li>Takedown claims: three years after they are answered, in case they are disputed.</li>
         <li>The waiting list: 90 days after we send your code, or a year if we never do. Write to <Mail to={CONTACT} /> to come off it sooner.</li>
-        <li>Moderation records stay after an account is deleted, without the account they were about.</li>
+        <li>Moderation records stay after an account is deleted, without the account they were about. If Tilo deletes an account for breaking the rules, the record keeps the handle it had and why. Admins' notes about an account go with it.</li>
       </ul>
 
       <h2 id="rights">Your rights</h2>

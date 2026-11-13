@@ -2811,16 +2811,44 @@ main[tabindex="-1"]:focus {
 .admin-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 18px;
+  gap: var(--s-3) var(--s-6);
   padding-bottom: var(--s-2);
   border-bottom: 1px solid var(--rule-soft);
   font-weight: 700;
   font-size: 14px;
 }
+.admin-tab-group {
+  display: grid;
+  gap: 2px;
+}
+.admin-tab-label {
+  font-size: 11px;
+  color: var(--ground-soft);
+}
+.admin-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
 .admin-tabs a {
-  padding: 6px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 0;
   color: var(--ground-soft);
   text-decoration: none;
+}
+.admin-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--pink-ink);
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .admin-tabs a:hover {
   color: var(--ground-ink);
@@ -4344,4 +4372,136 @@ label.work-tile:hover .plate {
   width: 1px;
   height: 1px;
   overflow: hidden;
+}
+
+/* the admin overview's "needs you" list, two charts side by side, and the member page */
+.admin-todo ul {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-todo li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.admin-todo li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.admin-todo a {
+  color: var(--blue);
+  font-weight: 700;
+}
+.admin-todo b {
+  font-variant-numeric: tabular-nums;
+}
+.admin-todo .serif {
+  color: var(--ground-soft);
+}
+.admin-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--s-6);
+}
+.admin-facts {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+.admin-facts > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) 1fr;
+  gap: var(--s-3);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.admin-facts > div:last-child {
+  border-bottom: 0;
+}
+.admin-facts dt {
+  color: var(--ground-soft);
+  font-size: 14px;
+}
+.admin-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.admin-facts a,
+.admin-back a,
+.admin-member-flags a {
+  color: var(--blue);
+  font-weight: 700;
+}
+.admin-back {
+  margin: var(--s-4) 0 0;
+}
+.admin-member-head h1 {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+.admin-member-head p {
+  margin: var(--s-2) 0 0;
+}
+.admin-member-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+.admin-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--ground-soft);
+  color: var(--ground-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+.admin-member-flags .admin-tag,
+.admin-member-flags .admin-flag {
+  margin: 0;
+}
+.admin-member-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: var(--s-4);
+  align-items: start;
+}
+.admin-do {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.admin-do > span {
+  flex: 1 1 14rem;
+  font-size: 15px;
+}
+.admin-do:last-child {
+  border-bottom: 0;
+}
+.admin-danger > span {
+  color: var(--pink-ink);
+}
+.admin-note-field {
+  flex: 1 1 24rem !important;
+}
+.admin-note-field textarea {
+  width: 100%;
+}
+.queue-page .admin-card .queue-log {
+  margin: 0;
+}
+.admin-page .mono {
+  font-family: var(--f-mono);
+  font-size: 13px;
 }

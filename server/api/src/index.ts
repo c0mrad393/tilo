@@ -3,7 +3,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import postgres from "postgres";
-import { account } from "./account.ts";
+import { account, eraseAccount } from "./account.ts";
 import { admin as adminRoutes } from "./admin.ts";
 import { type AuthEnv, signedIn } from "./auth.ts";
 import { claims } from "./claims.ts";
@@ -73,7 +73,8 @@ app.route("/pieces", pieces(sql, { member, filesDir, perDay: Number(process.env.
 const modOptions = { member, move, ...admin, holdAfter: Number(process.env.REPORTS_TO_HOLD ?? 3), perDay: 30, wall };
 app.route("/reports", reports(sql, modOptions));
 app.route("/mod", moderation(sql, modOptions));
-app.route("/admin", adminRoutes(sql, { member, mail: mailer(process.env, site) }));
+const erase = (id: string) => eraseAccount(sql, { filesDir, ...admin, site, purge, wall }, id);
+app.route("/admin", adminRoutes(sql, { member, mail: mailer(process.env, site), erase }));
 app.route("/waitlist", waitlist(sql));
 app.route("/claims", claims(sql, { jwtSecret: env("JWT_SECRET"), site }));
 app.route("/errors", errors(sql));
