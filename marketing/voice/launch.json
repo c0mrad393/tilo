@@ -1,0 +1,15 @@
+{
+  "voice": "af_heart",
+  "speed": 1.0,
+  "lines": [
+    ["hook", "Tilo is open. Anyone can join now, for free. No invite, and no waiting list."],
+    ["what", "Tilo is a studio and a gallery for drawing by hand. Every piece keeps its recording, stroke by stroke."],
+    ["join", "To join, go to tiloart dot com slash join, and type your email."],
+    ["mail", "Tilo emails you a link. There's no password. Press it, and you're signed in."],
+    ["handle", "Pick your handle, tick the box, and you're a member."],
+    ["draw", "Open the studio. Choose a pencil, ink, or pixels, and draw."],
+    ["publish", "Publish it, and it hangs in the gallery, where anyone can replay how you drew it."],
+    ["social", "Stamp the pieces you love, follow artists, and add your marks to the shared wall."],
+    ["cta", "Tilo is free, and it stays free. Join today, at tiloart dot com slash join."]
+  ]
+}

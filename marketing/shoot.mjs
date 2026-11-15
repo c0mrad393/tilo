@@ -68,6 +68,7 @@ SETS.launch1 = [
   ["open-join", "/join", 0],
   ["open-signin", "/account", 0, fill([["input[type=email]", "you@example.com"]])],
   ["open-sent", null, 0, tap("Email me a link")],
+  ["signin-mail", `file://${join(import.meta.dirname, "shots", "signin-mail.html")}`, 0],
 ];
 SETS.launch2 = [
   ["open-handle", process.env.LINK, 170, fill([["input[autocomplete=username]", "mariam_draws"], ["input[autocomplete=name]", "Mariam"], ["input[type=checkbox]", true]])],
@@ -100,6 +101,9 @@ ws.addEventListener("message", (e) => {
 const send = (method, params = {}) => new Promise((res) => { const n = ++id; pending.set(n, res); ws.send(JSON.stringify({ id: n, method, params })); });
 
 await send("Page.enable");
+// a shoot isn't a visit: the admin panel's counts stay real people's
+await send("Network.enable");
+await send("Network.setBlockedURLs", { urls: ["*/api/visit*"] });
 await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
 await send("Emulation.setTouchEmulationEnabled", { enabled: true });
 // no entrance animations, and the light theme whatever this Mac is set to
