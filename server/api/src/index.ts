@@ -16,6 +16,7 @@ import { FORMAT, MAX_BYTES, summarise } from "./recording.ts";
 import { school as schoolRoutes } from "./school.ts";
 import { painterThread, screener } from "./screen.ts";
 import { statuses } from "./status.ts";
+import { visits } from "./visits.ts";
 import { wall as wallRoutes } from "./wall.ts";
 import { mailer, waitlist } from "./waitlist.ts";
 
@@ -78,6 +79,7 @@ app.route("/admin", adminRoutes(sql, { member, mail: mailer(process.env, site), 
 app.route("/waitlist", waitlist(sql));
 app.route("/claims", claims(sql, { jwtSecret: env("JWT_SECRET"), site }));
 app.route("/errors", errors(sql));
+app.route("/visit", visits(sql, { site }));
 app.route("/wall", wall.app);
 app.route("/school", school.app);
 
@@ -117,6 +119,8 @@ const prune = async () => {
     const [n] = await sql`select * from public.prune_sign_ins()`;
     const gone = await sql`delete from public.claims where status = 'closed' and closed_at < now() - interval '3 years' returning id`;
     const faults = await sql`delete from public.errors where last_seen < now() - interval '30 days' returning sig`;
+    // the visit breakdowns go after 13 months; the daily totals stay
+    await sql`delete from public.visit_counts where day < current_date - 400`;
     const waited = await sql`
       delete from public.waitlist
       where invited_at < now() - interval '90 days' or (invited_at is null and created < now() - interval '1 year')

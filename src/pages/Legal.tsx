@@ -160,13 +160,21 @@ export function Privacy() {
         a <code>?</code>, the error and where in Tilo's code it happened, Tilo's version, and your browser's name and system, such as
         “Safari 26 · iOS”. Nothing ties it to you: no account and no IP address is kept with it.
       </p>
+      <p className="serif" id="visits">
+        To know how many people visit, each page you open tells Tilo's server which kind of page it was (a piece, a profile, the studio,
+        never which one), and on arriving, which site sent you there and your country, as Cloudflare reports it. Only each day's totals are
+        kept. To tell visitors apart within a day, the server makes a fingerprint of your IP address and browser name mixed with a random value
+        made for that day; the fingerprint is all it keeps, and at the end of the day it and that day's value are deleted, so no visitor can be
+        followed from one day to the next, or identified. Tilo sets no cookie for this. If you open an invite link, the code notes when it was
+        first opened.
+      </p>
 
       <h2 id="why">Why</h2>
       <p className="serif">
         We use your account, profile and pieces to provide Tilo to you, as these terms describe, and a waiting-list address to send the code
         you asked for. We use sign-in records, the image check,
         reports and moderation because we have a legitimate interest in keeping accounts and the gallery safe, for all ages, and error
-        reports because we have one in fixing what breaks. The image check
+        reports and visit counts because we have one in fixing what breaks and knowing whether Tilo reaches people. The image check
         runs on Tilo's own server, on pieces and on the wall; it can only hold a piece or a mark back for a person to look at. We keep takedown claims because the law asks us to
         handle them.
       </p>
@@ -187,6 +195,7 @@ export function Privacy() {
         <li>Backups: copies roll off within four weeks.</li>
         <li>Sign-in records: 30 days. Sessions: until you sign out, or 90 days without use.</li>
         <li>Error reports: 30 days after that error last happened.</li>
+        <li>Visit counts: a visitor's daily fingerprint, until the end of that day. The totals by page, site and country, 13 months; the day's overall totals, which hold nothing about anyone, are kept.</li>
         <li>Takedown claims: three years after they are answered, in case they are disputed.</li>
         <li>The waiting list: 90 days after we send your code, or a year if we never do. Write to <Mail to={CONTACT} /> to come off it sooner.</li>
         <li>Moderation records stay after an account is deleted, without the account they were about. If Tilo deletes an account for breaking the rules, the record keeps the handle it had and why. Admins' notes about an account go with it.</li>

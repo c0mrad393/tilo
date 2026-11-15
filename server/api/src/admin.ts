@@ -3,6 +3,7 @@ import { createMiddleware } from "hono/factory";
 import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
 import { newCode } from "./invites.ts";
+import { TZ, visitReport } from "./visits.ts";
 import { type Mailer, sendInvites, type WaitRow } from "./waitlist.ts";
 
 /* /api/admin: what only admins do. The numbers at a glance, members with their email
@@ -70,7 +71,8 @@ export function admin(sql: Sql, { member, mail, erase }: Options) {
         (select count(*)::int from public.profiles where role <> 'member') as staff,
         (select count(*)::int from public.profiles p where exists (select 1 from public.pieces where owner = p.id)) as artists,
         (select count(*)::int from public.wall_marks where created > now() - interval '7 days' and status <> 'removed') as wall_marks,
-        (select count(*)::int from public.stamps where created > now() - interval '7 days') as stamps`;
+        (select count(*)::int from public.stamps where created > now() - interval '7 days') as stamps,
+        (select coalesce(sum(visitors), 0)::int from public.visit_days where day = (now() at time zone ${TZ})::date) as visitors_today`;
     // pieces published and members joined on each of the last 14 days, oldest first, days
     // without any included
     const days = await sql`
@@ -80,6 +82,12 @@ export function admin(sql: Sql, { member, mail, erase }: Options) {
       from generate_series(current_date - 13, current_date, interval '1 day') d
       order by d`;
     return c.json({ ...s, ...more, days });
+  });
+
+  // visits (visits.ts): ?days= 7, 30 or 90
+  app.get("/visits", async (c) => {
+    const range = [7, 30, 90].includes(Number(c.req.query("days"))) ? Number(c.req.query("days")) : 30;
+    return c.json(await visitReport(sql, range));
   });
 
   // ?q= matches handle, name or email; ?role= narrows to one role; ?page= from 0
@@ -279,14 +287,19 @@ export function admin(sql: Sql, { member, mail, erase }: Options) {
     const show = c.req.query("show") ?? "waiting";
     const where = show === "sent" ? sql`where w.invited_at is not null` : show === "all" ? sql`` : sql`where w.invited_at is null`;
     const rows = await sql<WaitRow[]>`
-      select w.id::int, w.email, w.note, w.source, w.created, w.invite, w.invited_at, i.used_at, p.handle as used_by
+      select w.id::int, w.email, w.note, w.source, w.created, w.invite, w.invited_at, i.opened_at, i.used_at, p.handle as used_by
       from public.waitlist w
       left join public.invites i on i.code = w.invite
       left join public.profiles p on p.id = i.used_by
       ${where}
       order by ${show === "waiting" ? sql`w.created` : sql`w.created desc`}
       limit 500`;
-    return c.json({ waitlist: rows });
+    // whether each one invited has signed in yet: Auth keeps the addresses
+    const sent = rows.filter((w) => w.invited_at).map((w) => w.email.toLowerCase());
+    const signed = new Map(
+      sent.length ? (await sql<{ email: string; last_sign_in_at: Date | null }[]>`select * from public.signed_in_emails(${sent}::text[])`).map((r) => [r.email, r.last_sign_in_at]) : [],
+    );
+    return c.json({ waitlist: rows.map((w) => ({ ...w, signed_in_at: signed.get(w.email.toLowerCase()) ?? null })) });
   });
 
   // { ids } emails each of them a code (a resend for one whose code is still unused)

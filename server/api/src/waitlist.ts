@@ -135,6 +135,7 @@ export interface WaitRow {
   created: string;
   invite: string | null;
   invited_at: string | null;
+  opened_at: string | null;
   used_at: string | null;
   used_by: string | null;
 }

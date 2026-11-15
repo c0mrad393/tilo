@@ -33,6 +33,8 @@ export interface Stats {
   /** marks on the wall and stamps given in the last 7 days */
   wall_marks: number;
   stamps: number;
+  /** different people on the site today (Tbilisi time) */
+  visitors_today: number;
   /** pieces published (n) and members joined on each of the last 14 days, oldest first */
   days: { day: string; n: number; joined: number }[];
 }
@@ -202,6 +204,10 @@ export interface WaitRow {
   created: string;
   invite: string | null;
   invited_at: string | null;
+  /** when the invite link was first opened (noted since 15 Nov 2026) */
+  opened_at: string | null;
+  /** when they last signed in, if they have */
+  signed_in_at: string | null;
   /** when and by whom their code was used: they're in */
   used_at: string | null;
   used_by: string | null;
@@ -211,3 +217,23 @@ export const waitlist = (show: "waiting" | "sent" | "all") => call<{ waitlist: W
 export const inviteFromWaitlist = (ids: number[]) =>
   call<{ sent: number; failed: string[]; fault: string }>("/api/admin/waitlist/invite", { method: "POST", json: { ids } });
 export const dropFromWaitlist = (id: number) => request(`/api/admin/waitlist/${id}`, { method: "DELETE" });
+
+/** visits for the last 7, 30 or 90 days (server/api/src/visits.ts), days oldest first */
+export interface VisitDay {
+  day: string;
+  views: number;
+  visitors: number;
+  visits: number;
+  mobile: number;
+  /** addresses left on the waiting list that day */
+  waitlist: number;
+}
+export interface VisitReport {
+  days: VisitDay[];
+  pages: { key: string; n: number }[];
+  sources: { key: string; n: number }[];
+  countries: { key: string; n: number }[];
+  /** invites sent from the waiting list, and how many got how far */
+  funnel: { sent: number; opened: number; signed_in: number; joined: number };
+}
+export const visitReport = (days: 7 | 30 | 90) => call<VisitReport>(`/api/admin/visits?days=${days}`);

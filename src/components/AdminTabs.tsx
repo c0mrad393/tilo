@@ -6,7 +6,13 @@ import { type Stats, stats } from "../data/admin";
    A number on a tab is what waits there for someone. */
 type Tab = [to: string, name: string, waiting?: (s: Stats) => number];
 const GROUPS: [string, Tab[]][] = [
-  ["Start", [["/admin", "Overview"]]],
+  [
+    "Start",
+    [
+      ["/admin", "Overview"],
+      ["/admin/visitors", "Visitors"],
+    ],
+  ],
   [
     "Moderation",
     [

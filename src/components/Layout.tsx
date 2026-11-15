@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigation } 
 import { ACCOUNTS, call, handleHint, useAccount } from "../data/account";
 import { openFeedback } from "../data/beta";
 import { PROMPT } from "../data/prompt";
+import { countVisit, dontCountThisDevice } from "../data/visits";
 import { FeedbackDialog } from "./Feedback";
 import { Logo } from "./Logo";
 
@@ -88,6 +89,11 @@ export function Layout() {
   const loading = useNavigation().state === "loading";
   // a member has their invite already; the footer's waiting-list line is for everyone else
   const { profile } = useAccount();
+  // one count for each page opened (data/visits.ts); the team's own devices don't count
+  useEffect(() => countVisit(pathname), [pathname]);
+  useEffect(() => {
+    if (profile && profile.role !== "member") dontCountThisDevice();
+  }, [profile?.role]);
   return (
     <>
       <div className="nav-progress" data-on={loading ? "" : undefined} role="progressbar" aria-label="Opening the page" aria-hidden={!loading} />

@@ -27,6 +27,8 @@ export default {
     // who is asking, for rate limits; the server only believes it alongside the secret
     headers.set("x-tilo-client-ip", request.headers.get("cf-connecting-ip") ?? "");
     headers.set("x-tilo-edge", env.EDGE_SECRET ?? "");
+    // the visitor's country, two letters, for the admin panel's visit counts (visits.ts)
+    headers.set("x-tilo-country", (request as Request & { cf?: { country?: string } }).cf?.country ?? "");
     headers.set("x-forwarded-host", url.host);
     headers.set("x-forwarded-proto", "https");
     // Caddy would pick zstd, which the Worker runtime passes on without decoding

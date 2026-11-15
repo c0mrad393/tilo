@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { AdminTabs } from "../components/AdminTabs";
 import { ACCOUNTS, call, type Profile, useAccount } from "../data/account";
 import { ModButtons } from "../components/Moderation";
-import { type Claim, claims, closeClaim, decideSchool, type SchoolRow, schools, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, type Stats, stats, withdrawInvite, type WaitRow, waitlist, inviteFromWaitlist, dropFromWaitlist, addNote, deleteMember, deleteNote, memberDetail, type MemberShow, type MemberSort, signOutMember } from "../data/admin";
+import { type Claim, claims, closeClaim, decideSchool, type SchoolRow, schools, type ErrorReport, errorReports, fixedError, type Invite, invites, makeInvites, type Member, members, setRole, setSetting, settings, stats, withdrawInvite, type WaitRow, waitlist, inviteFromWaitlist, dropFromWaitlist, addNote, deleteMember, deleteNote, memberDetail, type MemberShow, type MemberSort, signOutMember, type VisitReport, visitReport } from "../data/admin";
 import { moderate } from "../data/pieces";
 import { ANSWER_IN } from "../data/legal";
 import { fromRow, type Published, SELECT } from "../data/pieces";
@@ -44,14 +44,14 @@ const Wait = ({ failed }: { failed: boolean }) =>
 // ---------- overview ----------
 
 /* one count a day, for two weeks: one series, so no legend; each bar says its own number on hover and focus */
-function DayChart({ days, pick, what }: { days: Stats["days"]; pick: (d: Stats["days"][number]) => number; what: [string, string] }) {
+function DayChart<D extends { day: string }>({ days, pick, what, total: showTotal = true }: { days: D[]; pick: (d: D) => number; what: [string, string]; total?: boolean }) {
   const top = Math.max(1, ...days.map(pick));
   const total = days.reduce((n, d) => n + pick(d), 0);
   const [one, many] = what;
   return (
     <figure className="admin-chart">
-      <figcaption className="kicker">{many[0].toUpperCase() + many.slice(1)}, last 14 days · {total}</figcaption>
-      <div className="admin-bars" role="list">
+      <figcaption className="kicker">{many[0].toUpperCase() + many.slice(1)}, last {days.length} days{showTotal && ` · ${total.toLocaleString()}`}</figcaption>
+      <div className="admin-bars" role="list" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`, gap: days.length > 40 ? 1 : 2 }}>
         {days.map((d) => {
           const n = pick(d);
           const label = `${day.format(new Date(d.day))}: ${n} ${n === 1 ? one : many}`;
@@ -130,6 +130,7 @@ function Overview() {
   ];
   const waiting = todo.filter(([n]) => n > 0);
   const tiles: [string, number, string, string?][] = [
+    ["Visitors today", s.visitors_today, "different people", "/admin/visitors"],
     ["Members", s.members, `${s.new_members} new this week`, "/admin/members"],
     ["Signed in this week", s.signed_in, `${s.suspended} suspended`, "/admin/members"],
     ["Artists", s.artists, "members with a piece"],
@@ -174,6 +175,153 @@ function Overview() {
         <DayChart days={s.days} pick={(d) => d.joined} what={["member joined", "members joined"]} />
         <DayChart days={s.days} pick={(d) => d.n} what={["piece published", "pieces published"]} />
       </div>
+    </>
+  );
+}
+
+// ---------- visitors ----------
+
+const regionName = (() => {
+  try {
+    const names = new Intl.DisplayNames(["en"], { type: "region" });
+    return (code: string) => names.of(code) ?? code;
+  } catch {
+    return (code: string) => code;
+  }
+})();
+const PAGE_NAMES: Record<string, string> = {
+  "/": "Home",
+  "/gallery": "Gallery",
+  "/piece": "A piece",
+  "/studio": "Studio",
+  "/wall": "The wall",
+  "/wall/past": "Past walls",
+  "/library": "Your sheets",
+  "/account": "Sign-in and account",
+  "/join": "Join (waiting list)",
+  "/u": "A profile",
+  "/demo": "Schools demo",
+  "/teach": "Teacher pages",
+  "/class": "Pupil pages",
+  "/show": "Class show",
+  other: "Other",
+};
+const SOURCE_NAMES: Record<string, string> = { direct: "Direct, or an app that hides it", other: "Other sites" };
+const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : "–");
+
+/* a ranked list with a bar for each row: one measure, so the bars share one scale */
+function TopList({ title, rows, name }: { title: string; rows: { key: string; n: number }[]; name: (k: string) => string }) {
+  const top = Math.max(1, ...rows.map((r) => r.n));
+  return (
+    <section className="admin-card" aria-label={title}>
+      <h2 className="kicker">{title}</h2>
+      {rows.length ? (
+        <ol className="admin-toplist">
+          {rows.map((r) => (
+            <li key={r.key}>
+              <span className="admin-toplist-name">{name(r.key)}</span>
+              <span className="admin-toplist-n">{r.n.toLocaleString()}</span>
+              <i style={{ width: `${(r.n / top) * 100}%` }} aria-hidden="true" />
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="empty serif">Nothing counted yet.</p>
+      )}
+    </section>
+  );
+}
+
+/* invites sent from the waiting list, and how far people got: four steps, each a share of the first */
+function Funnel({ f }: { f: VisitReport["funnel"] }) {
+  const steps: [string, number, string][] = [
+    ["Sent an invite", f.sent, "emailed from the waiting list"],
+    ["Opened the link", f.opened, "the invite page saw their code"],
+    ["Signed in", f.signed_in, "pressed the sign-in link Tilo emailed"],
+    ["Picked a handle", f.joined, "their code was used: they're members"],
+  ];
+  return (
+    <section className="admin-card admin-funnel" aria-labelledby="funnel-h">
+      <h2 id="funnel-h" className="kicker">Invites from the waiting list: how far people got</h2>
+      {f.sent ? (
+        <ol>
+          {steps.map(([name, n, sub], i) => (
+            <li key={name}>
+              <span className="admin-funnel-name">{name} <span className="serif">{sub}</span></span>
+              <b>{n.toLocaleString()}</b>
+              <span className="admin-funnel-pct">{i ? pct(n, f.sent) : ""}</span>
+              <i style={{ width: `${f.sent ? (n / f.sent) * 100 : 0}%` }} aria-hidden="true" />
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="empty serif">No invites sent from the waiting list yet.</p>
+      )}
+      <p className="field-note">
+        Opening the link is noted from 15 November 2026; for earlier invites, signing in counts as having opened it. Everyone's step is on the <Link to="/admin/invites">Invites</Link> tab.
+      </p>
+    </section>
+  );
+}
+
+function Visitors() {
+  const [range, setRange] = useState<7 | 30 | 90>(30);
+  const { data: r, failed } = useLoad(() => visitReport(range), [range]);
+  const sum = (k: "views" | "visitors" | "visits" | "mobile" | "waitlist") => r?.days.reduce((n, d) => n + d[k], 0) ?? 0;
+  const today = r?.days[r.days.length - 1];
+  const yesterday = r?.days[r.days.length - 2];
+  return (
+    <>
+      <div className="admin-filters">
+        <label className="field">
+          <span className="kicker">Over</span>
+          <select value={range} onChange={(e) => setRange(Number(e.target.value) as typeof range)}>
+            <option value={7}>The last 7 days</option>
+            <option value={30}>The last 30 days</option>
+            <option value={90}>The last 90 days</option>
+          </select>
+        </label>
+      </div>
+      {!r ? (
+        <Wait failed={failed} />
+      ) : (
+        <>
+          <div className="admin-tiles">
+            {(
+              [
+                ["Visitors today", today?.visitors ?? 0, `${(today?.views ?? 0).toLocaleString()} pages opened`],
+                ["Yesterday", yesterday?.visitors ?? 0, `${(yesterday?.views ?? 0).toLocaleString()} pages opened`],
+                ["A day, on average", Math.round(sum("visitors") / r.days.length), `visitors over ${r.days.length} days`],
+                ["Visits", sum("visits"), "arrivals from outside"],
+                ["Pages opened", sum("views"), `${(sum("views") / Math.max(1, sum("visits"))).toFixed(1)} a visit`],
+                ["On a phone", pct(sum("mobile"), sum("visitors")), "of visitors"],
+                ["Joined the waiting list", sum("waitlist"), pct(sum("waitlist"), sum("visitors")) + " of visitors"],
+              ] as [string, number | string, string][]
+            ).map(([name, n, sub]) => (
+              <div key={name} className="admin-tile">
+                <span className="kicker">{name}</span>
+                <b>{n.toLocaleString()}</b>
+                <span className="serif">{sub}</span>
+              </div>
+            ))}
+          </div>
+          <div className="admin-charts">
+            <DayChart days={r.days} pick={(d) => d.visitors} what={["visitor", "visitors a day"]} total={false} />
+            <DayChart days={r.days} pick={(d) => d.waitlist} what={["joined the waiting list", "joined the waiting list"]} />
+          </div>
+          <Funnel f={r.funnel} />
+          <div className="admin-toplists">
+            <TopList title="Where visits came from" rows={r.sources} name={(k) => SOURCE_NAMES[k] ?? k} />
+            <TopList title="Pages opened" rows={r.pages} name={(k) => PAGE_NAMES[k] ?? k} />
+            <TopList title="Countries" rows={r.countries} name={regionName} />
+          </div>
+          <p className="field-note">
+            Counted without cookies and without keeping anyone's address: only each day's totals are stored, and a visitor is told apart from
+            another only within one day. Days are in Tbilisi time. Devices a mod or admin uses aren't counted. Instagram and TikTok often hide
+            where a visit came from, so it shows as direct; links you post can say it themselves, as in <span className="mono">tiloart.com/join?utm_source=instagram</span>.
+          </p>
+        </>
+      )}
     </>
   );
 }
@@ -866,7 +1014,19 @@ function Waitlist({ onSent }: { onSent: () => void }) {
                   <td>{SOURCE[w.source] ?? "–"}</td>
                   <td>{date(w.created)}</td>
                   <td>
-                    {w.used_at ? <>in, {w.used_by ? <Link to={`/u/${w.used_by}`}>@{w.used_by}</Link> : "account deleted"}</> : w.invited_at ? <>sent {date(w.invited_at)} <span className="mono">{w.invite}</span></> : "waiting"}
+                    {w.used_at ? (
+                      <>in, {w.used_by ? <Link to={`/u/${w.used_by}`}>@{w.used_by}</Link> : "account deleted"}</>
+                    ) : w.invited_at ? (
+                      <>
+                        sent {date(w.invited_at)} <span className="mono">{w.invite}</span>
+                        <br />
+                        <span className="serif admin-step">
+                          {w.signed_in_at ? `signed in ${date(w.signed_in_at)}, no handle yet` : w.opened_at ? `opened the link ${date(w.opened_at)}, not signed in` : "link not opened yet"}
+                        </span>
+                      </>
+                    ) : (
+                      "waiting"
+                    )}
                   </td>
                   <td className="admin-actions">
                     {w.invited_at && !w.used_at && <button className="btn btn-quiet" disabled={busy} onClick={() => send([w.id])}>Send again</button>}
@@ -1404,6 +1564,7 @@ function SchoolsAdmin() {
 
 const SECTIONS: Record<string, [string, () => React.ReactElement]> = {
   "": ["Overview", Overview],
+  visitors: ["Visitors", Visitors],
   members: ["Members", Members],
   claims: ["Claims", Claims],
   invites: ["Invites", Invites],
