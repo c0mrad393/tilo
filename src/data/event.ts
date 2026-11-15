@@ -13,8 +13,6 @@ export interface SiteEvent {
   /** when the look and the banner are on, in ms (midnights in Tbilisi) */
   starts: number;
   ends: number;
-  /** when the event's wall goes up (wall.ts WALL_EVENTS): when the wall before it closes */
-  wallFrom: number;
   /** what the banner counts down to, and what it says once it's passed */
   countTo: number;
   before: string;
@@ -26,7 +24,6 @@ export const EVENT: SiteEvent = {
   name: "Release week",
   starts: Date.UTC(2026, 10, 14, 20),
   ends: Date.UTC(2026, 10, 20, 20),
-  wallFrom: Date.UTC(2026, 10, 16, 20),
   // midnight on 19 November in Tbilisi
   countTo: Date.UTC(2026, 10, 18, 20),
   before: "GTA VI is out in",

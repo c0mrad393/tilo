@@ -2,14 +2,15 @@
    tilo-api's image check does, and writes what the seed needs: each piece's recording
    ({id}.tl), its picture ({id}.webp) and the rows for it: the paintings in
    server/seed/samples/pieces.sql, the pixel pieces (added later, and seeded on their own by
-   migrate.sh) in server/seed/samples/pixel/pieces.sql, beside their files. With `preview DIR`
+   migrate.sh) in server/seed/samples/pixel/pieces.sql, beside their files, and Release week's likewise in
+   server/seed/samples/release. With `preview DIR`
    it only writes PNGs there, to look at while drawing them.
    Usage, from the repository root: npm run samples [-- preview DIR [id ...]] */
 
 import { createCanvas, DOMMatrix, ImageData, Path2D } from "@napi-rs/canvas";
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { publishedSample, SAMPLE_ACCOUNT, samples } from "../../src/data/samples";
+import { publishedSample, RELEASE, SAMPLE_ACCOUNT, samples } from "../../src/data/samples";
 
 const SAMPLES = samples();
 import { encode } from "../../src/engine/codec";
@@ -43,8 +44,10 @@ if (mode === "preview") {
   }
 } else {
   const root = join("server", "seed", "samples");
-  await write(root, pieces.filter((p) => !isPixelShape(p.shape)));
-  await write(join(root, "pixel"), pieces.filter((p) => isPixelShape(p.shape)));
+  const later = (p: Piece) => RELEASE.includes(p.id);
+  await write(root, pieces.filter((p) => !isPixelShape(p.shape) && !later(p)));
+  await write(join(root, "pixel"), pieces.filter((p) => isPixelShape(p.shape) && !later(p)));
+  await write(join(root, "release"), pieces.filter(later));
 }
 
 async function write(out: string, pieces: Piece[]) {

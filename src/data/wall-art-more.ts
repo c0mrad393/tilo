@@ -1,5 +1,5 @@
 import type { Pt, Sketch } from "../engine/sketch";
-import { below, blob, ellipse, ridge, sky as skyBands, speckle } from "./art";
+import { below, blob, ellipse, mix, ramp, ridge, sky as skyBands, soft, speckle } from "./art";
 import { arch, box, DARKWOOD, empty, hole, INK, ring, shape, SOFT, tint, WOOD } from "./wall-kit";
 
 /* The wall's subjects from No. 7 on, drawn the way the first six are (wall-art.ts): outlines
@@ -1271,78 +1271,113 @@ function greenhouse(S: Sketch) {
   S.poly([[1700, 920], [1640, 890]], "ink", INK, 6, 0.3);
 }
 
-/* ---- event: release week (event.ts). A sunset strip by the sea, the billboards blank. Our
-   own drawing in a sunset mood: nothing from the game, its art or its logo. ---- */
+/* ---- event: release week (event.ts). A coast at sunset: a striped sun going into the sea,
+   a skyline, a pier with a big wheel, a highway with palms, and blank neon and billboards
+   for people to fill. Our own drawing in a sunset mood: nothing from the game. ---- */
 function strip(S: Sketch) {
-  const sea = 480, walk = 720, road = 780, kerb = 930;
-  skyBands(S, 0, 2000, 0, sea, ["#D9C6EE", "#F4BFD9", "#FFCFAE", "#FFE3BE"], 22);
-  // the low sun, striped like an old poster
-  const sun = ellipse(1000, sea, 230, 230, 48, Math.PI, Math.PI * 2);
-  tint(S, sun, "#FFB347", 0.9);
-  tint(S, ellipse(1000, sea, 230, 230, 48, Math.PI * 1.15, Math.PI * 1.85), "#FF7A8A", 0.45);
-  for (const [y, h] of [[400, 8], [425, 12], [450, 16]] as Pt[]) tint(S, box(760, y, 480, h), "#FFE3BE", 1);
-  // the sea and the sun on it
-  tint(S, box(0, sea, 2000, walk - sea), "#1FA5A0", 0.55);
-  for (let k = 0; k < 14; k++) {
-    const y = sea + 16 + k * 16, w = 200 - k * 10;
-    S.line(1000 - w + S.R() * 30, y, 1000 + w - S.R() * 30, y, "marker", "#FFB347", 6, 0.4);
+  const sea = 500, road = 800;
+  // the sky: deep violet down to gold at the sea
+  skyBands(S, 0, 2000, 0, sea, ["#2A1650", "#4B2378", "#8E2F8C", "#D9407F", "#FF6F61", "#FFA552", "#FFD27A"], 34);
+  speckle(S, 0, 0, 2000, 170, 70, "#FFE9F6", 5, "marker");
+  // the sun, its glow, and the bands cut across its lower half
+  const sx = 820, sr = 250;
+  const was = S.alpha;
+  S.alpha = 0.5;
+  soft(S, sx, sea, 620, "#FFB347", 0.55, 0.7, 22);
+  S.alpha = was;
+  const SKY = ["#2A1650", "#4B2378", "#8E2F8C", "#D9407F", "#FF6F61", "#FFA552", "#FFD27A"];
+  const half = (y: number) => Math.sqrt(Math.max(0, sr * sr - (sea - y) ** 2));
+  const bands = 24;
+  for (let k = 0; k < bands; k++) {
+    const y0 = sea - sr + (k * sr) / bands, y1 = y0 + sr / bands + 1.5;
+    S.lasso([[sx - half(y1), y1], [sx - half(y0), y0], [sx + half(y0), y0], [sx + half(y1), y1]], ramp(["#FFF0A0", "#FFC24A", "#FF7A6A", "#FF4F9A"], k / (bands - 1)));
   }
-  for (let k = 0; k < 60; k++) {
-    const x = S.R() * 2000, y = sea + 20 + S.R() * 210;
-    if (Math.abs(x - 1000) > 240) S.line(x, y, x + 34, y, "pencil", "#F4EEE0", 3, 0.3);
+  // the cuts across the lower half, each a little wider, in the sky's own colour
+  for (let k = 0; k < 6; k++) {
+    const y = sea - sr * 0.48 + k * (sr * 0.085), h = 4 + k * 2.6;
+    S.lasso(box(sx - sr - 4, y, sr * 2 + 8, h), ramp(SKY, (y + h / 2) / sea));
   }
-  // the promenade, the road and the kerb
-  tint(S, box(0, walk, 2000, road - walk), "#F2D3B6", 0.9);
-  S.line(0, walk, 2000, walk, "ink", INK, 5, 1);
-  tint(S, box(0, road, 2000, kerb - road), "#4A3F5C", 0.85);
-  for (let x = 30; x < 2000; x += 160) S.line(x, (road + kerb) / 2, x + 90, (road + kerb) / 2, "ink", "#FFE3BE", 8, 0.3);
-  tint(S, box(0, kerb, 2000, 70), "#F2D3B6", 0.9);
-  S.line(0, kerb, 2000, kerb, "ink", INK, 6, 1);
-  // pastel hotels on both sides, stepped tops, every window and every sign empty
-  const hotel = (x: number, w: number, h: number, c: string, trim: string) => {
-    const top = walk - h;
-    shape(S, box(x, top, w, h), c, 0.9, INK, 5, 0.8);
-    shape(S, box(x + w * 0.2, top - 50, w * 0.6, 50), c, 0.9, INK, 4, 0.6);
-    shape(S, box(x + w * 0.38, top - 90, w * 0.24, 40), c, 0.9, INK, 4, 0.6);
-    for (let y = top + 30; y < walk - 120; y += 34) S.line(x + 6, y, x + w - 6, y, "pencil", trim, 3, 0.3);
-    // a sign frame running up the front, left blank, in neon
-    hole(S, box(x + w / 2 - 30, top + 20, 60, h * 0.55), "#FF4F9A", 6, 0.4);
-    const cols = Math.floor((w - 40) / 70);
-    for (let c2 = 0; c2 < cols; c2++) {
-      const wx = x + 24 + c2 * ((w - 48) / cols);
-      if (Math.abs(wx + 20 - (x + w / 2)) < 50) continue;
-      for (let y = top + 40; y < walk - 140; y += 90) hole(S, box(wx, y, 40, 54), INK, 3, 0.3);
+  // the skyline far off on the left, violet, a few windows lit and one blank sign on top
+  for (let x = 0, i = 0; x < 560; x += 46 + S.R() * 30, i++) {
+    const h = 70 + S.R() * 190 + (i === 4 ? 120 : 0), w = 40 + S.R() * 34;
+    S.lasso(box(x, sea - h, w, h), mix("#3A1F66", "#8E2F8C", S.R() * 0.35));
+    for (let k = 0; k < 6; k++) if (S.R() > 0.45) S.lasso(box(x + 6 + S.R() * (w - 14), sea - h + 10 + S.R() * (h - 20), 6, 8), "#FFD27A");
+    if (i === 4) {
+      S.line(x + w / 2 - 30, sea - h, x + w / 2 - 30, sea - h - 30, "ink", "#2A1650", 4, 0.2);
+      S.line(x + w / 2 + 30, sea - h, x + w / 2 + 30, sea - h - 30, "ink", "#2A1650", 4, 0.2);
+      hole(S, box(x + w / 2 - 70, sea - h - 100, 140, 70), "#FF4FD8", 6, 0.3);
     }
-    shape(S, arch(x + w / 2 - 50, walk - 110, 100, 110), "#1B1426", 0.6, INK, 4, 0.4);
-  };
-  hotel(20, 280, 430, "#BDE7DA", "#1FA5A0");
-  hotel(320, 230, 330, "#F7C6DC", "#FF4F9A");
-  hotel(1460, 240, 360, "#D9C6EE", "#6B3FA0");
-  hotel(1720, 260, 470, "#FFE0A8", "#FF8A3D");
-  // a blank billboard on the roof of the low hotel on the right
-  for (const lx of [1500, 1660]) S.line(lx, walk - 360, lx, walk - 470, "ink", INK, 6, 0.3);
-  hole(S, box(1440, walk - 600, 300, 140), INK, 6, 0.6);
-  // palms along the promenade
-  const palm = (x: number, h: number, lean: number) => {
-    const trunk = bend([x, kerb - 10], [x + lean * 0.4, kerb - h * 0.6], [x + lean, kerb - h], 12);
-    S.path(trunk, "brushpen", "#6B4A34", 22, (t) => 0.95 - t * 0.35);
-    for (let i = 1; i < 11; i += 2) S.line(trunk[i][0] - 10, trunk[i][1], trunk[i][0] + 10, trunk[i][1] - 4, "pencil", "#3A281C", 3, 0.2);
-    const [tx, ty] = trunk[11];
-    for (let k = 0; k < 7; k++) {
-      const a = Math.PI + (k / 6) * Math.PI;
-      S.path(bend([tx, ty], [tx + Math.cos(a) * 110, ty + Math.sin(a) * 80 - 30], [tx + Math.cos(a) * 190, ty + Math.sin(a) * 40 + 60], 10), "brushpen", "#2F6B5A", 16, (t) => 0.95 - t * 0.7);
+  }
+  // the sea: dark at the horizon's ends, the sun laid on it in strokes
+  skyBands(S, 0, 2000, sea, road - 60, ["#7A2E7E", "#3D2A6E", "#20305E"], 14);
+  for (let k = 0; k < 26; k++) {
+    const y = sea + 8 + k * 9, w = (sr - k * 7) * (0.7 + S.R() * 0.4);
+    S.line(sx - w + S.R() * 40, y, sx + w - S.R() * 40, y, "marker", k % 3 ? "#FFB347" : "#FF5C8A", 5 + (k % 2) * 2, 0.4);
+  }
+  for (let k = 0; k < 90; k++) {
+    const x = S.R() * 2000, y = sea + 20 + S.R() * 220;
+    if (Math.abs(x - sx) > sr * 0.9) S.line(x, y, x + 24 + S.R() * 30, y, "pencil", "#C27BB8", 3, 0.3);
+  }
+  // the pier on the right, out on its legs, and the big wheel on it with every car empty
+  const deck = sea + 150;
+  for (let x = 1300; x < 2000; x += 60) S.line(x, deck, x, road - 60, "ink", "#1B1426", 8, 0.2);
+  S.lasso(box(1280, deck - 16, 720, 26), "#1B1426");
+  for (let x = 1300; x < 2000; x += 40) S.lasso(ellipse(x, deck - 26, 6, 6, 10), "#FFE58A");
+  const wx = 1640, wy = 300, wr = 230;
+  S.line(wx, wy, wx - 120, deck - 16, "ink", "#1B1426", 10, 0.3);
+  S.line(wx, wy, wx + 120, deck - 16, "ink", "#1B1426", 10, 0.3);
+  S.poly(ellipse(wx, wy, wr, wr, 72), "ink", "#FF4FD8", 7, 0.3);
+  S.poly(ellipse(wx, wy, wr - 22, wr - 22, 72), "ink", "#1B1426", 4, 0.3);
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2, ex = wx + Math.cos(a) * wr, ey = wy + Math.sin(a) * wr;
+    S.line(wx, wy, ex, ey, "pencil", "#1B1426", 3, 0.2);
+    S.lasso(ellipse(ex, ey, 7, 7, 10), "#FFE58A");
+    if (k % 2 === 0) {
+      const car = box(ex - 26, ey + 4, 52, 40);
+      hole(S, car, "#1B1426", 4, 0.3);
+      S.line(ex, ey, ex, ey + 4, "ink", "#1B1426", 4, 0.2);
+    }
+  }
+  S.lasso(ellipse(wx, wy, 20, 20, 16), "#FF4FD8");
+  // the road along the shore: a sea wall with neon on it, the lanes, the kerb
+  S.lasso(box(0, road - 60, 2000, 40), "#2A1650");
+  S.line(0, road - 60, 2000, road - 60, "marker", "#22E1D8", 8, 0.6);
+  S.lasso(box(0, road - 20, 2000, 180), "#3B2F52");
+  for (let x = 20; x < 2000; x += 150) S.line(x, road + 70, x + 80, road + 70, "ink", "#FFD27A", 9, 0.2);
+  S.lasso(box(0, road + 160, 2000, 40), "#E7B9D6");
+  S.line(0, road + 160, 2000, road + 160, "ink", "#1B1426", 6, 0.6);
+  // lamps along the sea wall, lit pink
+  for (const lx of [760, 1000, 1460, 1720]) {
+    S.line(lx, road - 60, lx, road - 250, "ink", "#1B1426", 6, 0.2);
+    S.line(lx, road - 250, lx + 40, road - 250, "ink", "#1B1426", 5, 0.2);
+    S.lasso(ellipse(lx + 40, road - 238, 12, 9, 12), "#FF9AD5");
+  }
+  // a billboard on tall legs over the left of the road, blank, ringed in neon
+  for (const lx of [180, 420]) S.line(lx, road - 20, lx, 420, "ink", "#1B1426", 12, 0.2);
+  S.lasso(box(70, 140, 460, 290), "#1B1426");
+  hole(S, box(90, 160, 420, 250), "#FF4FD8", 8, 0.4);
+  for (let x = 110; x < 500; x += 40) S.lasso(ellipse(x, 446, 6, 6, 10), "#FFE58A");
+  // palms, black against the sky, leaning in from both sides
+  const palm = (x: number, base: number, h: number, lean: number, size: number) => {
+    const trunk = bend([x, base], [x + lean * 0.35, base - h * 0.6], [x + lean, base - h], 14);
+    S.path(trunk, "brushpen", "#1B1426", 26 * size, (t) => 0.95 - t * 0.4);
+    const [tx, ty] = trunk[13];
+    for (let k = 0; k < 9; k++) {
+      const a = Math.PI * 0.95 + (k / 8) * Math.PI * 1.1;
+      const end: Pt = [tx + Math.cos(a) * 230 * size, ty + Math.sin(a) * 90 * size + 110 * size];
+      const frond = bend([tx, ty], [tx + Math.cos(a) * 140 * size, ty + Math.sin(a) * 120 * size - 30 * size], end, 12);
+      S.path(frond, "brushpen", "#1B1426", 22 * size, (t) => 0.95 - t * 0.75);
+      for (let i = 3; i < 11; i += 2) {
+        const [px, py] = frond[i];
+        S.line(px, py, px + Math.cos(a + 0.9) * 40 * size, py + 40 * size, "brushpen", "#1B1426", 6 * size, 0.2);
+      }
     }
   };
-  palm(640, 560, -40);
-  palm(820, 470, 30);
-  palm(1230, 520, -30);
-  palm(1390, 600, 40);
-  // the street lamps, in neon
-  for (const lx of [120, 1900]) {
-    S.line(lx, kerb, lx, kerb - 300, "ink", INK, 6, 0.3);
-    S.line(lx, kerb - 300, lx + (lx < 1000 ? 60 : -60), kerb - 300, "ink", INK, 5, 0.3);
-    S.circle(lx + (lx < 1000 ? 60 : -60), kerb - 285, 12, "marker", "#FF4F9A", 12, 0.3);
-  }
+  palm(620, road + 170, 640, -90, 1.1);
+  palm(1180, road + 170, 520, 60, 0.9);
+  palm(1960, road + 170, 700, -140, 1.15);
+  // gulls
+  for (const [gx, gy, g] of [[980, 150, 1], [1050, 190, 0.8], [1180, 120, 0.7]]) S.poly([[gx, gy], [gx + 18 * g, gy - 12 * g], [gx + 36 * g, gy], [gx + 54 * g, gy - 12 * g], [gx + 72 * g, gy]], "ink", "#1B1426", 4, 0.3);
 }
 
 export const MORE: Record<string, (S: Sketch) => void> = {

@@ -84,10 +84,16 @@ export const WALL_THEMES: WallSubject[] = [
 ];
 /** walls set aside for an event (src/data/event.ts): the subject that goes up as that wall
     instead of the next in the list, which waits for the wall after. Never the live wall's
-    number or one before it: those are up or in the archive already. */
-export const WALL_EVENTS: Record<number, WallSubject & { event: string }> = {
+    number or one before it: those are up or in the archive already. With `starts`, the wall
+    before it closes early at that time; with `ends`, it closes then instead of after
+    WALL_DAYS (the server's wall.ts). */
+export const WALL_EVENTS: Record<number, WallSubject & { event: string; starts?: number; ends?: number }> = {
   5: {
     id: "strip",
+    // up at once (the wall before it, empty, closes early) and for five days, to the end of
+    // 20 November in Tbilisi
+    starts: Date.UTC(2026, 10, 15, 12),
+    ends: Date.UTC(2026, 10, 20, 20),
     title: "The sunset strip",
     prompt: "Release week. The strip is lit, the billboards are blank and the road is empty. Cars, neon, people, palms: fill it with your own.",
     event: "release",

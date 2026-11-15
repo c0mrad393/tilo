@@ -11,6 +11,7 @@ import {
   themeFor,
   WALL_BURST,
   WALL_DAYS,
+  WALL_EVENTS,
   WALL_PER_MEMBER,
   wallStroke,
   wallStrokeProblem,
@@ -152,7 +153,10 @@ export function wall(sql: Sql, { member, filesDir, thread, site, purge }: Option
   const turn = () =>
     serial(async () => {
       const [w] = await sql<{ no: number; theme: string; ends: Date }[]>`select no, theme, ends from public.walls where status = 'live'`;
-      if (w && w.ends > new Date()) return;
+      // an event's wall can cut the one before it short (wall.ts WALL_EVENTS)
+      const coming = w && WALL_EVENTS[w.no + 1];
+      const early = !!coming?.starts && Date.now() >= coming.starts && Date.now() < (coming.ends ?? Infinity);
+      if (w && w.ends > new Date() && !early) return;
       if (w) {
         // the archive keeps the wall as it was at the end, every mark checked
         const upto = await redraw(w.no, w.theme, true);
@@ -161,15 +165,21 @@ export function wall(sql: Sql, { member, filesDir, thread, site, purge }: Option
             marks = (select count(*) from public.wall_marks where wall = ${w.no} and status = 'live'),
             artists = (select count(distinct member) from public.wall_marks where wall = ${w.no} and status = 'live')
           where no = ${w.no}`;
+        // cut short for an event before anyone drew on it: nothing to keep in the archive
+        if (early) await sql`update public.walls set status = 'hidden' where no = ${w.no} and marks = 0`;
         console.log(`wall ${w.no} closed`);
       }
       const [last] = await sql<{ no: number }[]>`select no from public.walls order by no desc limit 1`;
       const no = (last?.no ?? 0) + 1;
       // the midnight in Tbilisi (UTC+4, no summer time) that comes WALL_DAYS days from now: a
       // wall that closed on time lasts exactly that long, and the first one a little less
-      await sql`
-        insert into public.walls (no, theme, ends) values (${no}, ${themeFor(no).id},
-          date_trunc('day', (now() + make_interval(days => ${WALL_DAYS})) at time zone 'Asia/Tbilisi') at time zone 'Asia/Tbilisi')`;
+      const until = WALL_EVENTS[no]?.ends;
+      if (until)
+        await sql`insert into public.walls (no, theme, ends) values (${no}, ${themeFor(no).id}, ${new Date(until)})`;
+      else
+        await sql`
+          insert into public.walls (no, theme, ends) values (${no}, ${themeFor(no).id},
+            date_trunc('day', (now() + make_interval(days => ${WALL_DAYS})) at time zone 'Asia/Tbilisi') at time zone 'Asia/Tbilisi')`;
       drawn = null;
       console.log(`wall ${no} (${themeFor(no).id}) is up`);
     });

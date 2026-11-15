@@ -88,15 +88,15 @@ export function EventSection() {
         <ol className="event-steps">
           {wall && (
             <li>
-              <span className="kicker">Wall No. {wall.no} · {day.format(EVENT.wallFrom)} to {day.format(EVENT.wallFrom + WALL_DAYS * 86_400_000 - 1)}</span>
+              <span className="kicker">Wall No. {wall.no} · {wall.starts && wall.ends ? `${day.format(wall.starts)} to ${day.format(wall.ends - 1)}` : `${WALL_DAYS} days`}</span>
               <b>{wall.title}</b>
               <span className="serif">
-                A wall for everyone, drawn by us in a sunset mood: hotels, palms and blank billboards. Add a car, a sign, a passer-by.
+                A wall for everyone, for five days: a coast at sunset with a big wheel, palms, an empty road and a blank billboard. Add a car, a sign, a passer-by, a boat.
               </span>
-              {now >= EVENT.wallFrom ? (
+              {now >= (wall.starts ?? 0) ? (
                 <Link to="/wall" className="btn btn-ink">Open the wall</Link>
               ) : (
-                <span className="event-when serif">Goes up at midnight on {day.format(EVENT.wallFrom)}, Tbilisi time.</span>
+                <span className="event-when serif">Goes up on {day.format(wall.starts ?? now)}.</span>
               )}
             </li>
           )}
