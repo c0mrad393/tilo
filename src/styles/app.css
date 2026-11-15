@@ -4605,3 +4605,159 @@ label.work-tile:hover .plate {
   font-family: var(--f-mono);
   font-size: 13px;
 }
+
+/* ---------- an event (components/EventBits.tsx, data/event.ts) ---------- */
+/* release week: a sunset over the print shop. The highlighter turns orange and the second
+   ink stays pink; the bar, the home page's section and the event's poster carry the rest. */
+:root[data-event="release"] {
+  --yellow: #ffb347;
+  --sunset: linear-gradient(180deg, #6b3fa0 0%, #c04a9a 34%, #ff6f7d 62%, #ffb347 100%);
+}
+.event-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  padding: 9px 14px;
+  background: linear-gradient(90deg, #6b3fa0, #e24a8d 45%, #ff8a3d);
+  color: #fff8ee;
+  text-decoration: none;
+  font-size: 15px;
+}
+.event-bar:hover .event-bar-more,
+.event-bar:focus-visible .event-bar-more {
+  text-decoration: underline;
+}
+.event-bar-name {
+  padding: 2px 8px;
+  background: #1b1426;
+  color: #ffb347;
+}
+.event-bar .num {
+  font-variant-numeric: tabular-nums;
+}
+.event-bar-more {
+  margin-left: auto;
+}
+.event {
+  padding-top: var(--s-5);
+}
+.event-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: var(--s-4);
+  padding: clamp(22px, 4vw, 56px);
+  background: var(--sunset, linear-gradient(180deg, #6b3fa0, #ffb347));
+  color: #fff8ee;
+}
+.event-card > :not(.event-sun) {
+  position: relative;
+}
+/* a striped sun going down behind it all */
+.event-sun {
+  position: absolute;
+  right: -6%;
+  bottom: -38%;
+  width: min(60%, 560px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffe08a, #ff8a3d 70%);
+  -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 26px, transparent 26px 34px);
+  mask-image: repeating-linear-gradient(180deg, #000 0 26px, transparent 26px 34px);
+  opacity: 0.85;
+}
+.event-kicker {
+  color: #ffe0b8;
+}
+.event-h {
+  margin: 0;
+  font-size: clamp(54px, 9vw, 120px);
+  line-height: 0.88;
+  text-transform: uppercase;
+  color: #fff8ee;
+  text-shadow: 4px 4px 0 #1b1426;
+}
+.event-count {
+  margin: 0;
+  font-size: clamp(18px, 2.4vw, 26px);
+}
+.event-count .num {
+  font-variant-numeric: tabular-nums;
+  padding: 0 8px;
+  background: #1b1426;
+  color: #ffb347;
+}
+.event-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--s-3);
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.event-steps li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 18px;
+  background: rgba(27, 20, 38, 0.82);
+  color: #fff8ee;
+}
+.event-steps .kicker {
+  color: #ffb347;
+}
+.event-steps b {
+  font-size: 22px;
+  line-height: 1.15;
+}
+.event-steps .serif {
+  color: #f1e6f5;
+}
+.event-steps .btn {
+  margin-top: auto;
+  --btn-bg: #fff8ee;
+  --btn-fg: #1b1426;
+}
+.event-steps .btn-line {
+  border-color: #fff8ee;
+  color: #fff8ee;
+}
+.event-when {
+  margin-top: auto;
+  font-style: italic;
+}
+.event-inks {
+  display: flex;
+  gap: 4px;
+}
+.event-inks i {
+  width: 18px;
+  height: 18px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+.event-note {
+  margin: 0;
+  max-width: 60ch;
+  font-size: 14px;
+  color: #ffe9f2;
+}
+/* the event's subject: its poster at sunset */
+.poster-sunset {
+  background: linear-gradient(180deg, #6b3fa0 0%, #c04a9a 45%, #ff6f7d 75%, #ffb347 100%);
+}
+.poster-sunset .poster-moon {
+  background: radial-gradient(circle, #ffe08a 0 2.6px, transparent 3.1px) 0 0 / 10px 10px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .event-sun {
+    animation: event-sun 6s var(--ease-out, ease-out) both;
+  }
+}
+@keyframes event-sun {
+  from {
+    transform: translateY(12%);
+  }
+}

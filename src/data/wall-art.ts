@@ -1,7 +1,7 @@
 import { Sketch, type Pt } from "../engine/sketch";
 import type { Stroke } from "../engine/stroke";
 import { below, blob, ellipse, ridge, sky as skyBands, speckle } from "./art";
-import { PAPER, WALL_THEMES } from "./wall";
+import { PAPER, WALL_EVENTS, WALL_THEMES } from "./wall";
 
 /* The wall's subjects, drawn: outlines that Claude (an AI) drew in code and that leave room
    on purpose (empty windows, bare branches, an empty sky) for members to fill in by hand. The
@@ -267,9 +267,12 @@ const drawn = new Map<string, Stroke[]>();
 export function outline(id: string): Stroke[] {
   let s = drawn.get(id);
   if (!s) {
+    // an event's wall has its own seeds, so the list can grow without changing it
+    const events = Object.values(WALL_EVENTS);
+    const e = events.findIndex((t) => t.id === id);
     const i = Math.max(0, WALL_THEMES.findIndex((t) => t.id === id));
-    const S = new Sketch(4100 + i * 31);
-    DRAW[WALL_THEMES[i].id](S);
+    const S = new Sketch(e >= 0 ? 9100 + e * 37 : 4100 + i * 31);
+    DRAW[e >= 0 ? events[e].id : WALL_THEMES[i].id](S);
     drawn.set(id, (s = S.strokes));
   }
   return s;

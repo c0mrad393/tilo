@@ -7,7 +7,7 @@ import { type Claim, claims, closeClaim, decideSchool, type SchoolRow, schools, 
 import { moderate } from "../data/pieces";
 import { ANSWER_IN } from "../data/legal";
 import { fromRow, type Published, SELECT } from "../data/pieces";
-import { PAPER, themeFor, WALL, WALL_DAYS, WALL_THEMES, wallsLeft } from "../data/wall";
+import { eventsAfter, PAPER, themeFor, WALL, WALL_DAYS, WALL_THEMES, wallsLeft } from "../data/wall";
 import { PROMPT, SUBJECT_DAYS, SUBJECTS, subjectsAhead } from "../data/prompt";
 import { outline } from "../data/wall-art";
 import { allWalls, artistsOn, marksBy, moderateWall, type WallRow, wallPicture } from "../data/wall-live";
@@ -226,7 +226,7 @@ function Schedule() {
   const live = walls.data?.find((w) => w.status === "live");
   const next = subjectsAhead(Math.max(0, PROMPT.left));
   const wallsAhead = live
-    ? Array.from({ length: Math.max(0, wallsLeft(live.no)) }, (_, i) => {
+    ? Array.from({ length: Math.max(0, wallsLeft(live.no)) + eventsAfter(live.no) }, (_, i) => {
         const no = live.no + 1 + i, ends = new Date(live.ends).getTime();
         return { no, theme: themeFor(no), from: ends + i * WALL_DAYS * DAY, to: ends + (i + 1) * WALL_DAYS * DAY };
       })

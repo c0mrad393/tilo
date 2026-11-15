@@ -12,6 +12,8 @@ export interface SubjectIdea {
   title: string;
   palette: string[];
   names: string[];
+  /** set for a subject that belongs to an event (event.ts) */
+  event?: string;
 }
 export interface Subject extends SubjectIdea {
   no: number;
@@ -31,7 +33,8 @@ const SPAN = SUBJECT_DAYS * 86_400_000;
 
 export const SUBJECTS: SubjectIdea[] = [
   { title: "A window at night", palette: ["#1E2A5A", "#F2C14E", "#E26D3D", "#3E7C6B", "#F4EEE0", "#1B1B1B"], names: ["Night navy", "Lamp", "Ember", "Moss", "Moon", "Ink"] },
-  { title: "Something steaming", palette: ["#C98B4E", "#F4EEE0", "#B23A2E", "#3E7C6B", "#5A3A26", "#1B1B1B"], names: ["Tea", "Steam", "Clay cup", "Mint", "Table", "Ink"] },
+  // Release week (event.ts): the subject for 18 to 20 November
+  { title: "Yourself, as a loading screen", palette: ["#FF4F9A", "#FF8A3D", "#6B3FA0", "#1FA5A0", "#2F6B5A", "#1B1426"], names: ["Sunset pink", "Orange", "Violet", "Teal sea", "Palm", "Night"], event: "release" },
   { title: "Autumn in the park", palette: ["#C9392F", "#E8A33D", "#8C5A3C", "#7FA650", "#6FA8C9", "#2A2724"], names: ["Maple", "Amber", "Bark", "Last green", "Sky", "Ink"] },
   { title: "A cat that owns the place", palette: ["#E26D3D", "#F2D3A0", "#5E6B78", "#A1386B", "#3E7C6B", "#1B1B1B"], names: ["Ginger", "Cream", "Slate", "Cushion", "Fern", "Ink"] },
   { title: "Rain on the old town", palette: ["#4A5A6E", "#9CC6D8", "#E8C79B", "#B5593A", "#F2C14E", "#2A2724"], names: ["Rain cloud", "Puddle", "Plaster", "Roof tile", "Umbrella", "Ink"] },
@@ -80,11 +83,14 @@ export const SUBJECTS: SubjectIdea[] = [
   { title: "The sea at noon", palette: ["#2B6FA8", "#6FC2C9", "#F2D3A0", "#F4EEE0", "#E26D3D", "#1B1E1D"], names: ["Deep", "Shallows", "Sand", "Foam", "Towel", "Ink"] },
   { title: "Ice cream on a hot day", palette: ["#F2B8C6", "#F4E3B0", "#6B4A34", "#7FC2A8", "#E8A33D", "#1B1B1B"], names: ["Strawberry", "Vanilla", "Chocolate", "Mint", "Cone", "Ink"] },
   { title: "Home", palette: ["#E26D3D", "#E8C79B", "#3E7C6B", "#2B37D4", "#F2C14E", "#1B1B1B"], names: ["Hearth", "Wall", "Garden", "Door", "Window", "Ink"] },
+  { title: "Something steaming", palette: ["#C98B4E", "#F4EEE0", "#B23A2E", "#3E7C6B", "#5A3A26", "#1B1B1B"], names: ["Tea", "Steam", "Clay cup", "Mint", "Table", "Ink"] },
 ];
 
+/** past the end, the list starts over without the events' subjects */
+const REGULAR = SUBJECTS.filter((t) => !t.event);
 const make = (k: number): Subject => ({
   no: FIRST_NO + k,
-  ...SUBJECTS[k % SUBJECTS.length],
+  ...(k < SUBJECTS.length ? SUBJECTS[k] : REGULAR[(k - SUBJECTS.length) % REGULAR.length]),
   minutes: 10,
   starts: FIRST_START + k * SPAN,
   ends: FIRST_START + (k + 1) * SPAN,

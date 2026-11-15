@@ -82,10 +82,25 @@ export const WALL_THEMES: WallSubject[] = [
   { id: "cake", title: "The cake", prompt: "Five tiers and no decoration. Decorate the cake." },
   { id: "greenhouse", title: "The greenhouse", prompt: "Pots of soil on every shelf. Grow something." },
 ];
-export const themeFor = (no: number) => WALL_THEMES[(Math.max(1, no) - 1) % WALL_THEMES.length];
-/** how many walls are written after wall `no` (below zero: they have started over) */
-export const wallsLeft = (no: number) => WALL_THEMES.length - Math.max(1, no);
-export const themeById = (id: string) => WALL_THEMES.find((t) => t.id === id) ?? WALL_THEMES[0];
+/** walls set aside for an event (src/data/event.ts): the subject that goes up as that wall
+    instead of the next in the list, which waits for the wall after. Never the live wall's
+    number or one before it: those are up or in the archive already. */
+export const WALL_EVENTS: Record<number, WallSubject & { event: string }> = {
+  5: {
+    id: "strip",
+    title: "The sunset strip",
+    prompt: "Release week. The strip is lit, the billboards are blank and the road is empty. Cars, neon, people, palms: fill it with your own.",
+    event: "release",
+  },
+};
+const eventsBefore = (no: number) => Object.keys(WALL_EVENTS).filter((n) => Number(n) < no).length;
+export const themeFor = (no: number): WallSubject => WALL_EVENTS[no] ?? WALL_THEMES[(Math.max(1, no) - 1 - eventsBefore(no)) % WALL_THEMES.length];
+/** how many of the list's walls are still to come after wall `no` (below zero: they have
+    started over); events aren't counted */
+export const wallsLeft = (no: number) => WALL_THEMES.length - (Math.max(1, no) - eventsBefore(no + 1));
+/** events still to come after wall `no` */
+export const eventsAfter = (no: number) => Object.keys(WALL_EVENTS).filter((n) => Number(n) > no).length;
+export const themeById = (id: string): WallSubject => WALL_THEMES.find((t) => t.id === id) ?? Object.values(WALL_EVENTS).find((t) => t.id === id) ?? WALL_THEMES[0];
 
 /** A mark as the wall keeps it: only the fields the wall's tools use. */
 export type WallStroke = Pick<Stroke, "tool" | "c" | "w" | "p" | "r">;

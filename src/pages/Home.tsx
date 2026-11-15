@@ -9,6 +9,7 @@ import { Wall } from "../components/Wall";
 import { DISCIPLINES } from "../data/disciplines";
 import { allPieces, useLocal } from "../data/local";
 import { FIRST_SUBJECT, PROMPT } from "../data/prompt";
+import { EventSection } from "../components/EventBits";
 import { samples } from "../data/samples";
 import { Sketch } from "../engine/sketch";
 import { drawnCount, isPixelShape, toolsUsed, type Piece } from "../engine/stroke";
@@ -156,6 +157,8 @@ export function Home() {
         </div>
       </section>
 
+      <EventSection />
+
       <section className="sec wrap" id="wall" aria-labelledby="wall-h">
         <header className="sec-head">
           <h2 id="wall-h">The wall</h2>
@@ -207,7 +210,7 @@ export function Home() {
           <p className="serif">Same rules for everyone, for three days: a subject, six inks and ten minutes. A new one goes up every third midnight, Tbilisi time. People stamp the entries, and the most stamped go to the front of the gallery.</p>
         </header>
         <div className="subject">
-          <article className="poster press" aria-labelledby="poster-h">
+          <article className={`poster press${PROMPT.event ? " poster-sunset" : ""}`} aria-labelledby="poster-h">
             <span className="poster-moon" aria-hidden="true" />
             <p className="poster-top kicker"><span>Subject No. {PROMPT.no}</span><span>Closes in <b className="num">{countdown}</b></span></p>
             <h3 id="poster-h" className="poster-title">{PROMPT.title}</h3>

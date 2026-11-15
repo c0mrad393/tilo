@@ -1271,9 +1271,84 @@ function greenhouse(S: Sketch) {
   S.poly([[1700, 920], [1640, 890]], "ink", INK, 6, 0.3);
 }
 
+/* ---- event: release week (event.ts). A sunset strip by the sea, the billboards blank. Our
+   own drawing in a sunset mood: nothing from the game, its art or its logo. ---- */
+function strip(S: Sketch) {
+  const sea = 480, walk = 720, road = 780, kerb = 930;
+  skyBands(S, 0, 2000, 0, sea, ["#D9C6EE", "#F4BFD9", "#FFCFAE", "#FFE3BE"], 22);
+  // the low sun, striped like an old poster
+  const sun = ellipse(1000, sea, 230, 230, 48, Math.PI, Math.PI * 2);
+  tint(S, sun, "#FFB347", 0.9);
+  tint(S, ellipse(1000, sea, 230, 230, 48, Math.PI * 1.15, Math.PI * 1.85), "#FF7A8A", 0.45);
+  for (const [y, h] of [[400, 8], [425, 12], [450, 16]] as Pt[]) tint(S, box(760, y, 480, h), "#FFE3BE", 1);
+  // the sea and the sun on it
+  tint(S, box(0, sea, 2000, walk - sea), "#1FA5A0", 0.55);
+  for (let k = 0; k < 14; k++) {
+    const y = sea + 16 + k * 16, w = 200 - k * 10;
+    S.line(1000 - w + S.R() * 30, y, 1000 + w - S.R() * 30, y, "marker", "#FFB347", 6, 0.4);
+  }
+  for (let k = 0; k < 60; k++) {
+    const x = S.R() * 2000, y = sea + 20 + S.R() * 210;
+    if (Math.abs(x - 1000) > 240) S.line(x, y, x + 34, y, "pencil", "#F4EEE0", 3, 0.3);
+  }
+  // the promenade, the road and the kerb
+  tint(S, box(0, walk, 2000, road - walk), "#F2D3B6", 0.9);
+  S.line(0, walk, 2000, walk, "ink", INK, 5, 1);
+  tint(S, box(0, road, 2000, kerb - road), "#4A3F5C", 0.85);
+  for (let x = 30; x < 2000; x += 160) S.line(x, (road + kerb) / 2, x + 90, (road + kerb) / 2, "ink", "#FFE3BE", 8, 0.3);
+  tint(S, box(0, kerb, 2000, 70), "#F2D3B6", 0.9);
+  S.line(0, kerb, 2000, kerb, "ink", INK, 6, 1);
+  // pastel hotels on both sides, stepped tops, every window and every sign empty
+  const hotel = (x: number, w: number, h: number, c: string, trim: string) => {
+    const top = walk - h;
+    shape(S, box(x, top, w, h), c, 0.9, INK, 5, 0.8);
+    shape(S, box(x + w * 0.2, top - 50, w * 0.6, 50), c, 0.9, INK, 4, 0.6);
+    shape(S, box(x + w * 0.38, top - 90, w * 0.24, 40), c, 0.9, INK, 4, 0.6);
+    for (let y = top + 30; y < walk - 120; y += 34) S.line(x + 6, y, x + w - 6, y, "pencil", trim, 3, 0.3);
+    // a sign frame running up the front, left blank, in neon
+    hole(S, box(x + w / 2 - 30, top + 20, 60, h * 0.55), "#FF4F9A", 6, 0.4);
+    const cols = Math.floor((w - 40) / 70);
+    for (let c2 = 0; c2 < cols; c2++) {
+      const wx = x + 24 + c2 * ((w - 48) / cols);
+      if (Math.abs(wx + 20 - (x + w / 2)) < 50) continue;
+      for (let y = top + 40; y < walk - 140; y += 90) hole(S, box(wx, y, 40, 54), INK, 3, 0.3);
+    }
+    shape(S, arch(x + w / 2 - 50, walk - 110, 100, 110), "#1B1426", 0.6, INK, 4, 0.4);
+  };
+  hotel(20, 280, 430, "#BDE7DA", "#1FA5A0");
+  hotel(320, 230, 330, "#F7C6DC", "#FF4F9A");
+  hotel(1460, 240, 360, "#D9C6EE", "#6B3FA0");
+  hotel(1720, 260, 470, "#FFE0A8", "#FF8A3D");
+  // a blank billboard on the roof of the low hotel on the right
+  for (const lx of [1500, 1660]) S.line(lx, walk - 360, lx, walk - 470, "ink", INK, 6, 0.3);
+  hole(S, box(1440, walk - 600, 300, 140), INK, 6, 0.6);
+  // palms along the promenade
+  const palm = (x: number, h: number, lean: number) => {
+    const trunk = bend([x, kerb - 10], [x + lean * 0.4, kerb - h * 0.6], [x + lean, kerb - h], 12);
+    S.path(trunk, "brushpen", "#6B4A34", 22, (t) => 0.95 - t * 0.35);
+    for (let i = 1; i < 11; i += 2) S.line(trunk[i][0] - 10, trunk[i][1], trunk[i][0] + 10, trunk[i][1] - 4, "pencil", "#3A281C", 3, 0.2);
+    const [tx, ty] = trunk[11];
+    for (let k = 0; k < 7; k++) {
+      const a = Math.PI + (k / 6) * Math.PI;
+      S.path(bend([tx, ty], [tx + Math.cos(a) * 110, ty + Math.sin(a) * 80 - 30], [tx + Math.cos(a) * 190, ty + Math.sin(a) * 40 + 60], 10), "brushpen", "#2F6B5A", 16, (t) => 0.95 - t * 0.7);
+    }
+  };
+  palm(640, 560, -40);
+  palm(820, 470, 30);
+  palm(1230, 520, -30);
+  palm(1390, 600, 40);
+  // the street lamps, in neon
+  for (const lx of [120, 1900]) {
+    S.line(lx, kerb, lx, kerb - 300, "ink", INK, 6, 0.3);
+    S.line(lx, kerb - 300, lx + (lx < 1000 ? 60 : -60), kerb - 300, "ink", INK, 5, 0.3);
+    S.circle(lx + (lx < 1000 ? 60 : -60), kerb - 285, 12, "marker", "#FF4F9A", 12, 0.3);
+  }
+}
+
 export const MORE: Record<string, (S: Sketch) => void> = {
   shelf, supra, beach, flowerbed, frames, harbour, cafe, stage, jars, moon, burrows,
   house, zoo, circus, washing, bakery, planets, screens, snow, pond, jungle, towers,
   island, carousel, stadium, lighthouse, desert, factory, museum, postcards, quilt, busstop, park,
   bridge, vineyard, cablecar, orchestra, valley, camp, maze, classphoto, road, cake, greenhouse,
+  strip,
 };

@@ -4,6 +4,7 @@ import { ACCOUNTS, call, handleHint, useAccount } from "../data/account";
 import { openFeedback, useSignupOpen } from "../data/beta";
 import { PROMPT } from "../data/prompt";
 import { countVisit, dontCountThisDevice } from "../data/visits";
+import { EventBar, useEventLook } from "./EventBits";
 import { FeedbackDialog } from "./Feedback";
 import { Logo } from "./Logo";
 
@@ -81,6 +82,7 @@ const today = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric"
 
 export function Layout() {
   usePress();
+  useEventLook();
   const { pathname } = useLocation();
   // the studio has the screen to itself, a pupil's drawing included; pupils' pages carry their own bar
   const inStudio = pathname.startsWith("/studio") || /^(\/demo)?\/class\/draw\//.test(pathname);
@@ -101,6 +103,7 @@ export function Layout() {
       {!inStudio && <a className="skip" href="#main">Skip to the page</a>}
       {!inStudio && !pupils && (
         <header className="mast wrap">
+          <EventBar />
           <div className="mast-row">
             <NavLink to="/" viewTransition className="logo" aria-label="Tilo home">
               <Logo />
