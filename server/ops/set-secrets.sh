@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Asks for the keys that come from outside services and writes them where the stack and the
 # backup read them, so they're typed on the server and never pass through anything else.
-# Input is hidden; an empty answer keeps what is there. Run on the server, as tilo:
+# Input is hidden; an empty answer keeps what is there. Then Auth's own two settings (Google
+# sign-in, and how many emails it may send an hour), and Auth restarts if they changed.
+# Run on the server, as tilo:
 #   bash ~/tilo/server/ops/set-secrets.sh
 set -euo pipefail
 DIR=$(cd "$(dirname "$0")/../.." && pwd)
@@ -37,4 +39,24 @@ ask "$ENV" CF_API_TOKEN "Cloudflare API token with Zone > Cache Purge"
 ask "$BACKUP" R2_ACCESS_KEY_ID "R2 Access Key ID"
 ask "$BACKUP" R2_SECRET_ACCESS_KEY "R2 Secret Access Key"
 ask "$BACKUP" BACKUP_PING_URL "Daily backup check URL (healthchecks.io ping URL; optional)"
-echo "Done. Nothing was printed; check with: grep -c '=.' $ENV"
+
+# ---- Auth ----
+before=$(grep -E '^(GOOGLE_|MAIL_RATE_LIMIT=)' "$ENV" | md5sum)
+ask "$ENV" GOOGLE_CLIENT_ID "Google OAuth client ID (...apps.googleusercontent.com)"
+ask "$ENV" GOOGLE_SECRET "Google OAuth client secret (GOCSPX-...)"
+# the button shows once both are there
+if grep -q '^GOOGLE_CLIENT_ID=.' "$ENV" && grep -q '^GOOGLE_SECRET=.' "$ENV"; then put "$ENV" GOOGLE_ENABLED true; fi
+# not a secret, so it shows as it is typed
+now=$(grep '^MAIL_RATE_LIMIT=' "$ENV" | cut -d= -f2)
+read -rp "Sign-in emails Auth may send an hour, across everyone (now ${now:-unset}; Enter keeps it): " limit
+if [ -n "$limit" ]; then
+  [[ $limit =~ ^[0-9]+$ ]] && [ "$limit" -ge 10 ] || { echo "A whole number, 10 or more." >&2; exit 1; }
+  put "$ENV" MAIL_RATE_LIMIT "$limit"
+  echo "  saved MAIL_RATE_LIMIT"
+fi
+if [ "$before" != "$(grep -E '^(GOOGLE_|MAIL_RATE_LIMIT=)' "$ENV" | md5sum)" ]; then
+  echo "Restarting Auth with the new settings..."
+  docker compose -f "$DIR/server/docker-compose.yml" up -d --wait auth >/dev/null
+  echo "  Auth is up. Google sign-in: $(grep '^GOOGLE_ENABLED=' "$ENV" | cut -d= -f2)"
+fi
+echo "Done. Nothing secret was printed; check with: grep -c '=.' $ENV"

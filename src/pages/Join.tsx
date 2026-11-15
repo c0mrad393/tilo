@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { WaitlistForm } from "../components/Waitlist";
-import { ACCOUNTS } from "../data/account";
+import { ACCOUNTS, providers, signInWithGoogle } from "../data/account";
 import { useSignupOpen } from "../data/beta";
 
 /* /join: the address for posts and videos. It says what joining gives you and sends people to
@@ -11,6 +11,12 @@ export function Join() {
   const known = useSignupOpen();
   const [opened, setOpen] = useState(false);
   const open = opened || known !== false;
+  // Google sign-in, when the server offers it: no email to wait for
+  const [google, setGoogle] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (ACCOUNTS) providers().then((p) => setGoogle(p.google), () => {});
+  }, []);
 
   if (!ACCOUNTS || open)
     return (
@@ -34,8 +40,14 @@ export function Join() {
           )}
           <div className="row row-start">
             {ACCOUNTS && <Link to="/account" viewTransition className="btn btn-ink">Join with your email</Link>}
+            {google && (
+              <button className="btn btn-line" onClick={() => signInWithGoogle().catch((e) => setError(e instanceof Error ? e.message : "That didn't work. Try again."))}>
+                Continue with Google
+              </button>
+            )}
             <Link to="/studio" viewTransition className="btn btn-line">Start a blank sheet</Link>
           </div>
+          {error && <p className="notice notice-error serif" role="alert">{error}</p>}
         </div>
       </main>
     );
