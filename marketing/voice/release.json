@@ -1,0 +1,13 @@
+{
+  "voice": "af_heart",
+  "speed": 1.0,
+  "lines": [
+    ["hook", "Release week on Tilo. G T A six comes out on the nineteenth of November. Draw while you wait."],
+    ["wall", "This week's shared wall is a coast at sunset. The billboard is blank, the road is empty, and the big wheel is waiting."],
+    ["fill", "Members fill it in by hand: cars, neon signs, people, boats. It's up now, until the twentieth."],
+    ["subject", "On the eighteenth, the subject is: yourself, as a loading screen. Six sunset inks, and ten minutes."],
+    ["ai", "To set the mood, Claude, an AI, drew a few samples in code. They're marked AI-made. Beat them by hand."],
+    ["how", "Open tiloart dot com, press the bar at the top, and draw along. Stamp the best ones."],
+    ["cta", "Release week, on Tilo. Free, at tiloart dot com."]
+  ]
+}

@@ -73,6 +73,14 @@ SETS.launch1 = [
 SETS.launch2 = [
   ["open-handle", process.env.LINK, 170, fill([["input[autocomplete=username]", "mariam_draws"], ["input[autocomplete=name]", "Mariam"], ["input[type=checkbox]", true]])],
 ];
+// Release week (src/data/event.ts): the bar and the home section, the wall, the AI-made samples
+SETS.release = [
+  ["rel-home", "/", 0, null, 2700],
+  ["rel-wall", "/wall", 0, null, 1500],
+  ["rel-strip", "/piece/tilosunstrip", 0, null, 1500],
+  ["rel-loading", "/piece/tiloloadingme", 0, null, 1700],
+  ["rel-gallery", "/gallery", 0, null, 2000],
+];
 // `node marketing/shoot.mjs one /path` shoots one page as it is, to see what a set will meet
 SETS.one = [["one", process.argv[3] ?? "/", 0]];
 const SHOTS = SETS[process.argv[2] ?? "intro"];
