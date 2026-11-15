@@ -5,6 +5,8 @@
    open, so nothing was sent to the real one (node marketing/shoot.mjs launch1 / launch2, see
    there), the email as Auth sends it (marketing/invite-mail.ts), the rest the tour's shots of
    tiloart.com (shoot.mjs tour). Pieces marked AI-MADE are Tilo's samples, and the video says so.
+   The Google button shows once Google sign-in is on (server/ops/set-secrets.sh); the
+   shots were taken with it on locally.
    Usage, from the repository root: npm run video:launch [-- frames DIR] */
 
 import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
@@ -67,16 +69,19 @@ function frame(x: SKRSContext2D, t: number) {
     x.globalAlpha = 1;
   }
 
-  // 01: /join, then the email
+  // 01: /join: Google in one tap, or the email
   if (on(S.join)) {
     const s = S.join, a = life_(s);
-    title(x, "01 · tiloart.com/join", "TYPE YOUR", "EMAIL.", a);
-    const k = span(t, s.voice + 1.5, s.voice + 1.9, inOut);
+    title(x, "01 · tiloart.com/join", "GOOGLE, OR", "YOUR EMAIL.", a);
+    const k = span(t, s.voice + 4.9, s.voice + 5.3, inOut);
     swap(x, a, k,
-      () => phone(x, "open-join", 540, PHONE_Y, -0.02, 0, (o) => tap(o, el("open-join", "Join with your email"), span(t, s.voice + 0.8, s.voice + 1.5, lin))),
+      () => phone(x, "open-join", 540, PHONE_Y, -0.02, 0, (o) => {
+        ring(o, el("open-join", "Continue with Google"), span(t, s.voice + 2.3, s.voice + 2.6) * (1 - span(t, s.voice + 4.0, s.voice + 4.2)));
+        tap(o, el("open-join", "Join with your email"), span(t, s.voice + 4.2, s.voice + 4.9, lin));
+      }),
       () => phone(x, "open-signin", 540, PHONE_Y, -0.02, 0, (o) => {
-        ring(o, field("open-signin", "Email"), span(t, s.voice + 2.0, s.voice + 2.3) * (1 - span(t, s.voice + 3.3, s.voice + 3.5)));
-        tap(o, el("open-signin", "Email me a link"), span(t, s.voice + 3.5, s.end, lin));
+        ring(o, field("open-signin", "Email"), span(t, s.voice + 5.3, s.voice + 5.6));
+        tap(o, el("open-signin", "Email me a link"), span(t, s.voice + 6.0, s.end, lin));
       }),
     );
   }
@@ -84,7 +89,7 @@ function frame(x: SKRSContext2D, t: number) {
   // 02: the link arrives; press it
   if (on(S.mail)) {
     const s = S.mail, a = life_(s);
-    title(x, "02 · No password", "PRESS THE", "LINK.", a);
+    title(x, "02 · With email", "PRESS THE", "LINK.", a);
     const k = span(t, s.voice + 0.9, s.voice + 1.3, inOut);
     swap(x, a, k,
       () => phone(x, "open-sent", 540, PHONE_Y, 0.015),
