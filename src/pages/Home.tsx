@@ -8,7 +8,7 @@ import { Trace } from "../components/Trace";
 import { Wall } from "../components/Wall";
 import { DISCIPLINES } from "../data/disciplines";
 import { allPieces, useLocal } from "../data/local";
-import { PROMPT } from "../data/prompt";
+import { FIRST_SUBJECT, PROMPT } from "../data/prompt";
 import { samples } from "../data/samples";
 import { Sketch } from "../engine/sketch";
 import { drawnCount, isPixelShape, toolsUsed, type Piece } from "../engine/stroke";
@@ -62,14 +62,16 @@ function LivePlate({ piece, no, className = "", children }: { piece: Piece; no: 
   );
 }
 
+/** the time left on the subject up now: "2d 14:03:22", then "Closing now" */
 function useCountdown() {
   const [s, setS] = useState("--:--:--");
   useEffect(() => {
     const tick = () => {
-      const now = new Date(), end = new Date(now);
-      end.setUTCHours(24, 0, 0, 0);
-      const sec = Math.floor((+end - +now) / 1000);
-      setS([sec / 3600, (sec % 3600) / 60, sec % 60].map((n) => String(Math.floor(n)).padStart(2, "0")).join(":"));
+      const sec = Math.floor((PROMPT.ends - Date.now()) / 1000);
+      if (sec <= 0) return setS("Closing now");
+      const days = Math.floor(sec / 86400);
+      const clock = [(sec % 86400) / 3600, (sec % 3600) / 60, sec % 60].map((n) => String(Math.floor(n)).padStart(2, "0")).join(":");
+      setS(days ? `${days}d ${clock}` : clock);
     };
     tick();
     const t = setInterval(tick, 1000);
@@ -201,8 +203,8 @@ export function Home() {
 
       <section className="sec wrap" id="today" aria-labelledby="today-h">
         <header className="sec-head">
-          <h2 id="today-h">The daily subject</h2>
-          <p className="serif">Same rules for everyone, for one day: a subject, six inks and ten minutes. People stamp the entries, and the most stamped go to the front of the gallery.</p>
+          <h2 id="today-h">The subject</h2>
+          <p className="serif">Same rules for everyone, for three days: a subject, six inks and ten minutes. A new one goes up every third midnight, Tbilisi time. People stamp the entries, and the most stamped go to the front of the gallery.</p>
         </header>
         <div className="subject">
           <article className="poster press" aria-labelledby="poster-h">
@@ -221,7 +223,7 @@ export function Home() {
             </ul>
             <div className="poster-foot">
               <Link to={`/studio?prompt=${PROMPT.no}`} viewTransition className="btn btn-poster"><Icon name="pencil" />Start the 10-minute sheet</Link>
-              <span className="serif">The first two entries are AI samples. Yours goes next to them.</span>
+              <span className="serif">{PROMPT.no === FIRST_SUBJECT.no ? "The first two entries are AI samples. Yours goes next to them." : entries.length ? "Yours goes next to them." : "No entries yet. Yours can be the first."}</span>
             </div>
           </article>
           <div className="subject-entries">

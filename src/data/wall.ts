@@ -26,7 +26,10 @@ export interface WallSubject {
   prompt: string;
 }
 
-/** the subjects take turns: wall No. 1 is the first, No. 7 the first again */
+/** the subjects, one per wall, in order: wall No. 1 had the first. They are written ahead so
+    nothing has to be put up by hand; the admin panel warns when few are left, and past the
+    last one they start again from the first. Add new ones at the end, never in the middle:
+    an outline's strokes come from its place in this list (wall-art.ts). */
 export const WALL_THEMES: WallSubject[] = [
   { id: "street", title: "The street of windows", prompt: "Every window on this street is empty. Draw who lives behind one." },
   { id: "tree", title: "The tree of everyone", prompt: "The branches are bare. Add a leaf, a bird, a fruit, someone on the swing." },
@@ -34,8 +37,54 @@ export const WALL_THEMES: WallSubject[] = [
   { id: "market", title: "The night market", prompt: "The stalls are up and the tables are bare. What's for sale?" },
   { id: "train", title: "The long train", prompt: "Every seat is free. Put a passenger in a window." },
   { id: "sky", title: "The sky over the city", prompt: "The sky is empty. Kites, birds, balloons, weather, a dragon: fill it." },
+  { id: "shelf", title: "The bookshelf", prompt: "Half the shelves are empty. Add a book, a plant, a cat asleep on top." },
+  { id: "supra", title: "The long table", prompt: "A Georgian supra, and every plate is empty. What's on the table, and who's at it?" },
+  { id: "beach", title: "The beach", prompt: "The towels are out and the sea is warm. Who came to the beach?" },
+  { id: "flowerbed", title: "The flower bed", prompt: "Every stem is waiting for its flower. Grow one." },
+  { id: "frames", title: "The gallery wall", prompt: "Every frame on this wall is empty. Hang your picture." },
+  { id: "harbour", title: "The harbour", prompt: "The boats are tied up and nobody's aboard. Who sails, and with what?" },
+  { id: "cafe", title: "The café terrace", prompt: "The tables are out and the chairs are free. Who's having coffee?" },
+  { id: "stage", title: "The stage", prompt: "The curtain is up and the stage is bare. What's the show?" },
+  { id: "jars", title: "The pantry", prompt: "A shelf of empty jars. Fill one, and write its label." },
+  { id: "moon", title: "The Moon", prompt: "Nobody lives on the Moon yet. Build a base, plant a flag, bring a friend." },
+  { id: "burrows", title: "Under the field", prompt: "Under the grass, every room is empty. Who lives down there?" },
+  { id: "house", title: "The house with no walls", prompt: "You can see into every room, and every room is bare. Move someone in." },
+  { id: "zoo", title: "The zoo of made-up animals", prompt: "Every pen has a sign and nobody in it. Invent an animal." },
+  { id: "circus", title: "The big top", prompt: "The ring is lit and the act hasn't started. Who's on?" },
+  { id: "washing", title: "The washing line", prompt: "The pegs are on the line. Hang something out to dry." },
+  { id: "bakery", title: "The bakery window", prompt: "The trays are out and the shelves are bare. Bake something." },
+  { id: "planets", title: "The solar system", prompt: "The orbits are drawn and the planets are missing. Invent a world." },
+  { id: "screens", title: "The wall of screens", prompt: "Every screen is switched on and blank. What's on?" },
+  { id: "snow", title: "The snowy hill", prompt: "Fresh snow and nobody on it yet. Sledges, snowmen, footprints." },
+  { id: "pond", title: "The pond", prompt: "Lily pads, reeds, still water. Who's in the pond?" },
+  { id: "jungle", title: "The jungle", prompt: "Leaves everywhere, and something's hiding. Draw what's in there." },
+  { id: "towers", title: "The Svan towers", prompt: "Old stone towers in the mountains, their windows dark. Who keeps watch?" },
+  { id: "island", title: "The treasure map", prompt: "An island with no names on it. Mark the treasure, the dangers and the way." },
+  { id: "carousel", title: "The carousel", prompt: "The poles are turning with nothing on them. What do you ride?" },
+  { id: "stadium", title: "The stadium", prompt: "The stands are full of empty seats. Fill them, then the pitch." },
+  { id: "lighthouse", title: "The lighthouse", prompt: "The light is on and the sea is empty. Ships, whales, a storm." },
+  { id: "desert", title: "The desert", prompt: "Dunes, a few cacti, and a long way to go. Who's crossing?" },
+  { id: "factory", title: "The factory", prompt: "The belt is running and nothing's on it. What does this factory make?" },
+  { id: "museum", title: "The museum", prompt: "Every plinth is empty. Put something on one worth looking at." },
+  { id: "postcards", title: "The postcard rack", prompt: "The postcards are blank. Draw one from a place you love." },
+  { id: "quilt", title: "The quilt", prompt: "A patchwork with empty squares. Fill one square." },
+  { id: "busstop", title: "The bus stop", prompt: "The bench is free and the bus is late. Who's waiting?" },
+  { id: "park", title: "The park", prompt: "Benches, paths, a fountain, and nobody about yet. Fill the park." },
+  { id: "bridge", title: "The bridge", prompt: "An old stone bridge over the river. Who's crossing, and what's below?" },
+  { id: "vineyard", title: "The vineyard", prompt: "The vines are tied and bare. Grapes, pickers, a basket, a bird." },
+  { id: "cablecar", title: "The cable car", prompt: "The cabins cross the valley, every one empty. Who's riding?" },
+  { id: "orchestra", title: "The orchestra", prompt: "Every chair has a stand, and nobody's playing. Who's in the band?" },
+  { id: "valley", title: "The valley of giants", prompt: "A volcano, ferns, a lake. Something big lives here. Draw it." },
+  { id: "camp", title: "The campfire", prompt: "The fire is lit and the tents are pitched. Who's sitting round it?" },
+  { id: "maze", title: "The maze", prompt: "A maze with a way through. Draw who's lost in it, and what's at the middle." },
+  { id: "classphoto", title: "The class photo", prompt: "Rows of faces, every one blank. Draw one, maybe yours." },
+  { id: "road", title: "The long road", prompt: "A road across the country, and no traffic. Cars, signs, a hitchhiker." },
+  { id: "cake", title: "The cake", prompt: "Five tiers and no decoration. Decorate the cake." },
+  { id: "greenhouse", title: "The greenhouse", prompt: "Pots of soil on every shelf. Grow something." },
 ];
 export const themeFor = (no: number) => WALL_THEMES[(Math.max(1, no) - 1) % WALL_THEMES.length];
+/** how many walls are written after wall `no` (below zero: they have started over) */
+export const wallsLeft = (no: number) => WALL_THEMES.length - Math.max(1, no);
 export const themeById = (id: string) => WALL_THEMES.find((t) => t.id === id) ?? WALL_THEMES[0];
 
 /** A mark as the wall keeps it: only the fields the wall's tools use. */

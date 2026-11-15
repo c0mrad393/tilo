@@ -1,7 +1,7 @@
 import { Sketch, type Pt } from "../engine/sketch";
 import type { Piece } from "../engine/stroke";
 import { below, blob, ellipse, hatch, mix, noise, ramp, ridge, sky, soft, speckle } from "./art";
-import { PROMPT, SAMPLE_BY } from "./prompt";
+import { FIRST_SUBJECT, SAMPLE_BY } from "./prompt";
 import { genKhinkali, genNarikala, genPomegranate, genSunset } from "./pixel-art";
 
 export { PROMPT, publishedSample, SAMPLE_ACCOUNT, SAMPLE_BY, STAMP_COLOR, STAMPS } from "./prompt";
@@ -10,7 +10,7 @@ export { PROMPT, publishedSample, SAMPLE_ACCOUNT, SAMPLE_BY, STAMP_COLOR, STAMPS
    drew with): every mark is a real stroke with a real tool, so they replay and remix like
    any piece, but no hand made them, and the UI says so wherever they appear. They are the
    bar for people to beat, not the work Tilo is for. */
-const [NAVY, LAMP, EMBER, MOSS, CREAM, INK] = PROMPT.palette;
+const [NAVY, LAMP, EMBER, MOSS, CREAM, INK] = FIRST_SUBJECT.palette;
 
 const scale = (pts: Pt[], cx: number, cy: number, s: number, sy = s): Pt[] => pts.map(([x, y]) => [cx + (x - cx) * s, cy + (y - cy) * sy]);
 
@@ -745,9 +745,9 @@ function genVine(S: Sketch) {
 
 type Def = Omit<Piece, "strokes"> & { gen: (S: Sketch) => void };
 const DEFS: Def[] = [
-  { id: "nightlamp", title: "A window at night", minutes: 10, prompt: PROMPT.no, gen: genWindow, by: SAMPLE_BY },
+  { id: "nightlamp", title: "A window at night", minutes: 10, prompt: FIRST_SUBJECT.no, gen: genWindow, by: SAMPLE_BY },
   { id: "gergeti", title: "Gergeti, first light", minutes: 40, gen: genGergeti, by: SAMPLE_BY },
-  { id: "moonwatch", title: "A window at night, with someone watching", minutes: 4, prompt: PROMPT.no, remixOf: "nightlamp", gen: genWatcher, by: SAMPLE_BY },
+  { id: "moonwatch", title: "A window at night, with someone watching", minutes: 4, prompt: FIRST_SUBJECT.no, remixOf: "nightlamp", gen: genWatcher, by: SAMPLE_BY },
   { id: "oldtown", title: "Old Tbilisi, dusk", minutes: 55, gen: genOldTown, by: SAMPLE_BY },
   { id: "harvest", title: "Pomegranates on linen", minutes: 35, shape: "square", gen: genPomegranates, by: SAMPLE_BY },
   { id: "blacksea", title: "Batumi, low tide", minutes: 30, gen: genBlackSea, by: SAMPLE_BY },

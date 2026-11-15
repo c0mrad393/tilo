@@ -10,7 +10,7 @@ COPY server/api/package.json server/api/package-lock.json server/api/
 RUN cd server/api && npm ci --no-audit --no-fund
 COPY package.json ./
 COPY src/engine src/engine
-COPY src/data/art.ts src/data/wall.ts src/data/wall-art.ts src/data/
+COPY src/data/art.ts src/data/wall.ts src/data/wall-art.ts src/data/wall-art-more.ts src/data/wall-kit.ts src/data/
 COPY server/api/src server/api/src
 RUN cd server/api && npm run build && npm prune --omit=dev --no-audit --no-fund
 

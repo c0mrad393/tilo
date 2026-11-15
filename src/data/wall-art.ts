@@ -8,22 +8,8 @@ import { PAPER, WALL_THEMES } from "./wall";
    outline says it was drawn by AI; the marks people add are theirs. tilo-api's worker draws
    the same outline into the wall's picture (the same seed gives the same strokes). */
 
-const INK = "#2A2724", SOFT = "#6B645A";
-const empty = (S: Sketch, pts: Pt[]) => S.lasso(pts, PAPER);
-const box = (x: number, y: number, w: number, h: number): Pt[] => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-const arch = (x: number, y: number, w: number, h: number): Pt[] => [
-  [x, y + h],
-  [x, y + w / 2],
-  ...ellipse(x + w / 2, y + w / 2, w / 2, w / 2, 16, Math.PI, Math.PI * 2),
-  [x + w, y + h],
-];
-/** a light coat of colour, laid down the way a wash would be */
-const tint = (S: Sketch, pts: Pt[], c: string, a = 0.32) => {
-  const was = S.alpha;
-  S.alpha = a;
-  S.lasso(pts, c);
-  S.alpha = was;
-};
+import { arch, box, empty, INK, SOFT, tint } from "./wall-kit";
+import { MORE } from "./wall-art-more";
 
 /* ---- 1. a street of old Tbilisi houses, every window empty ---- */
 function street(S: Sketch) {
@@ -274,7 +260,7 @@ function sky(S: Sketch) {
   }
 }
 
-const DRAW: Record<string, (S: Sketch) => void> = { street, tree, aquarium, market, train, sky };
+const DRAW: Record<string, (S: Sketch) => void> = { street, tree, aquarium, market, train, sky, ...MORE };
 
 const drawn = new Map<string, Stroke[]>();
 /** a subject's outline, drawn once; the same seed gives every viewer and the server the same strokes */

@@ -11,6 +11,7 @@ const GROUPS: [string, Tab[]][] = [
     [
       ["/admin", "Overview"],
       ["/admin/visitors", "Visitors"],
+      ["/admin/schedule", "Coming up"],
     ],
   ],
   [

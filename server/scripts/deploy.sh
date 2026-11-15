@@ -11,7 +11,7 @@ DIR=${TILO_DIR:-tilo}
 # .env.before-restore) stay as they are.
 rsync -az --delete --relative \
   --exclude node_modules --include .env.example --exclude '.env*' --exclude 'api/dist' \
-  ./package.json ./src/engine ./src/data/art.ts ./src/data/wall.ts ./src/data/wall-art.ts ./server "$HOST:$DIR/"
+  ./package.json ./src/engine ./src/data/art.ts ./src/data/wall.ts ./src/data/wall-art.ts ./src/data/wall-art-more.ts ./src/data/wall-kit.ts ./server "$HOST:$DIR/"
 
 ssh "$HOST" bash -s "$DIR" <<'REMOTE'
 set -euo pipefail

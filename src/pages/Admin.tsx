@@ -7,7 +7,8 @@ import { type Claim, claims, closeClaim, decideSchool, type SchoolRow, schools, 
 import { moderate } from "../data/pieces";
 import { ANSWER_IN } from "../data/legal";
 import { fromRow, type Published, SELECT } from "../data/pieces";
-import { PAPER, WALL } from "../data/wall";
+import { PAPER, themeFor, WALL, WALL_DAYS, WALL_THEMES, wallsLeft } from "../data/wall";
+import { PROMPT, SUBJECT_DAYS, SUBJECTS, subjectsAhead } from "../data/prompt";
 import { outline } from "../data/wall-art";
 import { allWalls, artistsOn, marksBy, moderateWall, type WallRow, wallPicture } from "../data/wall-live";
 import { drawStroke, type Stroke } from "../engine/stroke";
@@ -115,11 +116,40 @@ function InvitesSetting() {
   );
 }
 
+/** warn when this few subjects or walls are written ahead (each lasts three days) */
+const LOW = 5;
+const DAY = 86_400_000;
+/** days until the last one written closes */
+const daysOut = (ends: number, left: number, every: number) => Math.max(0, Math.round((ends - Date.now()) / DAY + Math.max(0, left) * every));
+
+/** what runs out: the subjects and the walls written ahead, when few are left */
+function runningOut(live: WallRow | undefined): [number, string, string, string, string, boolean][] {
+  const out: [number, string, string, string, string, boolean][] = [];
+  const left = PROMPT.left;
+  if (left <= LOW)
+    out.push([
+      Math.max(0, left), "subject", "subjects",
+      left > 0 ? `written ahead, about ${daysOut(PROMPT.ends, left, SUBJECT_DAYS)} days; then they start over from the first. Add more to src/data/prompt.ts` : "left: the subjects have started over from the first. Add more to src/data/prompt.ts",
+      "/admin/schedule", true,
+    ]);
+  if (live) {
+    const w = wallsLeft(live.no);
+    if (w <= LOW)
+      out.push([
+        Math.max(0, w), "wall subject", "wall subjects",
+        w > 0 ? `written ahead, about ${daysOut(new Date(live.ends).getTime(), w, WALL_DAYS)} days; then they start over. Add more to src/data/wall.ts and wall-art-more.ts` : "left: the walls have started over from the first. Add more to src/data/wall.ts and wall-art-more.ts",
+        "/admin/schedule", true,
+      ]);
+  }
+  return out;
+}
+
 function Overview() {
   const { data: s, failed } = useLoad(stats, []);
+  const walls = useLoad(allWalls, []);
   if (!s) return <Wait failed={failed} />;
   // what waits for someone, in the order it should be done; only what isn't zero shows
-  const todo: [number, string, string, string, string][] = [
+  const todo: [number, string, string, string, string, boolean?][] = [
     [s.claims, "takedown claim", "takedown claims", `open; the terms promise an answer within ${ANSWER_IN}`, "/admin/claims"],
     [s.reports, "open report", "open reports", "on pieces and profiles", "/mod"],
     [s.waiting, "piece", "pieces", "waiting for a mod to let them in", "/mod"],
@@ -128,7 +158,8 @@ function Overview() {
     [s.feedback, "piece of feedback", "pieces of feedback", "to read", "/admin/feedback"],
     [s.errors, "error", "errors", `this week, ${s.error_count.toLocaleString()} time${s.error_count === 1 ? "" : "s"} in all`, "/admin/errors"],
   ];
-  const waiting = todo.filter(([n]) => n > 0);
+  todo.push(...runningOut(walls.data?.find((w) => w.status === "live")));
+  const waiting = todo.filter(([n, , , , , always]) => n > 0 || always);
   const tiles: [string, number, string, string?][] = [
     ["Visitors today", s.visitors_today, "different people", "/admin/visitors"],
     ["Members", s.members, `${s.new_members} new this week`, "/admin/members"],
@@ -139,7 +170,10 @@ function Overview() {
     ["Wall marks this week", s.wall_marks, "drawn", "/admin/wall"],
     ["Invites left", s.invites_left, `${s.invites_used} used`, "/admin/invites"],
     ["Mods and admins", s.staff, "on the team", "/admin/members"],
+    ["Subjects ahead", Math.max(0, PROMPT.left), `about ${daysOut(PROMPT.ends, PROMPT.left, SUBJECT_DAYS)} days' worth`, "/admin/schedule"],
   ];
+  const live = walls.data?.find((w) => w.status === "live");
+  if (live) tiles.push(["Walls ahead", Math.max(0, wallsLeft(live.no)), `about ${daysOut(new Date(live.ends).getTime(), wallsLeft(live.no), WALL_DAYS)} days' worth`, "/admin/schedule"]);
   return (
     <>
       <section className="admin-card admin-todo" aria-labelledby="todo-h">
@@ -174,6 +208,72 @@ function Overview() {
       <div className="admin-charts">
         <DayChart days={s.days} pick={(d) => d.joined} what={["member joined", "members joined"]} />
         <DayChart days={s.days} pick={(d) => d.n} what={["piece published", "pieces published"]} />
+      </div>
+    </>
+  );
+}
+
+// ---------- what goes up next ----------
+
+const onDay = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Tbilisi" });
+/** a span of days, the closing midnight shown as the day before it */
+const span = (from: number, to: number) => `${onDay.format(from)} to ${onDay.format(to - 1)}`;
+
+/** The subjects and the wall subjects written ahead, with the days each one is up. Both go
+    up on their own; this is only to see what's coming and how long the lists last. */
+function Schedule() {
+  const walls = useLoad(allWalls, []);
+  const live = walls.data?.find((w) => w.status === "live");
+  const next = subjectsAhead(Math.max(0, PROMPT.left));
+  const wallsAhead = live
+    ? Array.from({ length: Math.max(0, wallsLeft(live.no)) }, (_, i) => {
+        const no = live.no + 1 + i, ends = new Date(live.ends).getTime();
+        return { no, theme: themeFor(no), from: ends + i * WALL_DAYS * DAY, to: ends + (i + 1) * WALL_DAYS * DAY };
+      })
+    : [];
+  return (
+    <>
+      <p className="serif">
+        Both lists are written ahead and go up on their own at midnight, Tbilisi time: a subject every {SUBJECT_DAYS} days, a wall every {WALL_DAYS}. The
+        overview warns when {LOW} or fewer are left. Past the end of a list, it starts over from the first. New ones go at the end of the list in the code
+        (src/data/prompt.ts; src/data/wall.ts with its drawing in wall-art-more.ts), never in the middle.
+      </p>
+      <div className="admin-schedule">
+        <section className="admin-card">
+          <h2 className="kicker">Subjects · {Math.max(0, PROMPT.left)} of {SUBJECTS.length} ahead</h2>
+          <ol className="admin-plan">
+            <li className="is-now">
+              <b>No. {PROMPT.no}</b> {PROMPT.title} <span className="serif">up now, until {onDay.format(PROMPT.ends - 1)}</span>
+            </li>
+            {next.map((t) => (
+              <li key={t.no}>
+                <b>No. {t.no}</b> {t.title} <span className="serif">{span(t.starts, t.ends)}</span>
+                <span className="admin-plan-inks" aria-hidden="true">{t.palette.map((c) => <i key={c} style={{ background: c }} />)}</span>
+              </li>
+            ))}
+          </ol>
+          {PROMPT.left <= 0 && <p className="field-note is-error">The list has run out; old subjects are going up again.</p>}
+        </section>
+        <section className="admin-card">
+          <h2 className="kicker">Wall subjects · {live ? `${Math.max(0, wallsLeft(live.no))} of ${WALL_THEMES.length} ahead` : "…"}</h2>
+          {!walls.data ? (
+            <Wait failed={walls.failed} />
+          ) : !live ? (
+            <p className="serif">No wall is up right now.</p>
+          ) : (
+            <ol className="admin-plan">
+              <li className="is-now">
+                <b>No. {live.no}</b> {live.title} <span className="serif">up now, until {onDay.format(new Date(live.ends).getTime() - 1)}</span>
+              </li>
+              {wallsAhead.map((w) => (
+                <li key={w.no}>
+                  <b>No. {w.no}</b> {w.theme.title} <span className="serif">{span(w.from, w.to)}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+          {live && wallsLeft(live.no) <= 0 && <p className="field-note is-error">The list has run out; old wall subjects are going up again.</p>}
+        </section>
       </div>
     </>
   );
@@ -1565,6 +1665,7 @@ function SchoolsAdmin() {
 const SECTIONS: Record<string, [string, () => React.ReactElement]> = {
   "": ["Overview", Overview],
   visitors: ["Visitors", Visitors],
+  schedule: ["Coming up", Schedule],
   members: ["Members", Members],
   claims: ["Claims", Claims],
   invites: ["Invites", Invites],
