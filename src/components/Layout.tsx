@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigation } from "react-router";
 import { ACCOUNTS, call, handleHint, useAccount } from "../data/account";
-import { openFeedback } from "../data/beta";
+import { openFeedback, useSignupOpen } from "../data/beta";
 import { PROMPT } from "../data/prompt";
 import { countVisit, dontCountThisDevice } from "../data/visits";
 import { FeedbackDialog } from "./Feedback";
@@ -89,6 +89,7 @@ export function Layout() {
   const loading = useNavigation().state === "loading";
   // a member has their invite already; the footer's waiting-list line is for everyone else
   const { profile } = useAccount();
+  const open = useSignupOpen();
   // one count for each page opened (data/visits.ts); the team's own devices don't count
   useEffect(() => countVisit(pathname), [pathname]);
   useEffect(() => {
@@ -147,7 +148,7 @@ export function Layout() {
               <h2 className="kicker">This edition</h2>
               <p className="serif">
                 {ACCOUNTS
-                  ? <>Version {__APP_VERSION__}, closed beta. Your sheets live on this device until you publish them; the pieces by @tilo were drawn for the prototype.{!profile && <> No invite yet? <Link to="/join">Join the waiting list</Link>.</>}</>
+                  ? <>Version {__APP_VERSION__}{open === false && ", closed beta"}. Your sheets live on this device until you publish them; the pieces by @tilo were drawn for the prototype.{!profile && (open === false ? <> No invite yet? <Link to="/join">Join the waiting list</Link>.</> : <> New here? <Link to="/join">Join Tilo</Link>, free.</>)}</>
                   : `Version ${__APP_VERSION__}, before accounts open. Your sheets and pins live on this device; the other pieces and artists are samples.`}
               </p>
             </section>

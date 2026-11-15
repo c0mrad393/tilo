@@ -62,6 +62,16 @@ SETS.join2 = [
   ["handle-prep", `/account?invite=${CODE}`, 0],
   ["handle-form", process.env.LINK, 170, fill([["input[autocomplete=username]", "mariam_draws"], ["input[autocomplete=name]", "Mariam"], ["input[type=checkbox]", true]])],
 ];
+// the launch video, sign-up open (local server, invites_required false): launch1 up to the
+// sign-in email; launch2 after it, with LINK the sign-in link Mailpit caught
+SETS.launch1 = [
+  ["open-join", "/join", 0],
+  ["open-signin", "/account", 0, fill([["input[type=email]", "you@example.com"]])],
+  ["open-sent", null, 0, tap("Email me a link")],
+];
+SETS.launch2 = [
+  ["open-handle", process.env.LINK, 170, fill([["input[autocomplete=username]", "mariam_draws"], ["input[autocomplete=name]", "Mariam"], ["input[type=checkbox]", true]])],
+];
 // `node marketing/shoot.mjs one /path` shoots one page as it is, to see what a set will meet
 SETS.one = [["one", process.argv[3] ?? "/", 0]];
 const SHOTS = SETS[process.argv[2] ?? "intro"];

@@ -36,8 +36,8 @@ export function Terms() {
 
       <h2 id="joining">Who can join</h2>
       <p className="serif">
-        You must be {MIN_AGE} or older to have an account. Anyone of any age may look at the gallery and draw in the studio without one. During
-        the beta, joining needs an invite code. One account is for one person; keep your sign-in to yourself.
+        You must be {MIN_AGE} or older to have an account. Anyone of any age may look at the gallery and draw in the studio without one. When
+        sign-ups are limited, joining needs an invite code. One account is for one person; keep your sign-in to yourself.
       </p>
 
       <h2 id="yours">Your work stays yours</h2>

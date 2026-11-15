@@ -1,32 +1,39 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { WaitlistForm } from "../components/Waitlist";
 import { ACCOUNTS } from "../data/account";
-import { signupOpen } from "../data/beta";
+import { useSignupOpen } from "../data/beta";
 
-/* /join: the address for posts and videos. While joining needs an invite code it is the
-   waiting list; when sign-up is open it says so and sends people to sign in. */
+/* /join: the address for posts and videos. It says what joining gives you and sends people to
+   sign in; while joining needs an invite code (an admin setting) it is the waiting list. */
 export function Join() {
-  const [open, setOpen] = useState<boolean | null>(null);
-  useEffect(() => {
-    signupOpen().then(setOpen);
-  }, []);
+  // the open page shows until the server says joining needs a code
+  const known = useSignupOpen();
+  const [opened, setOpen] = useState(false);
+  const open = opened || known !== false;
 
-  if (!ACCOUNTS || open === true)
+  if (!ACCOUNTS || open)
     return (
       <main id="main" tabIndex={-1} className="wrap account-page join-page">
         <header className="page-head">
-          <p className="kicker">{ACCOUNTS ? "Sign-up is open" : "Before accounts open"}</p>
+          <p className="kicker">{ACCOUNTS ? "Free, for good" : "Before accounts open"}</p>
           <h1>Join Tilo</h1>
           <p className="serif">
             {ACCOUNTS
-              ? "No code needed just now. Sign in with your email, pick a handle, and you can publish, stamp and draw on the wall."
+              ? "Drawing needs no account. To publish in the gallery, stamp the pieces you love, follow artists and draw on the shared wall, join with your email: there's no password, Tilo emails you a link, and you pick a handle."
               : "Accounts open with the beta. Until then the studio works without one, and your sheets stay on this device."}
           </p>
         </header>
         <div className="account-col">
+          {ACCOUNTS && (
+            <ol className="join-steps serif">
+              <li><b>Type your email</b> and Tilo sends you a link.</li>
+              <li><b>Press the link</b> and you're signed in, on any device.</li>
+              <li><b>Pick your handle</b>, and your sheets are ready to publish.</li>
+            </ol>
+          )}
           <div className="row row-start">
-            {ACCOUNTS && <Link to="/account" viewTransition className="btn btn-ink">Sign in to join</Link>}
+            {ACCOUNTS && <Link to="/account" viewTransition className="btn btn-ink">Join with your email</Link>}
             <Link to="/studio" viewTransition className="btn btn-line">Start a blank sheet</Link>
           </div>
         </div>
@@ -34,7 +41,7 @@ export function Join() {
     );
 
   return (
-    <main id="main" tabIndex={-1} className="wrap account-page join-page" aria-busy={open === null || undefined}>
+    <main id="main" tabIndex={-1} className="wrap account-page join-page">
       <header className="page-head">
         <p className="kicker">Closed beta</p>
         <h1>Join Tilo</h1>

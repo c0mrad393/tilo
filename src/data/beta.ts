@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ACCOUNTS, call, request } from "./account";
 
 /* The closed beta's own parts: invite codes members hand out, the feedback box, and error
@@ -92,6 +93,27 @@ export async function signupOpen(): Promise<boolean | null> {
   } catch {
     return null;
   }
+}
+
+// asked once a page load, and shared by everything that words itself by it
+let asked: Promise<boolean | null> | null = null;
+let known: boolean | null | undefined;
+/** whether anyone can join just now (no invite code): true, false, or null until known */
+export function useSignupOpen() {
+  const [open, setOpen] = useState<boolean | null>(known ?? null);
+  useEffect(() => {
+    if (known !== undefined) return;
+    asked ??= signupOpen();
+    let live = true;
+    void asked.then((v) => {
+      known = v;
+      if (live) setOpen(v);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return open;
 }
 
 /** Puts an address on the waiting list; no sign-in needed. `website` is the field only bots fill in. */

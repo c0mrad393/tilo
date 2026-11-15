@@ -121,7 +121,7 @@ export function Gallery() {
         <h1>The gallery</h1>
         <p className="serif">
           {ACCOUNTS
-            ? "Everything here was drawn on Tilo and can be replayed from its first stroke. Tilo is in a closed beta, so the gallery is small for now. The pieces marked AI-made are samples Claude drew in code; the rest are by hand, and the hands are meant to win."
+            ? "Everything here was drawn on Tilo and can be replayed from its first stroke. Tilo is new, so the gallery is small for now. The pieces marked AI-made are samples Claude drew in code; the rest are by hand, and the hands are meant to win."
             : "Everything here was drawn on Tilo and can be replayed from its first stroke. The pieces marked AI-made are samples Claude drew in code, there to be beaten by hand; what you pin stays on this device until accounts open."}
         </p>
         <div className="gal-controls">

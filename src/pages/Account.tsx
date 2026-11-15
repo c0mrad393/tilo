@@ -17,7 +17,7 @@ import {
   useAccount,
 } from "../data/account";
 import { WaitlistForm } from "../components/Waitlist";
-import { forgetInvite, inviteLink, keepInvite, makeInvite, type MyInvites, myInvites, signupOpen, takeBackInvite } from "../data/beta";
+import { forgetInvite, inviteLink, keepInvite, makeInvite, type MyInvites, myInvites, signupOpen, takeBackInvite, useSignupOpen } from "../data/beta";
 import { MIN_AGE, TERMS_VERSION } from "../data/legal";
 import { useLocal } from "../data/local";
 import { publishPin } from "../data/pieces";
@@ -107,7 +107,7 @@ function SignIn({ farewell }: { farewell: boolean }) {
     );
 
   return (
-    <Page title="Sign in" lede="Tilo signs you in with a link sent to your email, so there's no password to remember. New here? The same link makes your account.">
+    <Page title="Sign in or join" lede="Tilo signs you in with a link sent to your email, so there's no password to remember. New here? The same link makes your account.">
       <div className="account-col">
         {farewell && <p className="notice serif" role="status">Your account is deleted, and everything that was in it. Your sheets on this device are still here.</p>}
         {invite && !farewell && (
@@ -178,6 +178,8 @@ function PickHandle({ email }: { email: string }) {
   const [error, setError] = useState<{ text: string; field?: string } | null>(null);
   // no code: the waiting list, with their address filled in
   const [asking, setAsking] = useState(false);
+  // while anyone can join, there's no code to ask for (one from an invite link still goes along)
+  const open = useSignupOpen();
   const { problem, checking } = useHandleCheck(handle);
   const id = useId();
 
@@ -231,6 +233,7 @@ function PickHandle({ email }: { email: string }) {
           <label htmlFor={`${id}-name`}>Name <span className="field-optional">optional</span></label>
           <input id={`${id}-name`} autoComplete="name" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
         </div>
+        {(open === false || inviteError) && (
         <div className="field">
           <label htmlFor={`${id}-invite`}>Invite code</label>
           <input
@@ -253,6 +256,7 @@ function PickHandle({ email }: { email: string }) {
             <button type="button" className="link-btn waitlist-ask" onClick={() => setAsking(true)}>No code? Ask for one</button>
           )}
         </div>
+        )}
         <div className="account-agree-row">
           <label className="check account-agree">
             <input
@@ -279,7 +283,7 @@ function PickHandle({ email }: { email: string }) {
           <button type="button" className="btn btn-quiet" onClick={() => signOut()}>Not {email}? Sign out</button>
         </div>
       </form>
-      {asking && (
+      {asking && open === false && (
         <section className="account-col waitlist-box" aria-labelledby={`${id}-wait`}>
           <h2 id={`${id}-wait`} className="kicker">Ask for a code</h2>
           <p className="serif">Join the waiting list and the team sends a code to this address when there's a place. Come back here with it, or press the link in the email.</p>
@@ -499,7 +503,7 @@ function InvitesSection() {
       {data.admin ? (
         <p className="serif">Admins make codes, as many as needed, in the <Link to="/admin/invites">admin panel</Link>.</p>
       ) : data.open ? (
-        <p className="serif">Tilo is open just now, so nobody needs a code: send them to tiloart.com.</p>
+        <p className="serif">Anyone can join Tilo, free: send people to tiloart.com/join.</p>
       ) : (
         <p className="serif">
           Tilo is in a closed beta. You can hand out {data.per} code{data.per === 1 ? "" : "s"}, one for each person; each works once.
