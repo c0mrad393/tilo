@@ -149,6 +149,10 @@ const NOT_OURS = [
   // a page that was updated while the tab was open; reloading fixes it, and the page says so
   /dynamically imported module|Importing a module script failed|error loading dynamically/i,
   /^AbortError|The (?:user aborted|operation was aborted)/i,
+  // a page change's animation cut short (another began, or the tab was hidden); the page still changes
+  /Transition was aborted because of invalid state|^InvalidStateError: .*[Tt]ransition/,
+  // Microsoft's link scanner (Outlook Safe Links) opening the site in its own headless browser
+  /Object Not Found Matching Id:\d+, MethodName:\w+/,
 ];
 const sent = new Set<string>();
 /** at most this many reports from one page load, so a fault in a loop can't flood */

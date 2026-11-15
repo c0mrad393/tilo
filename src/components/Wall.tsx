@@ -55,6 +55,9 @@ export function Wall({ page = false }: { page?: boolean }) {
 
   useEffect(() => {
     const wbox = box.current!, wc = cv.current!;
+    // held here, not read from the refs later: React empties the refs as the page goes, a
+    // moment before this effect's cleanup, and a pointer move or a reply can land between
+    const ringEl = ring.current!, bandEl = band.current!;
     const off = document.createElement("canvas");
     off.width = WALL.w * K;
     off.height = WALL.h * K;
@@ -214,7 +217,7 @@ export function Wall({ page = false }: { page?: boolean }) {
     ringSize.current = () => {
       const { tool: t, size: sz } = cfg.current;
       const d = Math.max(6, sz * (t === "hand" || t === "pick" ? 1 : TOOLS[t].reach) * view.s);
-      ring.current!.style.width = ring.current!.style.height = d + "px";
+      ringEl.style.width = ringEl.style.height = d + "px";
     };
     const toWall = (e: PointerEvent): [number, number] => {
       const r = wbox.getBoundingClientRect();
@@ -225,7 +228,7 @@ export function Wall({ page = false }: { page?: boolean }) {
     let pan: { x: number; y: number; ox: number; oy: number; id: number } | null = null;
     let pick: { x: number; y: number; id: number; to: [number, number] } | null = null;
     const showBand = () => {
-      const b = band.current!;
+      const b = bandEl;
       if (!pick) return void (b.hidden = true);
       const x0 = Math.min(pick.x, pick.to[0]), y0 = Math.min(pick.y, pick.to[1]);
       b.hidden = false;
@@ -247,7 +250,7 @@ export function Wall({ page = false }: { page?: boolean }) {
     };
     const onMove = (e: PointerEvent) => {
       const r = wbox.getBoundingClientRect();
-      ring.current!.style.transform = `translate(${e.clientX - r.left}px, ${e.clientY - r.top}px) translate(-50%, -50%)`;
+      ringEl.style.transform = `translate(${e.clientX - r.left}px, ${e.clientY - r.top}px) translate(-50%, -50%)`;
       if (pan && e.pointerId === pan.id) {
         view.ox = Math.max(0, Math.min(WALL.w - r.width / view.s, pan.ox - (e.clientX - pan.x) / view.s));
         view.oy = Math.max(0, Math.min(WALL.h - r.height / view.s, pan.oy - (e.clientY - pan.y) / view.s));
@@ -271,11 +274,11 @@ export function Wall({ page = false }: { page?: boolean }) {
         marksIn(have.no, b).then(
           (marks) => {
             if (marks.length) return setPicked(marks);
-            band.current!.hidden = true;
+            bandEl.hidden = true;
             setMsg("No marks there. Drag across the marks you want to rub out.");
           },
           (err: unknown) => {
-            band.current!.hidden = true;
+            bandEl.hidden = true;
             setMsg(err instanceof Error ? err.message : "That didn't work.");
           },
         );
