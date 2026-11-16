@@ -135,6 +135,7 @@ export function Gallery() {
           <div className="filters" role="group" aria-label="View">
             <button className="filter" aria-pressed={view === "board"} onClick={() => set("view", "board")}><Icon name="grid" size={16} />Wall of plates</button>
             <button className="filter" aria-pressed={view === "exhibition"} onClick={() => set("view", "exhibition")}><Icon name="frame" size={16} />Exhibition</button>
+            {ACCOUNTS && <Link className="filter" to={`/feed?sort=${sort}`} viewTransition><Icon name="play" size={16} />Watch as a feed</Link>}
           </div>
         </div>
       </header>

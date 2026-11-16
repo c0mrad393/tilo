@@ -7,6 +7,7 @@ import { ReplayCanvas } from "../components/ReplayCanvas";
 import { Trace } from "../components/Trace";
 import { Wall } from "../components/Wall";
 import { DISCIPLINES } from "../data/disciplines";
+import { ACCOUNTS } from "../data/account";
 import { allPieces, useLocal } from "../data/local";
 import { FIRST_SUBJECT, PROMPT } from "../data/prompt";
 import { EventSection } from "../components/EventBits";
@@ -142,9 +143,9 @@ export function Home() {
               <Link to="/studio" viewTransition className="btn btn-ink"><Icon name="pencil" />Start a blank sheet</Link>
               <a href="#today" className="btn btn-line">Today's subject</a>
             </div>
-            <Link to="/studio?new&kind=pixel" viewTransition className="hero-new">
+            <Link to={ACCOUNTS ? "/feed" : "/studio?new&kind=pixel"} viewTransition className="hero-new">
               <span className="hero-new-tag kicker">New</span>
-              <span className="serif">Pixel animation is open: give a pixel sheet a second frame and it moves.</span>
+              <span className="serif">{ACCOUNTS ? "On the press: a feed of pieces drawing themselves, one a screen." : "Pixel animation is open: give a pixel sheet a second frame and it moves."}</span>
               <Icon name="arrow" size={18} />
             </Link>
             <dl className="hero-facts">
@@ -176,6 +177,7 @@ export function Home() {
         <header className="sec-head">
           <h2 id="feed-h">On the press</h2>
           <p className="serif">Pieces are stored as recordings, so this row plays how they were made, not only how they ended. The strip under each one is its trace: every stroke in order, with its pressure. For now these are the AI samples; the press fills with yours.</p>
+          {ACCOUNTS && <Link to="/feed" viewTransition className="btn btn-line">Watch the press<Icon name="arrow" /></Link>}
         </header>
         <div className="feed" tabIndex={0} role="region" aria-label="Pieces being replayed">
           {feed.map((p, i) => <LivePlate key={p.id} piece={p} no={i + 2} className="feed-card" />)}

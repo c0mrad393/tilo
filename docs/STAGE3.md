@@ -325,6 +325,13 @@ keeps very few of them.
    size and on the slowest machine to hand: memory stays flat while scrolling 50 pieces.
    Ships as 0.13.
 
+### Progress
+
+Shipped as 0.13.0. The plan is `src/data/feed.ts` with its tests; the player is
+`FeedPlayer`, the page `pages/Feed.tsx`. Checked at 1440 × 900 and 375 × 812, with reduced
+motion: three painters at most, never more than 13 pieces drawn at once, and the JS heap flat
+(25, 21, 20 MB) over three passes of the 24 local pieces, 72 screens.
+
 ### Decided
 
 - The page is headed "On the press", like the home row; the menu says Feed.

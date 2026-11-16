@@ -110,6 +110,7 @@ export function Layout() {
             </NavLink>
             <nav className="nav" aria-label="Main">
               <NavLink to="/gallery" viewTransition>Gallery</NavLink>
+              {ACCOUNTS && <NavLink to="/feed" viewTransition>Feed</NavLink>}
               <NavLink to="/library" viewTransition>Your sheets</NavLink>
               <NavLink to="/wall" viewTransition className="opt">The wall</NavLink>
               <a href="/#benches" className="opt">Benches</a>
