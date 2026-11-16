@@ -5174,3 +5174,239 @@ label.work-tile:hover .plate {
 .card-share:focus-visible {
   opacity: 1;
 }
+
+/* ---------- the feed: on the press (3.3) ---------- */
+html.is-press {
+  scroll-snap-type: y proximity;
+}
+.press-head {
+  padding-bottom: var(--s-5);
+}
+.press-keys {
+  opacity: 0.7;
+}
+@media (pointer: coarse) {
+  .press-keys {
+    display: none;
+  }
+}
+.press-item {
+  /* one piece a screen; far ones stay as empty blocks of this height */
+  height: 100vh;
+  height: 100svh;
+  padding: 28px 0 20px;
+  scroll-snap-align: start;
+  contain: layout paint;
+}
+.press-in {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(260px, 24vw, 340px);
+  gap: clamp(20px, 3vw, 44px);
+  align-items: center;
+}
+.press-player {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 14px;
+}
+/* the plate as large as the space allows, at its sheet's shape */
+.press-player {
+  container-type: size;
+}
+.press-plate {
+  align-self: center;
+  justify-self: center;
+  width: min(100%, calc((100cqh - 90px) * var(--aspect)));
+  aspect-ratio: var(--aspect);
+  max-height: calc(100cqh - 90px);
+  margin: 22px 22px 0;
+}
+.press-plate > img,
+.press-plate > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.press-plate[data-pixel] > img {
+  image-rendering: pixelated;
+}
+.press-player:not([data-ready]) .press-plate > canvas,
+.press-player[data-ready] .press-plate > img {
+  visibility: hidden;
+}
+.press-hit {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.press-next {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  background: var(--ground-ink);
+  color: var(--ground);
+  font: 680 14px/1 var(--f-sans);
+  font-stretch: 88%;
+  cursor: pointer;
+  animation: press-nudge 1.6s var(--ease-out) infinite;
+}
+@keyframes press-nudge {
+  50% {
+    translate: -50% 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .press-next {
+    animation: none;
+  }
+}
+.press-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  /* as wide as the plate and its crop marks */
+  justify-self: center;
+  width: min(100%, calc((100cqh - 90px) * var(--aspect) + 44px));
+}
+.press-controls .trace {
+  flex: 1;
+  min-width: 0;
+}
+.press-trace-wait {
+  height: 48px;
+}
+.press-info {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-content: center;
+  min-width: 0;
+}
+.press-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.press-marks .is-inline {
+  position: static;
+}
+.press-info h2 {
+  font-size: clamp(1.6rem, 2.6vw, 2.4rem);
+  line-height: 0.95;
+  overflow-wrap: anywhere;
+}
+.press-info h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+.press-info h2 a:hover {
+  text-decoration: underline;
+}
+.press-by {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.press-by .btn {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+.press-facts {
+  font-size: 15px;
+  opacity: 0.8;
+}
+.press-stamps .stamp-row {
+  margin-top: 0;
+}
+.press-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.press-end {
+  padding: var(--s-6) 0 var(--s-7);
+  text-align: center;
+}
+
+/* a phone: the plate full width, a few lines under it */
+@media (max-width: 860px) {
+  .press-item {
+    padding: 12px 0 10px;
+  }
+  /* the plate, its controls and a few lines, centred together on the screen */
+  .press-in {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: center;
+    gap: 12px;
+  }
+  .press-player {
+    container-type: normal;
+    height: auto;
+    grid-template-rows: auto auto;
+  }
+  .press-plate {
+    --o: 10px;
+    margin: 14px 10px 0;
+    width: min(100% - 20px, calc((100svh - 300px) * var(--aspect)));
+    max-height: none;
+  }
+  .press-controls {
+    gap: 8px;
+    width: 100%;
+  }
+  .press-controls .play {
+    width: 40px;
+    height: 40px;
+  }
+  .press-trace-wait,
+  .press-controls .trace.is-seekable {
+    height: 40px;
+  }
+  .press-info {
+    gap: 6px;
+  }
+  .press-info h2 {
+    font-size: 1.45rem;
+  }
+  .press-facts {
+    display: none;
+  }
+  .press-stamps .stamp-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .press-stamps .stamp-note {
+    display: none;
+  }
+  .press-stamps button.stamp {
+    min-height: 32px;
+    flex: none;
+  }
+  .press-actions .btn {
+    min-height: 38px;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+}

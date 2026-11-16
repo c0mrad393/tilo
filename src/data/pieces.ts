@@ -91,6 +91,10 @@ export const fromRow = (r: Row): Published => ({
   count: r.strokes,
 });
 
+/** The ids of the people `me` follows; fine at beta size (a few hundred at most). */
+export const followingOf = async (me: string) =>
+  (await call<{ followee: string }[]>(`/rest/v1/follows?follower=eq.${me}&select=followee&limit=500`)).map((f) => f.followee);
+
 export type Sort = "new" | "stamped" | "prompt" | "remix" | "pixel" | "anim" | "following";
 export const PAGE = 24;
 
@@ -99,9 +103,9 @@ export async function listPieces(q: { sort?: Sort; subject?: number; owner?: str
   const size = q.size ?? PAGE;
   const p = new URLSearchParams({ select: SELECT, limit: String(size + 1), offset: String((q.page ?? 0) * size) });
   if (q.sort === "following") {
-    // the people `me` follows, then their pieces; fine at beta size (a few hundred at most)
+    // the people `me` follows, then their pieces
     if (!q.me) return { items: [], more: false };
-    const ids = (await call<{ followee: string }[]>(`/rest/v1/follows?follower=eq.${q.me}&select=followee&limit=500`)).map((f) => f.followee);
+    const ids = await followingOf(q.me);
     if (!ids.length) return { items: [], more: false, none: true };
     p.set("owner", `in.(${ids.join(",")})`);
   }

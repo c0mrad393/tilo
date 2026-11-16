@@ -28,6 +28,7 @@ const router = createBrowserRouter([
         children: [
           { path: "/", lazy: () => import("./pages/Home").then((m) => ({ Component: m.Home })) },
           { path: "/gallery", lazy: () => import("./pages/Gallery").then((m) => ({ Component: m.Gallery })) },
+          { path: "/feed", lazy: () => import("./pages/Feed").then((m) => ({ Component: m.Feed })) },
           { path: "/piece/:id", lazy: () => import("./pages/PiecePage").then((m) => ({ Component: m.PiecePage })) },
           {
             path: "/studio",
