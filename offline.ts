@@ -67,18 +67,22 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
+  // A built file that is gone (a page from an older build asking for it) comes back as the app
+  // page, since the host answers every unknown address with it. That page is never kept under a
+  // file's address, and one kept there before this check is dropped.
+  const isPage = (res) => url.pathname.startsWith("/assets/") && (res.headers.get("content-type") || "").includes("text/html");
   e.respondWith(
-    caches.match(req, MATCH).then(
-      (hit) =>
-        hit ||
-        fetch(req).then((res) => {
-          if (res.ok && url.pathname.startsWith("/assets/")) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
-          return res;
-        }),
-    ),
+    caches.match(req, MATCH).then((hit) => {
+      if (hit && !isPage(hit)) return hit;
+      if (hit) caches.open(CACHE).then((c) => c.delete(req, MATCH));
+      return fetch(req).then((res) => {
+        if (res.ok && url.pathname.startsWith("/assets/") && !isPage(res)) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        return res;
+      });
+    }),
   );
 });
 `;

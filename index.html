@@ -10,6 +10,23 @@
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Tilo</title>
+    <script>
+      // A page from an older build can ask for built files the newer build no longer has (the
+      // tab was open across an update, or a copy of the page was kept). Its script then fails
+      // and the page stays blank, so reload it once to get the new version. Never twice in 30 s.
+      addEventListener("error", function (e) {
+        var t = e.target;
+        if (!t || t.tagName !== "SCRIPT" || !/\/assets\//.test(t.src || "")) return;
+        try {
+          var last = +sessionStorage.getItem("tilo-reloaded") || 0;
+          if (Date.now() - last < 30000) return;
+          sessionStorage.setItem("tilo-reloaded", String(Date.now()));
+        } catch (_) {
+          return;
+        }
+        location.reload();
+      }, true);
+    </script>
   </head>
   <body>
     <div id="root"></div>
