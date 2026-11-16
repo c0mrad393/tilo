@@ -17,6 +17,8 @@ export class Painter {
   layers: LayerDef[];
 
   paper: PaperId | null;
+  /** with frames: the one frame shown; unset shows every layer, as on a still */
+  frame?: number;
 
   constructor(readonly width: number, readonly height: number, readonly k: number, layers: LayerDef[], paper: PaperId | null = "smooth") {
     this.layers = layers;
@@ -41,6 +43,12 @@ export class Painter {
     let c = this.canvases.get(id);
     if (!c) this.canvases.set(id, (c = this.blank()));
     return c;
+  }
+
+  /** The frame a stroke's layer is on. A still's layers are all on frame 0. */
+  frameOf(s: Stroke) {
+    const id = this.layerOf(s);
+    return this.layers.find((l) => l.id === id)?.f ?? 0;
   }
 
   /** The layer a stroke belongs on: its own (missing means layer 0) if it still exists,
@@ -71,7 +79,7 @@ export class Painter {
       const sample = (this.sample ??= this.blank());
       const sc = sample.getContext("2d")!;
       sc.clearRect(0, 0, this.width, this.height);
-      this.render(sc, undefined, "sample");
+      this.render(sc, undefined, "sample", this.frameOf(s));
       floodFill(ctx, sample, copy.p[0] * this.k, copy.p[1] * this.k, s.c, s.a ?? 1);
     }
   }
@@ -124,8 +132,9 @@ export class Painter {
   /** Composites the paper and the layers into `ctx` at its current transform. A `live` stroke
       is drawn on a copy of its layer, so tools that change existing pixels preview without
       committing. "plain" leaves out the grain; "sample" also puts the layers on white, for
-      reading where lines are. */
-  render(ctx: CanvasRenderingContext2D, live?: { stroke: Stroke; upto?: number }, look: "full" | "plain" | "sample" = "full") {
+      reading where lines are. With `frame` (or the painter's own) only that frame's layers
+      are drawn. */
+  render(ctx: CanvasRenderingContext2D, live?: { stroke: Stroke; upto?: number }, look: "full" | "plain" | "sample" = "full", frame = this.frame) {
     const paper = look === "sample" ? "#FFFFFF" : this.paper && PAPERS[this.paper].color;
     if (paper) {
       ctx.fillStyle = paper;
@@ -135,7 +144,7 @@ export class Painter {
     const liveId = live ? this.layerOf(live.stroke) : null;
     ctx.save();
     for (const l of this.layers) {
-      if (l.hidden || l.gone) continue;
+      if (l.hidden || l.gone || (frame !== undefined && (l.f ?? 0) !== frame)) continue;
       let src = this.canvas(l.id);
       if (l.id === liveId && live) {
         const w = this.work.getContext("2d")!;
@@ -162,17 +171,17 @@ export class Painter {
     const sample = (this.sample ??= this.blank());
     const sc = sample.getContext("2d")!;
     sc.clearRect(0, 0, this.width, this.height);
-    this.render(sc, undefined, "sample");
+    this.render(sc, undefined, "sample", this.frameOf(s));
     floodFill(w, sample, s.p[0] * this.k, s.p[1] * this.k, s.c, s.a ?? 1);
   }
 
-  /* fills cells, reading the visible layers at cell centres the way the fill tool does */
+  /* fills cells, reading the visible layers of its frame at cell centres the way the fill tool does */
   private pixelFill(ctx: CanvasRenderingContext2D, s: Stroke) {
     if (s.p.length < 3) return;
     const sample = (this.sample ??= this.blank());
     const sc = sample.getContext("2d", { willReadFrequently: true })!;
     sc.clearRect(0, 0, this.width, this.height);
-    this.render(sc, undefined, "sample");
+    this.render(sc, undefined, "sample", this.frameOf(s));
     const { grid, mask } = fillCells(s, this.sheet, sc.getImageData(0, 0, this.width, this.height), this.k);
     ctx.save();
     ctx.globalAlpha = s.a ?? 1;

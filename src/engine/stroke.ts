@@ -1,4 +1,5 @@
 import { drawBrush } from "./brushes";
+import type { Anim } from "./frames";
 import type { PaperId } from "./paper";
 import { drawPixels, isPixelTool } from "./pixel";
 import { mirrored } from "./symmetry";
@@ -57,6 +58,8 @@ export interface LayerDef {
   hidden?: boolean;
   /** merged into another layer: kept so the recording replays, but never shown */
   gone?: boolean;
+  /** the frame the layer is on (frames.ts); missing means frame 0, as on every still */
+  f?: number;
 }
 
 export interface Piece {
@@ -71,6 +74,8 @@ export interface Piece {
   paper?: PaperId;
   /** missing means landscape */
   shape?: ShapeId;
+  /** frames and their times; missing means a still */
+  anim?: Anim;
   prompt?: number;
   remixOf?: string;
   stamps?: Record<string, number>;
