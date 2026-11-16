@@ -95,12 +95,160 @@ cell" option that saves the true size (32 × 32 for px32). Timelapse as now.
 Pixel pieces sit in the gallery with everything else, with a "Pixel art" label. The
 Pixel art bench on the home page opens a new pixel sheet.
 
-## 3.2 Animation (outline)
+## 3.2 Animation
 
-Frames are groups of layers; a frame strip under the sheet, onion skin of the frame before
-and after, a time per frame and a loop. Recorded as actions (new frame, copy frame, frame
-time), so a replay still runs from the first stroke and then plays the loop. GIF export
-written in the browser (own encoder, no upload), video through the timelapse path.
+A pixel sheet gets frames: draw a frame, copy it, change a few cells, and the frames play
+as a loop. The replay still starts from the first stroke and shows each stroke on the frame
+it was drawn on; when the last stroke is down, the loop plays. Pixel sheets first: the
+engine doesn't tie frames to the grid, but drawing sheets don't come for free (see the end
+of this section).
+
+### Frames are groups of layers
+
+Every layer belongs to one frame. A frame is an id and a time; the piece keeps its frames in
+play order beside its layers:
+
+```ts
+interface FrameDef { id: number; ms: number; gone?: true }
+interface Anim { frames: FrameDef[]; bounce?: true }   // Piece.anim; missing = a still
+interface LayerDef { ...; f?: number }                  // the layer's frame; missing = frame 0
+```
+
+- A still piece has no `anim` and no `f` on its layers, exactly as now.
+- `ms` is the frame's time on screen: 20 to 2000 ms in steps of 10 (GIF counts in
+  hundredths of a second), 120 ms when a frame is made.
+- `bounce` plays the loop forward and then back (1 2 3 4 3 2) instead of 1 2 3 4 1 2.
+- An animation has 2 to 24 frames and up to 8 layers a frame, as a sheet has now.
+
+### The recording: no new format
+
+The strokes don't change. A stroke already names its layer, and the layer says which frame
+it is on, so the stroke list needs nothing new.
+
+- **Copy frame** copies pixels, so it is recorded. It is one `dup` per layer of the frame:
+  the layer copy that format 3 already has. A replay repeats it exactly.
+- **New frame**, **frame order** and **frame time** don't change any pixels. They go in
+  the frame list, the way adding a layer, the layer order and a layer's opacity go in the
+  layer stack now. A replay shows the same thing either way.
+- So an animated recording is byte for byte a format 3 or 4 recording, and `FORMAT` stays 4.
+  Old recordings, old pieces and their replays don't change. No app or server has to be
+  newer to read it.
+
+This differs from the outline, which had new frame and frame time as recorded actions.
+Recording them would mean a format 5 and a newer server, and a replay would look exactly
+the same.
+
+Deleting a frame works like deleting a layer. If no other frame was copied from it, its
+layers and strokes go. If one was, it stays in the list as `gone`, out of the strip and
+out of the loop, so the copy still replays.
+
+### Engine
+
+- **Painter** gets `frame`. With `frame` set it composites only that frame's layers; with it
+  unset (every still) it composites all layers as now. A fill (`fill`, `pixelfill`) reads
+  the layers of its own stroke's frame, so it fills the same cells in the studio, a replay
+  and the server.
+- **Replayer**: while strokes are drawn, the frame shown is the frame of the stroke being
+  drawn. A copy shows the frame it copies to. `loop(t)` then draws the frame at time `t` of
+  the loop. An animated piece's replay paints at one pixel per cell and scales up with the
+  cells kept sharp. That keeps 24 frames light on a phone. Stills keep today's painter.
+- **Studio painter** on pixel sheets: one pixel per cell too (a 32 × 32 layer is 4 KB, not
+  6.5 MB), drawn onto the view with smoothing off, as now.
+- **GIF** (`src/engine/gif.ts`): Tilo's own GIF89a writer: a colour table, LZW, a time
+  for each frame, a loop that never ends, and only the changed rectangle of each frame
+  stored. Pixel art has fewer than 256 colours almost always, so the colours are exact.
+  When there are more (layer opacity, blends), the most-used 256 are kept and each pixel
+  takes the nearest. It is plain TypeScript, so the browser and the server's worker use the
+  same file.
+- Tests: an animated stroke list encodes to the same bytes as before, and the byte-layout
+  snapshot is unchanged. Painter and Replayer show only a frame's layers, the right frame
+  at a given stroke and at a given loop time, and fills read their own frame. A GIF is
+  written and read back with a small decoder in the test: same pixels, times and loop.
+
+### Studio
+
+Under the sheet on a pixel sheet, a **frame strip**:
+
+```
+[▶ Play]  [1 ■] [2 ■] [3 ■] [4 ■]  [+ New] [Copy] [Delete]   120 ms  [All]   Loop ▾   Onion ◐
+```
+
+- Each frame is a small picture of itself with its number and time. Click to go to it;
+  ← and → buttons (and drag) move the chosen frame.
+- **New** adds an empty frame after this one, with the same layers (names, blend,
+  opacity), empty. **Copy** adds a copy of this frame after it (recorded). **Delete**
+  asks first when the frame has strokes.
+- **Time**: the chosen frame's time, with **All** to give every frame the same one.
+  **Loop**: Forward or Back and forth.
+- **Onion skin**: the frame before in a warm tint and the frame after in a cool one, at 30%,
+  under the frame being drawn, on screen only. Forward loops wrap around (frame 1 sees the
+  last frame). It is on by default once there are two frames.
+- **Play** plays the loop on the sheet at its times; drawing or picking a frame stops it.
+- The Layers panel shows the chosen frame's layers. Undo and redo switch to the frame
+  they change, so you see what they did. Undoing a Copy takes the whole copied frame away
+  at once.
+- Keys, on pixel sheets: `,` `.` frame before and after, `N` new frame, `D` copy frame,
+  `K` play and stop, `O` onion skin. None of them is a pixel-sheet key now.
+- A pixel sheet starts as one frame, so a still is a still and nothing changes for it. The
+  strip shows only Add frame until there are two frames.
+- Schools and the wall don't get frames in 0.12.
+
+### Publishing and the server
+
+- The studio sends `anim` with the meta, and `f` on each layer. The local save in Your
+  sheets keeps them too.
+- `pieces.ts` check: only on pixel shapes for now. It needs 2 to 24 frames with unique
+  ids, times of 20 to 2000 ms in steps of 10, at least two frames not gone, and every
+  layer's `f` a frame in the list. The layer stack can be 200 long when there are frames
+  (64 for a still). Remixing an animation is refused for now.
+- Migration 0017: `pieces.anim jsonb` (null for stills). `SELECT` and `fromRow` read it.
+- **Image check** (screen worker): frames along the replay are taken on the frame being
+  drawn then. Every frame of the loop is checked whole, plain and softened. A layer is
+  checked alone only where it could hide something: when it is hidden, faded, or has
+  another layer above it in its frame. 24 single-layer frames come to about a hundred
+  checks, well inside the 3-minute limit.
+- **Picture**: the webp is the first frame, as everywhere a still picture is used (the share
+  card, the profile, link previews). An animation also gets `img/{id}.gif`, written by the
+  worker at one pixel per cell (a 32 × 32 loop is a few KB). It moves with the piece's status
+  and is removed and purged with its other files. While a piece is held, its owner and the
+  mods get it at `/api/pieces/{id}/gif`.
+
+### Gallery and the piece page
+
+- A card for an animation shows the GIF, scaled up with `image-rendering: pixelated`, so it
+  plays with no script and no recording fetched. It shows the still webp when the viewer
+  prefers less motion. Hovering plays the replay as now, and then the loop.
+- An "Animation" mark on its plate beside the Pixel art mark, and an Animation filter in the
+  gallery (`anim=not.is.null`).
+- On the piece page, the plate plays the loop. Replay draws it from the first stroke and
+  then plays the loop. The facts list adds frames and the loop's length.
+
+### Export
+
+- **GIF**, made in the browser and never uploaded: at one pixel per cell, or large (the
+  biggest whole multiple of the grid up to 1024 across, cells sharp), on its paper.
+- **Video**: the share sheet's "Save as video" (`src/data/video.ts`). For an animation,
+  the replay is followed by the loop, played big for about four seconds. The studio's
+  timelapse ends with the loop the same way.
+- PNG export saves the chosen frame.
+
+### Slices
+
+1. This plan.
+2. Engine and recording: frames on layers, Painter `frame`, Replayer frame and loop, the
+   GIF writer, tests.
+3. Studio: frame strip, onion skin, timing, loop, playback, keys, undo, local save.
+4. Publishing: meta, server check, migration 0017, worker frames, picture and GIF, gallery
+   card and piece page playback, Animation mark and filter. The server is deployed before
+   the app is pushed.
+5. GIF export, then the video path.
+
+### Why drawing sheets wait
+
+Frames work on any sheet in the engine. But a drawing sheet's layer is about 8 MB in the
+studio, so 24 frames don't fit on a tablet. Charcoal and paper grain also have thousands
+of colours, so a GIF of a drawing needs dithering and comes out large. Drawing sheets can
+get frames later with video as their export.
 
 ## 3.3 Process feed (outline)
 
@@ -114,3 +262,7 @@ Recordings load as they come near, and only a few replays run at once.
 - Palettes: which fixed palettes, and should a palette be lockable (indexed colour, swap one
   colour for another everywhere) in 3.1 or with animation?
 - Should a pixel piece be remixable into a drawing sheet, or only into a pixel sheet?
+- Animation: should a layer be able to sit on every frame (a shared background), or is
+  Copy frame enough for 0.12?
+- Animation: when should remixing an animation open, and does the remixer get a layer on
+  every frame?
