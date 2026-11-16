@@ -255,11 +255,81 @@ studio, so 24 frames don't fit on a tablet. Charcoal and paper grain also have t
 of colours, so a GIF of a drawing needs dithering and comes out large. Drawing sheets can
 get frames later with video as their export.
 
-## 3.3 Process feed (outline)
+## 3.3 Process feed
 
-A feed page: one piece per screen height, its replay playing from the start when it scrolls
-into view and pausing when it leaves, with the artist, stamps and a link to the piece.
-Recordings load as they come near, and only a few replays run at once.
+A page of replays to scroll through: one piece per screen, drawing itself from its first
+stroke when it comes into view and stopping when it leaves, with who made it, its stamps
+and a way into the piece. The gallery shows what was made; the feed shows it being made.
+
+### The page
+
+- `/feed`, "On the press" (the home row of that name opens it), in the main menu after
+  Gallery.
+- One piece per screen height, snapped into place as it scrolls (`scroll-snap`, proximity,
+  so a long flick still moves freely). The plate fills the screen as far as it can.
+- Wide screen: the plate in the middle, its details beside it. Phone: the plate full width,
+  the details under it, a few lines.
+- Details: title, @artist with Follow, AI-MADE and Pixel art / Pixel animation marks as
+  everywhere, stroke count and time, the stamps (the same buttons as on the piece page),
+  Open the piece, Remix when allowed, Share.
+- The trace under the plate shows where the replay is; dragging it seeks, as on the piece
+  page.
+- Feeds: Newest, Following (signed in), Today's subject, Pixel art, Animation, the
+  gallery's own lists through `listPieces`, so the server needs nothing new. The gallery
+  gets "Watch as a feed" for the list it is showing.
+- AI-made samples appear in it like in the gallery, marked AI-MADE.
+
+### Playing
+
+- The piece most in view plays (more than 60 % of it on screen); the one before stops
+  where it was. Coming back to a piece goes on from there; a finished one starts over.
+- A replay takes 6 to 15 s however many strokes it has, like the share video, so a long
+  piece doesn't hold the feed up. Tap or Space pauses; 1×, 2×, 4× as on the piece page.
+- An animation draws, then plays its loop for about four seconds and keeps looping while
+  it is on screen.
+- When a replay ends it holds the picture with "Next" pointing down; the feed doesn't
+  move by itself.
+- Keys: J and K (or the arrows) next and previous, Space play and pause, ← → seek.
+- Reduced motion: nothing plays by itself and there is no snapping; each piece shows its
+  picture with a Play button. Data saver (`navigator.connection.saveData`): the same,
+  and a recording loads only when Play is pressed.
+- A hidden tab pauses.
+
+### Light enough for a phone
+
+A replay is a painter with its layers; on a drawing sheet that is megabytes, so the feed
+keeps very few of them.
+
+- One replay runs at a time. The pieces just before and after are made ready (recording
+  loaded, painter built, first stroke shown) so the next one starts at once.
+- At most three painters live; a piece further away shows its picture (the webp, lazy,
+  decoded off the main thread) and its painter and canvas are let go (canvas sized to 0
+  so the memory is returned).
+- Each painter works at the plate's size on screen, at most 1600 px on its long side, not
+  at the sheet's.
+- Recordings load when their piece is two screens away, and only the last eight decoded
+  are kept.
+- Pages of 12 pieces load as the end comes near. Pieces far behind are kept as empty
+  blocks of their height, so the page doesn't grow without end.
+- The scheduling (which piece plays, which are ready, which are let go) is plain code
+  with no DOM, with tests.
+
+### Slices
+
+1. This plan.
+2. The scheduler and the recording cache, with tests; the feed's player, built on
+   `Replayer`, sized to the plate, let go when told.
+3. The page: layout on wide and narrow screens, details, stamps, follow, the lists,
+   paging, keys, reduced motion and data saver.
+4. Ways in: the menu, the home row, "Watch as a feed" in the gallery. Checked on a phone
+   size and on the slowest machine to hand: memory stays flat while scrolling 50 pieces.
+   Ships as 0.13.
+
+### Decided
+
+- The page is headed "On the press", like the home row; the menu says Feed.
+- The feed doesn't move on by itself; that can come later as an option if people ask.
+- The AI samples stay in it, marked AI-MADE, as in the gallery.
 
 ## Open questions
 
