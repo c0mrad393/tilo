@@ -97,6 +97,12 @@ export class Replayer {
     this.show();
     return f?.id;
   }
+  /** Lets the painter go; the replayer can't draw after. */
+  release() {
+    this.painter.release();
+    if (this.flat) this.flat.width = this.flat.height = 0;
+    this.flat = null;
+  }
   /** applies every stroke before `idx`, starting over when that means going back */
   private upTo(idx: number) {
     if (idx - 1 < this.done) {

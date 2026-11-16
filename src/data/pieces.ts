@@ -3,6 +3,7 @@ import type { Anim } from "../engine/frames";
 import type { PaperId } from "../engine/paper";
 import { layersOf, type LayerDef, type Piece, type ShapeId, type Stroke } from "../engine/stroke";
 import { call, request } from "./account";
+import { Lru, RECORDINGS } from "./feed";
 import { library } from "./library";
 import { pieceById, unpinPiece } from "./local";
 import { publishedSample } from "./prompt";
@@ -120,20 +121,27 @@ export async function listPieces(q: { sort?: Sort; subject?: number; owner?: str
   return { items: rows.slice(0, size).map(fromRow), more: rows.length > size };
 }
 
+/** A recording fetched and decoded; one that isn't live comes signed in. */
+export const fetchStrokes = (id: string, live = true) =>
+  (live ? fetch(`/files/rec/${id}.tl`) : request(`/api/pieces/${id}/rec`)).then(async (res) => {
+    if (!res.ok) throw new Error(`The recording didn't arrive (${res.status}).`);
+    return decode(new Uint8Array(await res.arrayBuffer()));
+  });
+
 const recordings = new Map<string, Promise<Stroke[]>>();
 /** A published piece's strokes, fetched once per page load; one that isn't live comes signed in. */
 export function loadStrokes(id: string, live = true) {
   let r = recordings.get(id);
   if (!r) {
-    r = (live ? fetch(`/files/rec/${id}.tl`) : request(`/api/pieces/${id}/rec`)).then(async (res) => {
-      if (!res.ok) throw new Error(`The recording didn't arrive (${res.status}).`);
-      return decode(new Uint8Array(await res.arrayBuffer()));
-    });
+    r = fetchStrokes(id, live);
     r.catch(() => recordings.delete(id));
     recordings.set(id, r);
   }
   return r;
 }
+
+/** The feed's recordings (live pieces only): the last eight used are kept, the rest let go. */
+export const feedRecordings = new Lru<Stroke[]>(RECORDINGS, (id) => fetchStrokes(id));
 
 const loaded = new Map<string, Full>();
 /** A published piece with its recording, or null when there's no such piece (or it isn't public). */

@@ -64,6 +64,14 @@ export class Painter {
     layers.forEach((l) => this.canvas(l.id));
   }
 
+  /** Gives the layers' memory back (a canvas sized to 0 frees it at once, even on iOS); the
+      painter can't be used after. */
+  release() {
+    for (const c of [this.work, this.sample, this.lift, ...this.canvases.values()]) if (c) c.width = c.height = 0;
+    this.canvases.clear();
+    this.sample = this.lift = null;
+  }
+
   clear() {
     for (const c of this.canvases.values()) c.getContext("2d")!.clearRect(0, 0, this.width, this.height);
   }
