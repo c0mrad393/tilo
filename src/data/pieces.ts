@@ -1,4 +1,5 @@
 import { decode, encode } from "../engine/codec";
+import type { Anim } from "../engine/frames";
 import type { PaperId } from "../engine/paper";
 import { layersOf, type LayerDef, type Piece, type ShapeId, type Stroke } from "../engine/stroke";
 import { call, request } from "./account";
@@ -14,8 +15,10 @@ import { publishedSample } from "./prompt";
 
 export interface Published extends Omit<Piece, "strokes"> {
   owner: string;
-  /** the picture of the finished sheet */
+  /** the picture of the finished sheet (an animation's first frame) */
   picture: string;
+  /** an animation's loop as a GIF, one pixel a cell */
+  loop?: string;
   created: string;
   status: "live" | "held" | "hidden" | "removed";
   /** how many strokes the recording holds, known before it is fetched */
@@ -39,6 +42,7 @@ interface Row {
   paper: PaperId;
   shape: ShapeId;
   layers: LayerDef[];
+  anim: Anim | null;
   strokes: number;
   minutes: number;
   subject: number | null;
@@ -57,7 +61,7 @@ interface Row {
 }
 
 // pieces has two links to profiles (its owner, and profiles.avatar_piece), so the embed names one
-export const SELECT = "id,title,paper,shape,layers,strokes,minutes,subject,remix_of,remixable,status,why,proof,checked,stamps,stamp_total,picture,ai,created,owner:profiles!pieces_owner_fkey(id,handle)";
+export const SELECT = "id,title,paper,shape,layers,anim,strokes,minutes,subject,remix_of,remixable,status,why,proof,checked,stamps,stamp_total,picture,ai,created,owner:profiles!pieces_owner_fkey(id,handle)";
 
 export const fromRow = (r: Row): Published => ({
   id: r.id,
@@ -66,6 +70,8 @@ export const fromRow = (r: Row): Published => ({
   owner: r.owner.id,
   minutes: r.minutes,
   layers: r.layers.length ? r.layers : undefined,
+  anim: r.anim ?? undefined,
+  loop: r.anim ? (r.status === "live" ? `/files/img/${r.id}.gif` : `/api/pieces/${r.id}/gif`) : undefined,
   paper: r.paper,
   shape: r.shape === "land" ? undefined : r.shape,
   prompt: r.subject ?? undefined,
@@ -84,7 +90,7 @@ export const fromRow = (r: Row): Published => ({
   count: r.strokes,
 });
 
-export type Sort = "new" | "stamped" | "prompt" | "remix" | "pixel" | "following";
+export type Sort = "new" | "stamped" | "prompt" | "remix" | "pixel" | "anim" | "following";
 export const PAGE = 24;
 
 /** One page of the gallery, newest first unless sorted otherwise. */
@@ -105,6 +111,7 @@ export async function listPieces(q: { sort?: Sort; subject?: number; owner?: str
   if (q.sort === "prompt" && q.subject) p.set("subject", `eq.${q.subject}`);
   if (q.sort === "remix") p.set("remix_of", "not.is.null");
   if (q.sort === "pixel") p.set("shape", "like.px*");
+  if (q.sort === "anim") p.set("anim", "not.is.null");
   if (q.sort === "stamped") {
     p.set("created", `gte.${new Date(Date.now() - 7 * 864e5).toISOString()}`);
     p.set("order", "stamp_total.desc,created.desc");
@@ -162,6 +169,8 @@ export interface Draft {
   title: string;
   strokes: Stroke[];
   layers: LayerDef[];
+  /** an animation's frames; missing for a still */
+  anim?: Anim;
   paper: PaperId;
   shape: ShapeId;
   minutes: number;
@@ -177,7 +186,7 @@ export async function publish(d: Draft) {
   const form = new FormData();
   form.set(
     "meta",
-    JSON.stringify({ title: d.title, paper: d.paper, shape: d.shape, layers: d.layers, minutes: d.minutes, subject: d.subject ?? null, remix_of: d.remixOf ?? null, remixable: d.remixable ?? true }),
+    JSON.stringify({ title: d.title, paper: d.paper, shape: d.shape, layers: d.layers, anim: d.anim ?? null, minutes: d.minutes, subject: d.subject ?? null, remix_of: d.remixOf ?? null, remixable: d.remixable ?? true }),
   );
   form.set("rec", new Blob([encode(d.strokes) as Uint8Array<ArrayBuffer>], { type: "application/octet-stream" }), "piece.tl");
   const res = await request("/api/pieces", { method: "POST", body: form });
@@ -193,7 +202,7 @@ export async function publishPin(p: Piece) {
   // another pin of this device, which has no page anyone else can open
   const src = p.remixOf && !p.remixOf.startsWith("mine-") ? (pieceById(p.remixOf)?.sample ? publishedSample(p.remixOf) : p.remixOf) : undefined;
   const id = await publish({
-    title: p.title, strokes: p.strokes, layers, paper: p.paper ?? "smooth", shape: p.shape ?? "land", minutes: p.minutes, subject: src ? undefined : p.prompt, remixOf: src,
+    title: p.title, strokes: p.strokes, layers, anim: p.anim, paper: p.paper ?? "smooth", shape: p.shape ?? "land", minutes: p.minutes, subject: src ? undefined : p.prompt, remixOf: src,
   });
   unpinPiece(p.id);
   try {

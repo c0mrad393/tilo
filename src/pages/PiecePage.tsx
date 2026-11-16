@@ -8,14 +8,20 @@ import { ACCOUNTS, useAccount } from "../data/account";
 import { allPieces, pieceById, stampCount, toggleStamp, useLocal } from "../data/local";
 import { type Full, getPiece, listPieces, loadPiece, myStamps, type Published, reloadPiece, setRemixable, setStamp, takeDown } from "../data/pieces";
 import { publishedSample, STAMPS, STAMP_COLOR } from "../data/prompt";
+import { isAnimated, liveFrames, loopMs } from "../engine/frames";
 import { Replayer, prefersReducedMotion } from "../engine/replay";
 import { drawnCount, fmtMin, paletteOf, SHAPES, sizeOf, toolsUsed, type Piece } from "../engine/stroke";
 
+/* The plate on a piece's page. A still replays from its first stroke when the page opens. An
+   animation opens on its loop, playing; Play draws it from the first stroke, then the loop
+   plays again. */
 function Player({ piece }: { piece: Piece }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const rep = useRef<Replayer | null>(null);
-  const [pos, setPos] = useState(prefersReducedMotion() ? 1 : 0);
-  const [playing, setPlaying] = useState(!prefersReducedMotion());
+  const moving = isAnimated(piece);
+  const [pos, setPos] = useState(prefersReducedMotion() || moving ? 1 : 0);
+  const [playing, setPlaying] = useState(!prefersReducedMotion() && !moving);
+  const [looping, setLooping] = useState(moving && !prefersReducedMotion());
   const [speed, setSpeed] = useState(1);
   const [idx, setIdx] = useState(0);
   const posRef = useRef(pos);
@@ -26,9 +32,23 @@ function Player({ piece }: { piece: Piece }) {
     const { w, h } = sizeOf(piece);
     c.width = w;
     c.height = h;
-    rep.current = new Replayer(c, piece.strokes, piece.paper ?? "smooth", w, piece.layers);
-    setIdx(rep.current.draw(posRef.current));
+    rep.current = new Replayer(c, piece.strokes, piece.paper ?? "smooth", w, piece.layers, h, { anim: piece.anim, grid: SHAPES[piece.shape ?? "land"]?.grid });
+    if (rep.current.animated && posRef.current >= 1) rep.current.loop(0);
+    else setIdx(rep.current.draw(posRef.current));
   }, [piece]);
+
+  // the loop, once the strokes are down
+  useEffect(() => {
+    if (!looping) return;
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      rep.current?.loop(now - t0);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [looping, piece]);
 
   useEffect(() => {
     if (!playing) return;
@@ -42,7 +62,10 @@ function Player({ piece }: { piece: Piece }) {
       setPos(p);
       setIdx(rep.current!.draw(p));
       if (p < 1) raf = requestAnimationFrame(tick);
-      else setPlaying(false);
+      else {
+        setPlaying(false);
+        if (rep.current!.animated && !prefersReducedMotion()) setLooping(true);
+      }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -50,6 +73,7 @@ function Player({ piece }: { piece: Piece }) {
 
   const seek = (v: number) => {
     setPlaying(false);
+    setLooping(false);
     setPos(v);
     setIdx(rep.current!.draw(v));
   };
@@ -60,14 +84,18 @@ function Player({ piece }: { piece: Piece }) {
       </div>
       <Trace strokes={piece.strokes} pos={pos} onSeek={seek} />
       <div className="player">
-        <button className="play" onClick={() => setPlaying((v) => !v)} aria-label={playing ? "Pause replay" : "Play replay"}>
+        <button className="play" onClick={() => { setLooping(false); setPlaying((v) => !v); }} aria-label={playing ? "Pause replay" : moving && pos >= 1 ? "Replay it from the first stroke" : "Play replay"}>
           <Icon name={playing ? "pause" : "play"} />
         </button>
         <input type="range" id="scrub" min={0} max={1000} value={Math.round(pos * 1000)} onChange={(e) => seek(+e.target.value / 1000)} aria-label="Replay position" />
         <span className="mono num clock">{fmtMin(piece.minutes * pos)} / {fmtMin(piece.minutes)}</span>
         <button className="speed mono" onClick={() => setSpeed((s) => (s === 1 ? 2 : s === 2 ? 4 : 1))} aria-label={`Replay speed ${speed} times`}>{speed}×</button>
       </div>
-      <p className="kicker stroke-no">Stroke {Math.min(idx + 1, piece.strokes.length).toLocaleString()} of {piece.strokes.length.toLocaleString()} · drag along the trace to scrub</p>
+      <p className="kicker stroke-no">
+        {looping && piece.anim
+          ? `The loop · ${liveFrames(piece.anim).length} frames · press play to watch it drawn`
+          : `Stroke ${Math.min(idx + 1, piece.strokes.length).toLocaleString()} of ${piece.strokes.length.toLocaleString()} · drag along the trace to scrub`}
+      </p>
     </div>
   );
 }
@@ -265,6 +293,8 @@ export function PiecePage() {
   const yours = !!published && published.owner === profile?.id;
   const out = !!published && published.status !== "live";
   const closed = !!published && !published.remixable && !yours;
+  // remixing an animation opens later
+  const moving = isAnimated(piece);
   const isMod = !!profile && profile.role !== "member";
   const strokeCount = drawnCount(piece.strokes).toLocaleString();
   const sheet = sizeOf(piece);
@@ -308,6 +338,7 @@ export function PiecePage() {
             <dt>Tools</dt><dd>{toolsUsed(piece.strokes).join(" · ")}</dd>
             <dt>Inks</dt><dd className="swatches">{paletteOf(piece.strokes).map((c) => <i key={c} style={{ ["--c" as string]: c }} title={c} />)}</dd>
             <dt>Sheet</dt><dd>{SHAPES[piece.shape ?? "land"].grid ? `Pixel art · ${SHAPES[piece.shape!].name} cells` : `${SHAPES[piece.shape ?? "land"].name} · ${sheet.w.toLocaleString()} × ${sheet.h.toLocaleString()}`}</dd>
+            {piece.anim && isAnimated(piece) && <><dt>Loop</dt><dd>{liveFrames(piece.anim).length} frames · {(loopMs(piece.anim) / 1000).toLocaleString("en", { maximumFractionDigits: 2 })} s{piece.anim.bounce && liveFrames(piece.anim).length > 2 ? " · back and forth" : ""}</dd></>}
             {published && <><dt>Published</dt><dd>{new Date(published.created).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</dd></>}
           </dl>
           <div>
@@ -316,7 +347,7 @@ export function PiecePage() {
           </div>
           <Lineage key={piece.id} piece={piece} closed={closed || out} />
           <div className="piece-actions">
-            <button className="btn btn-ink" disabled={closed || out} onClick={() => nav(`/studio?remix=${piece.id}`, { viewTransition: true })}><Icon name="remix" />{piece.ai ? "Remix it by hand" : "Remix in studio"}</button>
+            <button className="btn btn-ink" disabled={closed || out || moving} title={moving ? "Animations can't be remixed yet" : undefined} onClick={() => nav(`/studio?remix=${piece.id}`, { viewTransition: true })}><Icon name="remix" />{piece.ai ? "Remix it by hand" : "Remix in studio"}</button>
             {(published ? !out : true) && (
               <ShareButton
                 target={{ id: piece.id, title: piece.title, by: piece.by, ai: piece.ai, published: !!published, load: async () => ({ ...piece, proof: !!published?.proof }) }}
@@ -326,6 +357,7 @@ export function PiecePage() {
             {published && !yours && !out && <ReportButton target={{ piece: published.id }} label="this piece" />}
           </div>
           {closed && <p className="serif stamp-note">The artist has turned remixing off for this piece.</p>}
+          {moving && !closed && <p className="serif stamp-note">Animations can't be remixed yet.</p>}
           {yours && <RemixSwitch key={piece.id} piece={published!} />}
           {published && isMod && <ModTools piece={published} onDone={reload} />}
         </section>

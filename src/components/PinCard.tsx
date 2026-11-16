@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { loadStrokes, type Published } from "../data/pieces";
+import { isAnimated, type Anim } from "../engine/frames";
+import { prefersReducedMotion } from "../engine/replay";
 import { drawnCount, fmtMin, isPixelShape, type Piece, type ShapeId, type Stroke } from "../engine/stroke";
 import { STAMP_COLOR } from "../data/prompt";
 import { usePicture } from "./Moderation";
@@ -22,7 +24,8 @@ export const AiMark = ({ className = "" }: { className?: string }) => (
 );
 
 /** a pixel piece says so on its plate, so the pixel bench shows wherever pieces hang */
-export const PixelMark = ({ shape }: { shape?: ShapeId }) => (isPixelShape(shape) ? <span className="card-kind kicker">Pixel art</span> : null);
+export const PixelMark = ({ shape, anim }: { shape?: ShapeId; anim?: Anim }) =>
+  isPixelShape(shape) ? <span className="card-kind kicker">{anim && isAnimated({ anim }) ? "Pixel animation" : "Pixel art"}</span> : null;
 
 /** the caption line under a plate. An AI piece says who drew it and leaves out the minutes,
     which a program doesn't spend the way a hand does. */
@@ -45,10 +48,10 @@ export function PinCard({ piece, index = 0, no, mode = "hover" as const }: { pie
       aria-label={`${piece.title} by ${piece.by}${piece.ai ? ", drawn by an AI" : ""}. Open the piece.`}
     >
       <span className="plate">
-        <ReplayCanvas strokes={piece.strokes} layers={piece.layers} paper={piece.paper} shape={piece.shape} aspect={4 / 3} mode={mode} label={`${piece.title}, drawn by ${piece.by}`} />
+        <ReplayCanvas strokes={piece.strokes} layers={piece.layers} anim={piece.anim} paper={piece.paper} shape={piece.shape} aspect={4 / 3} mode={mode} label={`${piece.title}, drawn by ${piece.by}`} />
         {piece.mine && <span className="card-flag kicker">Yours</span>}
         {piece.ai && <AiMark />}
-        <PixelMark shape={piece.shape} />
+        <PixelMark shape={piece.shape} anim={piece.anim} />
       </span>
       <span className="card-cap">
         {no !== undefined && <span className="card-no kicker">Plate {String(no).padStart(2, "0")}</span>}
@@ -68,10 +71,13 @@ export function PinCard({ piece, index = 0, no, mode = "hover" as const }: { pie
 
 /* A published piece as a plate. It shows the picture the server keeps, and fetches the
    recording only when someone points at it or tabs to it, so a page of the gallery costs a
-   page of pictures. */
+   page of pictures. An animation shows its loop, a small GIF scaled up sharp, which plays
+   with no script; the still picture for a viewer who prefers less motion. */
 export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: number; no?: number }) {
   const [strokes, setStrokes] = useState<Stroke[] | null>(null);
   const picture = usePicture(piece);
+  const moving = isAnimated(piece) && !prefersReducedMotion();
+  const loop = usePicture({ ...piece, picture: moving ? (piece.loop ?? "") : "" });
   const want = () => {
     if (!strokes) loadStrokes(piece.id, piece.status === "live").then(setStrokes, () => {});
   };
@@ -91,12 +97,12 @@ export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: 
     >
       <span className="plate">
         {strokes ? (
-          <ReplayCanvas strokes={strokes} layers={piece.layers} paper={piece.paper} shape={piece.shape} aspect={4 / 3} mode="hover" label={`${piece.title}, drawn by ${piece.by}`} />
+          <ReplayCanvas strokes={strokes} layers={piece.layers} anim={piece.anim} paper={piece.paper} shape={piece.shape} aspect={4 / 3} mode="hover" label={`${piece.title}, drawn by ${piece.by}`} />
         ) : (
-          picture && <img className="card-picture" src={picture} alt={`${piece.title}, drawn by ${piece.by}`} loading="lazy" decoding="async" />
+          (loop || picture) && <img className="card-picture" src={(loop || picture)!} alt={`${piece.title}, drawn by ${piece.by}${loop ? ", playing as a loop" : ""}`} loading="lazy" decoding="async" />
         )}
         {piece.ai && <AiMark />}
-        <PixelMark shape={piece.shape} />
+        <PixelMark shape={piece.shape} anim={piece.anim} />
         {piece.status !== "live" && <span className="card-flag kicker">{piece.why === "check" ? "Being checked" : piece.status === "held" ? "Waiting for a mod" : "Out of the gallery"}</span>}
       </span>
       <span className="card-cap">

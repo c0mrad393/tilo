@@ -44,6 +44,7 @@ export function usePicture(piece: Pick<Published, "picture" | "status" | "checke
   const open = piece.status === "live";
   const [url, setUrl] = useState<string | null>(open ? piece.picture : null);
   useEffect(() => {
+    if (!piece.picture) return setUrl(null);
     if (open) return setUrl(piece.picture);
     if (!piece.checked) return setUrl(null);
     let gone = false;

@@ -20,7 +20,7 @@ WORKDIR /app
 COPY --from=build /app/server/api/node_modules server/api/node_modules
 COPY server/api/package.json server/api/
 COPY package.json ./
-COPY src/engine/codec.ts src/engine/
+COPY src/engine/codec.ts src/engine/frames.ts src/engine/
 COPY src/data/wall.ts src/data/event.ts src/data/
 COPY server/api/src server/api/src
 COPY server/api/assets server/api/assets

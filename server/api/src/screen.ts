@@ -1,7 +1,7 @@
 import { writeFile, rename } from "node:fs/promises";
 import { Worker } from "node:worker_threads";
 import type { Sql } from "postgres";
-import { imgPath, recPath } from "./files.ts";
+import { gifPath, imgPath, recPath } from "./files.ts";
 import type { Job, Result, Scores } from "./screen/worker.ts";
 import type { Move } from "./status.ts";
 
@@ -71,13 +71,13 @@ export function screener(sql: Sql, { filesDir, move, trustAfter, thread }: Optio
 
   async function check(id: string) {
     const [p] = await sql`
-      select p.id, p.paper, p.shape, p.layers, p.status, p.why, p.owner, p.picture, pr.role, pr.suspended,
+      select p.id, p.paper, p.shape, p.layers, p.anim, p.status, p.why, p.owner, p.picture, pr.role, pr.suspended,
         (select count(*)::int from public.pieces q where q.owner = p.owner and q.reviewed_by is not null and q.status = 'live') as trusted
       from public.pieces p join public.profiles pr on pr.id = p.owner
       where p.id = ${id} and p.checked is null`;
     if (!p) return;
     const live = p.status === "live";
-    const r = await run({ id, rec: recPath(filesDir, id, live), paper: p.paper, shape: p.shape, layers: p.layers });
+    const r = await run({ id, rec: recPath(filesDir, id, live), paper: p.paper, shape: p.shape, layers: p.layers, anim: p.anim });
     if ("error" in r) {
       console.error(`check of ${id} failed: ${r.error}`);
       await sql`update public.pieces set checked = now(), screen = ${sql.json({ error: r.error })} where id = ${id}`;
@@ -87,6 +87,11 @@ export function screener(sql: Sql, { filesDir, move, trustAfter, thread }: Optio
     const img = imgPath(filesDir, id, live, "webp");
     await writeFile(`${img}.part`, r.picture);
     await rename(`${img}.part`, img);
+    if (r.gif) {
+      const gif = gifPath(filesDir, id, live);
+      await writeFile(`${gif}.part`, r.gif);
+      await rename(`${gif}.part`, gif);
+    }
     await sql`update public.pieces set checked = now(), screen = ${sql.json(r.scores as never)}, picture = 'webp' where id = ${id}`;
     if (flagged(r.scores)) return move(id, { status: "held", why: "flagged" });
     // a piece that a mod or a report already took out of the gallery stays out

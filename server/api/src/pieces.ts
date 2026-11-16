@@ -4,7 +4,8 @@ import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { Sql } from "postgres";
 import type { AuthEnv } from "./auth.ts";
-import { imgPath, makeDirs, publicUrls, recPath, removeFiles, type Purge } from "./files.ts";
+import { liveFrames, MAX_FRAMES, MS_MAX, MS_MIN, MS_STEP, type Anim, type FrameDef } from "../../../src/engine/frames.ts";
+import { gifPath, imgPath, makeDirs, publicUrls, recPath, removeFiles, type Purge } from "./files.ts";
 import { proofOf } from "./proof.ts";
 import { decode, FORMAT, MAX_BYTES } from "./recording.ts";
 import type { Screener } from "./screen.ts";
@@ -47,12 +48,15 @@ export interface Layer {
   opacity: number;
   hidden?: boolean;
   gone?: boolean;
+  /** the frame it is on, in an animation */
+  f?: number;
 }
 
-/** The layer stack as the studio sent it, reduced to the fields the app reads. */
-export function layersFrom(v: unknown): Layer[] {
+/** The layer stack as the studio sent it, reduced to the fields the app reads. An animation
+    (`frames`) keeps each layer's frame and may have up to 200 layers; a still has 64. */
+export function layersFrom(v: unknown, frames = false): Layer[] {
   if (v === undefined || v === null) return [];
-  if (!Array.isArray(v) || v.length > 64) throw new Refused("The layers don't make sense.", 400);
+  if (!Array.isArray(v) || v.length > (frames ? 200 : 64)) throw new Refused("The layers don't make sense.", 400);
   return v.map((l) => {
     if (!l || typeof l !== "object" || !Number.isInteger(l.id) || l.id < 0 || l.id > 1e6) throw new Refused("The layers don't make sense.", 400);
     const out: Layer = {
@@ -63,8 +67,34 @@ export function layersFrom(v: unknown): Layer[] {
     };
     if (l.hidden === true) out.hidden = true;
     if (l.gone === true) out.gone = true;
+    if (frames && l.f !== undefined) {
+      if (!Number.isInteger(l.f) || l.f < 0 || l.f > 1e6) throw new Refused("The layers don't make sense.", 400);
+      if (l.f) out.f = l.f;
+    }
     return out;
   });
+}
+
+/** An animation's frames as the studio sent them, or null for a still. Frames are for pixel
+    sheets for now: 2 to 24 that play, times in steps of 10 ms, each id used once. */
+export function animFrom(v: unknown, shape: string): Anim | null {
+  if (v === undefined || v === null) return null;
+  const bad = () => new Refused("The frames don't make sense.", 400);
+  if (typeof v !== "object" || !Array.isArray((v as Anim).frames)) throw bad();
+  const a = v as Anim;
+  if (!shape.startsWith("px")) throw new Refused("Only pixel sheets can have frames for now.", 400);
+  if (a.frames.length > MAX_FRAMES * 4) throw bad();
+  const ids = new Set<number>();
+  const frames: FrameDef[] = a.frames.map((f) => {
+    if (!f || typeof f !== "object" || !Number.isInteger(f.id) || f.id < 0 || f.id > 1e6 || ids.has(f.id)) throw bad();
+    if (!Number.isInteger(f.ms) || f.ms < MS_MIN || f.ms > MS_MAX || f.ms % MS_STEP) throw bad();
+    ids.add(f.id);
+    return f.gone === true ? { id: f.id, ms: f.ms, gone: true } : { id: f.id, ms: f.ms };
+  });
+  const live = liveFrames({ frames }).length;
+  if (live < 2) throw new Refused("An animation needs two frames or more.", 400);
+  if (live > MAX_FRAMES) throw new Refused(`An animation can have ${MAX_FRAMES} frames at most.`, 400);
+  return a.bounce === true ? { frames, bounce: true } : { frames };
 }
 
 export interface Draft {
@@ -72,6 +102,7 @@ export interface Draft {
   paper: string;
   shape: string;
   layers: Layer[];
+  anim: Anim | null;
   minutes: number;
   subject: number | null;
   remix_of: string | null;
@@ -101,10 +132,17 @@ export function check(meta: Record<string, unknown>, rec: Uint8Array): Draft & {
   if (!PAPERS.has(paper) || !SHAPES.has(shape)) throw new Refused("Unknown paper or sheet shape.", 400);
 
   // every stroke has to land on a layer the piece has, or its replay would lose it
-  const layers = layersFrom(meta.layers);
+  const anim = animFrom(meta.anim, shape);
+  const layers = layersFrom(meta.layers, !!anim);
   const ids = new Set(layers.length ? layers.map((l) => l.id) : [0]);
   if (strokes.some((s) => !ids.has(s.l ?? 0) || (s.src !== undefined && !ids.has(s.src))))
     throw new Refused("A stroke sits on a layer the piece doesn't have.");
+  // and every layer on a frame the animation has, each frame that plays with a layer of its own
+  if (anim) {
+    const frames = new Set(anim.frames.map((f) => f.id));
+    if (layers.some((l) => !frames.has(l.f ?? 0))) throw new Refused("A layer sits on a frame the piece doesn't have.");
+    if (liveFrames(anim).some((f) => !layers.some((l) => (l.f ?? 0) === f.id && !l.gone))) throw new Refused("A frame has no layer.");
+  }
 
   const minutes = Number(meta.minutes);
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 100 * 60) throw new Refused("The drawing time doesn't make sense.", 400);
@@ -123,7 +161,7 @@ export function check(meta: Record<string, unknown>, rec: Uint8Array): Draft & {
 
   const remixable = meta.remixable !== false;
 
-  return { title, paper, shape, layers, minutes: Math.round(minutes * 100) / 100, subject, remix_of, remixable, format, bytes: rec.length, strokes: strokes.length, decoded: strokes };
+  return { title, paper, shape, layers, anim, minutes: Math.round(minutes * 100) / 100, subject, remix_of, remixable, format, bytes: rec.length, strokes: strokes.length, decoded: strokes };
 }
 
 /** a piece's id: ten letters and digits, too many to guess (52 bits) */
@@ -162,8 +200,9 @@ export function pieces(sql: Sql, { member, filesDir, perDay, screener, site, pur
         const d = check(fields, recBytes);
         let base = 0;
         if (d.remix_of) {
-          const [src] = await sql`select owner, remixable, strokes from public.pieces where id = ${d.remix_of} and status = 'live'`;
+          const [src] = await sql`select owner, remixable, strokes, anim from public.pieces where id = ${d.remix_of} and status = 'live'`;
           if (!src) throw new Refused("The piece this remixes isn't in the gallery any more.");
+          if (src.anim) throw new Refused("Animations can't be remixed yet.");
           // an artist may always remix their own piece
           if (!src.remixable && src.owner !== owner) throw new Refused("The artist has turned remixing off for that piece.");
           base = src.strokes;
@@ -178,9 +217,9 @@ export function pieces(sql: Sql, { member, filesDir, perDay, screener, site, pur
         await rename(`${path}.part`, path);
         try {
           const [row] = await sql`
-            insert into public.pieces (id, owner, title, paper, shape, layers, strokes, minutes, format, bytes, subject, remix_of, remixable,
+            insert into public.pieces (id, owner, title, paper, shape, layers, anim, strokes, minutes, format, bytes, subject, remix_of, remixable,
                                        status, why, proof, screen)
-            values (${id}, ${owner}, ${d.title}, ${d.paper}, ${d.shape}, ${sql.json(d.layers as never)}, ${d.strokes}, ${d.minutes},
+            values (${id}, ${owner}, ${d.title}, ${d.paper}, ${d.shape}, ${sql.json(d.layers as never)}, ${d.anim ? sql.json(d.anim as never) : null}, ${d.strokes}, ${d.minutes},
                     ${d.format}, ${d.bytes}, ${d.subject}, ${d.remix_of}, ${d.remixable},
                     'held', 'check', ${proof.badge}, ${sql.json({ proof: proof.notes })})
             returning *`;
@@ -225,6 +264,21 @@ export function pieces(sql: Sql, { member, filesDir, perDay, screener, site, pur
       return c.body(bytes);
     });
   }
+
+  // an animation's loop as a GIF, for its artist and the mods while it isn't live
+  app.get("/:id/gif", member, async (c) => {
+    const { id: me } = c.get("member");
+    const id = c.req.param("id");
+    const [p] = await sql`
+      select p.status from public.pieces p
+      where p.id = ${id} and p.anim is not null and (p.owner = ${me} or exists (select 1 from public.profiles where id = ${me} and role in ('mod', 'admin')))`;
+    if (!p || p.status === "removed") return c.json({ error: "No such animation, or it isn't yours to see." }, 404);
+    const bytes = await readFile(gifPath(filesDir, id, p.status === "live")).catch(() => null);
+    if (!bytes) return c.json({ error: "The loop isn't made yet." }, 404);
+    c.header("cache-control", "private, no-store");
+    c.header("content-type", "image/gif");
+    return c.body(bytes);
+  });
 
   return app;
 }

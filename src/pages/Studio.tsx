@@ -1409,7 +1409,6 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const openPin = () => {
     applySel();
     if (!strokes.length) return say("The sheet is empty. Draw something first.");
-    if (anim && isAnimated({ anim })) return say("Animations go into the gallery in a day or two. Your frames are saved here.");
     setTitle(sheetTitle);
     setEnter(promptMode && timeLeft > 0);
     setSending("");
@@ -1419,12 +1418,14 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     e.preventDefault();
     const name = title.trim() || "Untitled";
     const subject = promptMode && enter && timeLeft > 0 ? PROMPT.no : undefined;
+    // an animation goes up with its frames; with one frame left playing it goes up as a still
+    const out = settle(layers, anim);
     if (publishing) {
       setSending("busy");
       try {
         const all = [...base, ...strokes];
         const id = await publish({
-          title: name, strokes: all, layers, paper, shape, minutes: Math.max(0.1, ms / 60000), subject, remixable,
+          title: name, strokes: all, layers: out.layers, anim: out.anim, paper, shape, minutes: Math.max(0.1, ms / 60000), subject, remixable,
           // a sample is credited as the copy the server publishes as @tilo
           remixOf: isPublished(remix) ? remix.id : remix?.sample ? publishedSample(remix.id) : undefined,
         });
@@ -1446,7 +1447,8 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
       by: "you",
       minutes: Math.max(0.1, ms / 60000),
       strokes: [...base, ...strokes],
-      layers,
+      layers: out.layers,
+      anim: out.anim,
       paper,
       shape: shape === "land" ? undefined : shape,
       mine: true,
