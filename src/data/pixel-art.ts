@@ -40,9 +40,9 @@ export const set = (g: Grid, c: number, r: number, colour: string) => {
 export const inEllipse = (c: number, r: number, cx: number, cy: number, rx: number, ry: number) => ((c + 0.5 - cx) / rx) ** 2 + ((r + 0.5 - cy) / ry) ** 2 <= 1;
 /** a 4 × 4 ordered dither: whether a cell `t` (0-1) of the way to the next colour has turned */
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-const dither = (c: number, r: number, t: number) => t > (BAYER[(r % 4) * 4 + (c % 4)] + 0.5) / 16;
+export const dither = (c: number, r: number, t: number) => t > (BAYER[(r % 4) * 4 + (c % 4)] + 0.5) / 16;
 /** a colour from bands top to bottom, dithered where one band meets the next */
-function bands(c: number, r: number, stops: [number, string][]) {
+export function bands(c: number, r: number, stops: [number, string][]) {
   for (let i = 0; i < stops.length - 1; i++) {
     const [r0, c0] = stops[i], [r1, c1] = stops[i + 1];
     if (r < r1) return dither(c, r, (r - r0) / (r1 - r0)) ? c1 : c0;
@@ -57,7 +57,7 @@ export function outline(g: Grid, inside: (c: number, r: number) => boolean, colo
 }
 
 // the "Sixteen" palette of the pixel studio, so a remix starts with the same inks
-const K = {
+export const K = {
   night: "#1A1C2C", plum: "#5D275D", wine: "#B13E53", coral: "#EF7D57", sand: "#FFCD75", lime: "#A7F070", green: "#38B764", teal: "#257179",
   navy: "#29366F", blue: "#3B5DC9", sky: "#41A6F6", ice: "#73EFF7", white: "#F4F4F4", mist: "#94B0C2", slate: "#566C86", dusk: "#333C57",
 };

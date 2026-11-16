@@ -10,7 +10,7 @@ import { DISCIPLINES } from "../data/disciplines";
 import { allPieces, useLocal } from "../data/local";
 import { FIRST_SUBJECT, PROMPT } from "../data/prompt";
 import { EventSection } from "../components/EventBits";
-import { samples } from "../data/samples";
+import { ANIMATED, samples } from "../data/samples";
 import { Sketch } from "../engine/sketch";
 import { drawnCount, isPixelShape, toolsUsed, type Piece } from "../engine/stroke";
 
@@ -41,6 +41,7 @@ function LivePlate({ piece, no, className = "", children }: { piece: Piece; no: 
           layers={piece.layers}
           paper={piece.paper}
           shape={piece.shape}
+          anim={piece.anim}
           aspect={4 / 3}
           mode="loop"
           label={`${piece.title} being drawn, stroke by stroke${piece.ai ? ", by an AI" : ""}`}
@@ -50,7 +51,7 @@ function LivePlate({ piece, no, className = "", children }: { piece: Piece; no: 
           }}
         />
         {piece.ai && <AiMark />}
-        <PixelMark shape={piece.shape} />
+        <PixelMark shape={piece.shape} anim={piece.anim} />
       </span>
       <Trace strokes={piece.strokes} ref={trace} />
       <span className="card-cap">
@@ -123,6 +124,7 @@ export function Home() {
   const hero = sample("nightlamp");
   const proof = sample("rkatsiteli");
   const pixels = ["narikala", "khinkali", "batumisun", "brotseuli"].map(sample);
+  const moving = ANIMATED.map(sample);
   const paintings = samples().filter((p) => !isPixelShape(p.shape));
 
   return (
@@ -142,7 +144,7 @@ export function Home() {
             </div>
             <Link to="/studio?new&kind=pixel" viewTransition className="hero-new">
               <span className="hero-new-tag kicker">New</span>
-              <span className="serif">Pixel art is open: a grid, a small palette, every cell on purpose.</span>
+              <span className="serif">Pixel animation is open: give a pixel sheet a second frame and it moves.</span>
               <Icon name="arrow" size={18} />
             </Link>
             <dl className="hero-facts">
@@ -193,6 +195,22 @@ export function Home() {
         <div className="hero-ctas pixel-ctas">
           <Link to="/studio?new&kind=pixel" viewTransition className="btn btn-ink"><Icon name="pixel" />Start a pixel sheet</Link>
           <Link to="/gallery?sort=pixel" viewTransition className="btn btn-line">Pixel art in the gallery<Icon name="arrow" /></Link>
+        </div>
+      </section>
+
+      <section className="sec wrap" id="animation" aria-labelledby="anim-h">
+        <header className="sec-head">
+          <h2 id="anim-h">Pixel animation</h2>
+          <p className="serif">
+            A pixel sheet can have frames now: copy a frame, change a few cells, give each frame its time, and the frames play as a loop, with the
+            frames either side shown faintly while you draw. The replay still starts from the first cell; when the last one is down, the loop plays. Save
+            it as a GIF or a video. These four were drawn in code by Claude, an AI, frame by frame; the hands are meant to win here too.
+          </p>
+        </header>
+        <div className="pixel-row">{moving.map((p, i) => <LivePlate key={p.id} piece={p} no={i + 20} className="pixel-card" />)}</div>
+        <div className="hero-ctas pixel-ctas">
+          <Link to="/studio?new&kind=pixel" viewTransition className="btn btn-ink"><Icon name="pixel" />Start a pixel sheet</Link>
+          <Link to="/gallery?sort=anim" viewTransition className="btn btn-line">Animations in the gallery<Icon name="arrow" /></Link>
         </div>
       </section>
 

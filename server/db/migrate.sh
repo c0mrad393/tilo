@@ -68,6 +68,18 @@ if [ "${SAMPLES:-true}" = "true" ] && [ -z "$(psql -tAc "select 1 from tilo_meta
     -c "insert into tilo_meta.migrations (name) values ('seed:samples-release'), ('seed:samples-release-2') on conflict do nothing"
 fi
 
+# the pixel animations (3.2, src/data/anim-art.ts), once, the same way; each also has its loop
+# as {id}.gif, which the gallery plays
+if [ "${SAMPLES:-true}" = "true" ] && [ -z "$(psql -tAc "select 1 from tilo_meta.migrations where name = 'seed:samples-anim'")" ]; then
+  echo "seed: animation samples"
+  mkdir -p /srv/files/rec /srv/files/img
+  for f in /tilo/seed/samples/anim/*.tl; do cp "$f" /srv/files/rec/; done
+  for f in /tilo/seed/samples/anim/*.webp /tilo/seed/samples/anim/*.gif; do cp "$f" /srv/files/img/; done
+  chown 1000:1000 /srv/files/rec/tilo* /srv/files/img/tilo*
+  psql -v ON_ERROR_STOP=1 -q -1 -f /tilo/seed/samples/anim/pieces.sql \
+    -c "insert into tilo_meta.migrations (name) values ('seed:samples-anim') on conflict do nothing"
+fi
+
 # PostgREST caches the schema; tell it to look again
 psql -q -c "notify pgrst, 'reload schema'"
 echo "migrate: done"

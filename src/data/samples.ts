@@ -4,6 +4,7 @@ import { below, blob, ellipse, hatch, mix, noise, ramp, ridge, sky, soft, speckl
 import { FIRST_SUBJECT, SAMPLE_BY } from "./prompt";
 import { genKhinkali, genNarikala, genPomegranate, genSunset } from "./pixel-art";
 import { genLoading, genMotel, genStation, genStrip } from "./release-art";
+import { genBalconyCat, genCableCar, genCoastRoad, genTea, type Moving } from "./anim-art";
 
 export { PROMPT, publishedSample, SAMPLE_ACCOUNT, SAMPLE_BY, STAMP_COLOR, STAMPS } from "./prompt";
 
@@ -744,7 +745,7 @@ function genVine(S: Sketch) {
   leaf(S, 260, 1400, 120, 2.4, "#8E4A26");
 }
 
-type Def = Omit<Piece, "strokes"> & { gen: (S: Sketch) => void };
+type Def = Omit<Piece, "strokes"> & { gen: (S: Sketch) => void | Moving };
 const DEFS: Def[] = [
   { id: "nightlamp", title: "A window at night", minutes: 10, prompt: FIRST_SUBJECT.no, gen: genWindow, by: SAMPLE_BY },
   { id: "gergeti", title: "Gergeti, first light", minutes: 40, gen: genGergeti, by: SAMPLE_BY },
@@ -766,7 +767,14 @@ const DEFS: Def[] = [
   { id: "neonmotel", title: "A motel at two in the morning", minutes: 40, gen: genMotel, by: SAMPLE_BY },
   { id: "loadingme", title: "Someone, as a loading screen", minutes: 10, shape: "port", prompt: FIRST_SUBJECT.no + 1, gen: genLoading, by: SAMPLE_BY },
   { id: "lastgas", title: "Last gas before the coast", minutes: 50, gen: genStation, by: SAMPLE_BY },
+  // pixel animations (src/data/anim-art.ts), 3.2; the last is Release week's, our own picture
+  { id: "teaglass", title: "Tea, still hot", minutes: 15, shape: "px32", paper: "plaindark", gen: genTea, by: SAMPLE_BY },
+  { id: "cablecar", title: "The cable car, after dark", minutes: 35, shape: "pxland", paper: "plaindark", gen: genCableCar, by: SAMPLE_BY },
+  { id: "balconycat", title: "A cat on the balcony", minutes: 20, shape: "px32", paper: "plaindark", gen: genBalconyCat, by: SAMPLE_BY },
+  { id: "coastroad", title: "Coast road, the night before", minutes: 30, shape: "pxland", paper: "plaindark", gen: genCoastRoad, by: SAMPLE_BY },
 ];
+/** the pixel animations, seeded on their own by migrate.sh */
+export const ANIMATED = ["teaglass", "cablecar", "balconycat", "coastroad"];
 /** the samples added for Release week, seeded on their own by migrate.sh */
 export const RELEASE = ["sunstrip", "neonmotel", "loadingme", "lastgas"];
 const TILTS = [-2.2, 1.6, -0.8, 2.4, -1.4, 1, -2.6, 0.7];
@@ -780,6 +788,6 @@ let drawn: Piece[] | undefined;
 export const samples = () =>
   (drawn ??= DEFS.map(({ gen, ...d }, i) => {
     const S = new Sketch(1000 + i * 77);
-    gen(S);
-    return { ...d, strokes: S.strokes, sample: true, ai: true, tilt: TILTS[i % TILTS.length] };
+    const moving = gen(S);
+    return { ...d, ...(moving ?? {}), strokes: S.strokes, sample: true, ai: true, tilt: TILTS[i % TILTS.length] };
   }));
