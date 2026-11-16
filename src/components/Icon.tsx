@@ -42,6 +42,7 @@ const PATHS: Record<string, string> = {
   film: "M4 5h16v14H4z M8 5v14 M16 5v14 M4 9.5h4 M4 14.5h4 M16 9.5h4 M16 14.5h4",
   sheets: "M7 3h10v14H7z M4 7v14h10 M10 7h4 M10 10h4",
   copy: "M9 9h11v11H9z M5 15H4V4h11v1",
+  onion: "M3 9h11v11H3z M7 9V5h11v11h-4 M11 5V3h10v10h-3",
   select: "M4 7V4h3 M10 4h3 M4 10v3 M16 4h1 M4 16v1 M11 11l9 3.5-4 1.5-1.5 4z",
   merge: "M6 4l6 6 6-6 M12 10v7 M5 20h14",
   rename: "M4 20h4L19 9l-4-4L4 16z M13 7l4 4",

@@ -132,10 +132,10 @@ export class Painter {
   /** Composites the paper and the layers into `ctx` at its current transform. A `live` stroke
       is drawn on a copy of its layer, so tools that change existing pixels preview without
       committing. "plain" leaves out the grain; "sample" also puts the layers on white, for
-      reading where lines are. With `frame` (or the painter's own) only that frame's layers
+      reading where lines are; "bare" leaves out the paper, for drawing over one already there. With `frame` (or the painter's own) only that frame's layers
       are drawn. */
-  render(ctx: CanvasRenderingContext2D, live?: { stroke: Stroke; upto?: number }, look: "full" | "plain" | "sample" = "full", frame = this.frame) {
-    const paper = look === "sample" ? "#FFFFFF" : this.paper && PAPERS[this.paper].color;
+  render(ctx: CanvasRenderingContext2D, live?: { stroke: Stroke; upto?: number }, look: "full" | "plain" | "sample" | "bare" = "full", frame = this.frame) {
+    const paper = look === "sample" ? "#FFFFFF" : look === "bare" ? null : this.paper && PAPERS[this.paper].color;
     if (paper) {
       ctx.fillStyle = paper;
       ctx.fillRect(0, 0, this.width, this.height);

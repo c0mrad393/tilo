@@ -39,13 +39,15 @@ export const pictureBlob = (strokes: Stroke[], layers: LayerDef[], paper: PaperI
   toBlob(picture(strokes, layers, paper, scale, sheet));
 
 /** A small picture for the library page. */
-export function thumbnail(painter: Painter, w = 400) {
+export function thumbnail(painter: Painter, w = 400, frame = painter.frame) {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = Math.round((w * painter.height) / painter.width);
   const ctx = c.getContext("2d")!;
   ctx.scale(w / painter.width, w / painter.width);
-  painter.render(ctx);
+  // a pixel sheet's painter is one pixel a cell: scaled up, the cells stay sharp
+  ctx.imageSmoothingEnabled = painter.width >= w;
+  painter.render(ctx, undefined, "full", frame);
   return toBlob(c, "image/webp", 0.82);
 }
 

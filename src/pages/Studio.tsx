@@ -10,6 +10,7 @@ import { findPiece, getPiece, isPublished, publish } from "../data/pieces";
 import { PROMPT, publishedSample } from "../data/prompt";
 import { download, fileName, pictureBlob, thumbnail, timelapse, videoType } from "../engine/export";
 import { drawGuides, handleAt, snapDirection } from "../engine/guides";
+import { cleanMs, frameAt, isAnimated, liveFrames, MAX_FRAMES, MS_DEFAULT, MS_MAX, MS_MIN, MS_STEP, nextFrameId, type Anim, type FrameDef } from "../engine/frames";
 import { Painter } from "../engine/painter";
 import { PAPER_IDS, PAPERS, PLAIN_PAPERS, type PaperId } from "../engine/paper";
 import { cellAt, centreOf, gridOf, isPixelTool } from "../engine/pixel";
@@ -18,7 +19,7 @@ import { ColorPicker } from "../components/ColorPicker";
 import { remember } from "../engine/colour";
 import { anchor, matrix, toSheet as viewToSheet, type View } from "../engine/view";
 import { apply as xfApply, boundsOf, invert as xfInvert, isIdentity, snapped, toArr, xfAround, type Xf } from "../engine/select";
-import { BASE_LAYER, DRAW_SHAPES, fmtMin, isOp, isPixelShape, layersOf, PIXEL_SHAPES, SHAPES, TOOLS, type Blend, type LayerDef, type ShapeId, type Stroke, type ToolGroup, type ToolId } from "../engine/stroke";
+import { BASE_LAYER, DRAW_SHAPES, fmtMin, isOp, isPixelShape, layersOf, PIXEL_SHAPES, SHAPES, TOOLS, type Blend, type LayerDef, type ShapeId, type SheetSize, type Stroke, type ToolGroup, type ToolId } from "../engine/stroke";
 
 const NO_STROKES: Stroke[] = [];
 
@@ -108,6 +109,79 @@ function grabAt(S: Sel, x: number, y: number, s: number, slop: number): Grab | n
 }
 
 
+/* A pixel sheet's painter holds one pixel a cell (a 32 × 32 layer is 4 KB, not 6.5 MB), so a
+   loop of many frames stays light; the view scales it up with the cells sharp. */
+function makePainter(d: SheetSize & { grid?: number }, layers: LayerDef[], paper: PaperId | null) {
+  if (!d.grid) return new Painter(d.w, d.h, 1, layers, paper);
+  const g = gridOf(d.grid, d);
+  return new Painter(g.cols, g.rows, g.cols / d.w, layers, paper);
+}
+
+/* onion skin: the frame before in a warm tint and the frame after in a cool one, faint,
+   under the frame being drawn; on screen only */
+const ONION: [number, string][] = [[-1, "#E2553D"], [1, "#2F7FD6"]];
+let onionCanvas: HTMLCanvasElement | null = null;
+function drawOnion(ctx: CanvasRenderingContext2D, p: Painter, a: Anim, frame: number) {
+  const order = liveFrames(a);
+  const i = order.findIndex((f) => f.id === frame);
+  if (i < 0 || order.length < 2) return;
+  const seen = new Set([frame]);
+  for (const [d, tint] of ONION) {
+    let j = i + d;
+    // a round loop wraps, so the first frame sees the last
+    if (j < 0 || j >= order.length) {
+      if (a.bounce) continue;
+      j = (j + order.length) % order.length;
+    }
+    if (seen.has(order[j].id)) continue;
+    seen.add(order[j].id);
+    const c = (onionCanvas ??= document.createElement("canvas"));
+    c.width = p.width;
+    c.height = p.height;
+    const x = c.getContext("2d")!;
+    p.render(x, undefined, "bare", order[j].id);
+    x.globalCompositeOperation = "source-atop";
+    x.globalAlpha = 0.6;
+    x.fillStyle = tint;
+    x.fillRect(0, 0, c.width, c.height);
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.drawImage(c, 0, 0);
+    ctx.restore();
+  }
+}
+
+/** What gets published or pinned: an animation as it is, or, with fewer than two frames
+    left playing, a still, its other frames' layers kept out of sight as merged ones are. */
+export function settle(layers: LayerDef[], anim: Anim | undefined): { layers: LayerDef[]; anim?: Anim } {
+  if (anim && isAnimated({ anim })) return { layers, anim };
+  if (!anim) return { layers };
+  const keep = liveFrames(anim)[0]?.id ?? 0;
+  return { layers: layers.map(({ f, ...l }) => ((f ?? 0) === keep ? l : { ...l, gone: true })) };
+}
+
+/** A frame's time: typed and kept on Enter or leaving the field, or stepped by 10 ms. */
+function FrameTime({ ms, onSet }: { ms: number; onSet: (ms: number) => void }) {
+  const [draft, setDraft] = useState(String(ms));
+  useEffect(() => setDraft(String(ms)), [ms]);
+  const keep = () => {
+    const v = cleanMs(Number(draft));
+    setDraft(String(v));
+    if (v !== ms) onSet(v);
+  };
+  return (
+    <span className="frame-time">
+      <button className="icon-btn" onClick={() => onSet(cleanMs(ms - MS_STEP))} disabled={ms <= MS_MIN} aria-label="10 ms shorter"><Icon name="minus" size={16} /></button>
+      <label>
+        <span className="sr-only">This frame's time in milliseconds</span>
+        <input type="number" className="mono num" min={MS_MIN} max={MS_MAX} step={MS_STEP} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={keep} onKeyDown={(e) => e.key === "Enter" && keep()} />
+      </label>
+      <span className="frame-unit">ms</span>
+      <button className="icon-btn" onClick={() => onSet(cleanMs(ms + MS_STEP))} disabled={ms >= MS_MAX} aria-label="10 ms longer"><Icon name="plus" size={16} /></button>
+    </span>
+  );
+}
+
 /* ---------- which sheet the studio opens ---------- */
 
 let openSheet = "";
@@ -182,6 +256,14 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const [sym, setSym] = useState("");
   const [layers, setLayers] = useState<LayerDef[]>(() => (sheet.layers.length ? sheet.layers : [BASE_LAYER]));
   const [active, setActive] = useState(() => layers[layers.length - 1].id);
+  // frames (3.2): a pixel sheet starts as one frame, and `anim` comes with the second
+  const [anim, setAnim] = useState<Anim | undefined>(sheet.anim);
+  const [frame, setFrame] = useState(() => (sheet.anim ? (layers[layers.length - 1].f ?? 0) : 0));
+  const [onion, setOnion] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  // the frame on screen while the loop plays, in a ref for the drawing code and in state for the strip
+  const playAt = useRef<number | null>(null);
+  const [playFrame, setPlayFrame] = useState<number | null>(null);
   const [strokes, setStrokes] = useState<Stroke[]>(sheet.strokes);
   const [redo, setRedo] = useState<Stroke[]>([]);
   const [ms, setMs] = useState(sheet.ms);
@@ -212,6 +294,8 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const lastUp = useRef(0);
   const cfg = useRef({ tool, color, size, opacity, sym, active, guides, steady, pxSize, pixel, showGrid });
   cfg.current = { tool, color, size, opacity, sym, active, guides, steady, pxSize, pixel, showGrid };
+  const framing = useRef({ anim, frame, onion });
+  framing.current = { anim, frame, onion };
   // the cell under the pointer on a pixel sheet, outlined so you can see where a click lands
   const hover = useRef<[number, number] | null>(null);
   const pinDlg = useRef<HTMLDialogElement>(null);
@@ -258,7 +342,14 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     const k = cfg.current;
     // cells stay sharp however far in you zoom
     ctx.imageSmoothingEnabled = !k.pixel;
-    p.render(ctx, cur.current ? { stroke: cur.current } : S ? { stroke: { tool: "move", c: "", w: 0, p: S.p, l: S.layer, x: toArr(S.xf) } } : undefined);
+    const fr = framing.current;
+    p.frame = fr.anim ? (playAt.current ?? fr.frame) : undefined;
+    // a pixel sheet's painter is one pixel a cell; the paper is already down, so it draws bare
+    ctx.save();
+    ctx.scale(1 / p.k, 1 / p.k);
+    if (fr.anim && fr.onion && playAt.current === null) drawOnion(ctx, p, fr.anim, fr.frame);
+    p.render(ctx, cur.current ? { stroke: cur.current } : S ? { stroke: { tool: "move", c: "", w: 0, p: S.p, l: S.layer, x: toArr(S.xf) } } : undefined, k.pixel ? "bare" : "full");
+    ctx.restore();
     const m = cfg.current.sym;
     if (m) {
       // symmetry guides, a hairline at any zoom
@@ -388,7 +479,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const flipView = () => reView((v) => ({ f: v.f > 0 ? -1 : 1 }), ...centre());
 
   // ---------- the painter follows the stroke list, the layer stack and the paper ----------
-  if (!painter.current) painter.current = new Painter(dims.w, dims.h, 1, layers, paper);
+  if (!painter.current) painter.current = makePainter(dims, layers, paper);
   const rebuild = useCallback(() => {
     const p = painter.current!;
     p.clear();
@@ -407,9 +498,10 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   }, [strokes, rebuild]);
   useEffect(() => {
     const p = painter.current!;
-    if (p.width === dims.w && p.height === dims.h) return;
+    const fresh = makePainter(dims, p.layers, p.paper);
+    if (p.width === fresh.width && p.height === fresh.height && p.k === fresh.k) return;
     // a new shape is only offered on an empty sheet, so a fresh painter loses nothing
-    painter.current = new Painter(dims.w, dims.h, 1, p.layers, p.paper);
+    painter.current = fresh;
     rebuild();
     fit();
   }, [dims, rebuild, fit]);
@@ -420,6 +512,21 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     p.paper = paper;
     rebuild();
   }, [paper, rebuild]);
+  // the strip's small pictures, drawn after the painter has caught up with any change
+  const thumbs = useRef(new Map<number, HTMLCanvasElement>());
+  useEffect(() => {
+    const p = painter.current!;
+    for (const [id, c] of thumbs.current) {
+      if (c.width !== p.width || c.height !== p.height) {
+        c.width = p.width;
+        c.height = p.height;
+      }
+      const x = c.getContext("2d")!;
+      x.clearRect(0, 0, c.width, c.height);
+      p.render(x, undefined, "full", id);
+    }
+  }, [strokes, layers, paper, anim, dims]);
+  useEffect(redraw, [anim, frame, onion, redraw]);
   useEffect(() => {
     if (!palette.includes(color) && promptMode) setColor(palette[0]);
   }, [palette, color, promptMode]);
@@ -478,10 +585,10 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const kept = useRef<Partial<Sheet>>({});
   const handedIn = useRef(false);
   // what the last save wrote, so an unchanged sheet isn't written again (and its date kept)
-  const sig = [strokes, layers, ms, paper, shape, guides, sheetTitle, promptMode];
+  const sig = [strokes, layers, ms, paper, shape, guides, sheetTitle, promptMode, anim];
   const savedSig = useRef<unknown[]>(sig);
   const snapshot = useRef<() => { snap: Sheet; sig: unknown[] }>(null!);
-  snapshot.current = () => ({ snap: { ...sheet, title: sheetTitle, ms, strokes, layers, paper, shape, guides, subject: promptMode, updated: Date.now(), ...kept.current }, sig });
+  snapshot.current = () => ({ snap: { ...sheet, title: sheetTitle, ms, strokes, layers, paper, shape, guides, subject: promptMode, anim, updated: Date.now(), ...kept.current }, sig });
   const save = useCallback(async (extra: Partial<Sheet> = {}) => {
     Object.assign(kept.current, extra);
     const { snap, sig } = snapshot.current();
@@ -493,7 +600,8 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     lastSave.current = Date.now();
     let thumb: Blob | undefined;
     try {
-      thumb = seat ? undefined : await thumbnail(painter.current!);
+      // an animation's picture in Your sheets is its first frame
+      thumb = seat ? undefined : await thumbnail(painter.current!, 400, snap.anim ? liveFrames(snap.anim)[0]?.id : undefined);
     } catch {
       thumb = undefined;
     }
@@ -534,7 +642,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     // quiet while you draw, but never more than ten seconds behind
     const t = window.setTimeout(save, Date.now() - lastSave.current > 10000 ? 0 : 900);
     return () => clearTimeout(t);
-  }, [strokes, layers, ms, paper, shape, guides, sheetTitle, promptMode, save]);
+  }, [strokes, layers, ms, paper, shape, guides, sheetTitle, promptMode, anim, save]);
   useEffect(() => {
     const flush = () => document.visibilityState === "hidden" && save();
     document.addEventListener("visibilitychange", flush);
@@ -572,6 +680,11 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
 
   // ---------- pointers: draw with one, pan with space or the middle button, pinch with two ----------
   const spaceDown = useRef(false);
+  // drawing stops the loop playing
+  const halt = useRef(() => {});
+  halt.current = () => {
+    if (playing) setPlaying(false);
+  };
   useEffect(() => {
     const c = cv.current!, b = box.current!;
     const pts = new Map<number, { x: number; y: number; type: string }>();
@@ -733,6 +846,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
       }
       if (e.pointerType === "mouse" && e.button !== 0) return;
       if (drawing !== null) return;
+      halt.current();
       const k = cfg.current;
       const [x, y] = toSheet(e);
       const vp = k.guides.mode ? handleAt(k.guides, x, y, view.current.s, e.pointerType === "mouse" ? 14 : 24) : -1;
@@ -930,10 +1044,46 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
 
   // undoing a layer copy takes its layer away and redo brings the same one back
   const copies = useRef(new WeakMap<Stroke, LayerDef>());
+  // undoing a frame copy takes the whole copied frame away; redo puts it back where it was
+  const frameCopies = useRef(new WeakMap<Stroke, { frame: FrameDef; at: number; layers: LayerDef[] }>());
+  const frameOfId = (id: number | undefined) => layers.find((l) => l.id === (id ?? 0))?.f ?? 0;
+  const isFrameCopy = (x: Stroke, to?: number, from?: number) =>
+    x.tool === "dup" && x.src !== undefined && frameOfId(x.l) !== frameOfId(x.src) && (to === undefined || (frameOfId(x.l) === to && frameOfId(x.src) === from));
+  /** undo and redo show the frame they change */
+  const showFrameOf = (s: Stroke) => {
+    if (!anim) return;
+    const f = frameOfId(s.l);
+    if (f === frame || !anim.frames.some((x) => x.id === f && !x.gone)) return;
+    setPlaying(false);
+    setFrame(f);
+    if (layers.some((l) => l.id === (s.l ?? 0) && !l.gone)) setActive(s.l ?? 0);
+  };
   const undo = () => {
     if (sel.current) return cancelSel();
     if (!strokes.length) return;
     const s = strokes[strokes.length - 1];
+    if (anim && isFrameCopy(s)) {
+      const to = frameOfId(s.l), from = frameOfId(s.src);
+      let n = 0;
+      while (n < strokes.length && isFrameCopy(strokes[strokes.length - 1 - n], to, from)) n++;
+      const ids = new Set(layers.filter((l) => (l.f ?? 0) === to).map((l) => l.id));
+      const rest = strokes.slice(0, strokes.length - n);
+      // only a frame that holds nothing but the copy goes; otherwise its layers are undone one by one below
+      if (!rest.some((x) => ids.has(x.l ?? 0) || (x.src !== undefined && ids.has(x.src)))) {
+        const group = strokes.slice(strokes.length - n);
+        frameCopies.current.set(group[0], { frame: anim.frames.find((f) => f.id === to)!, at: anim.frames.findIndex((f) => f.id === to), layers: layers.filter((l) => ids.has(l.id)) });
+        setLayers((ls) => ls.filter((l) => !ids.has(l.id)));
+        setAnim({ ...anim, frames: anim.frames.filter((f) => f.id !== to) });
+        if (frame === to) {
+          setFrame(from);
+          setActive(s.src!);
+        }
+        setRedo((r) => [...r, ...[...group].reverse()]);
+        setStrokes((list) => list.slice(0, -n));
+        return;
+      }
+    }
+    showFrameOf(s);
     if (s.tool === "dup") {
       const def = layers.find((l) => l.id === s.l);
       if (def) copies.current.set(s, def);
@@ -950,6 +1100,26 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const redoOne = () => {
     if (!redo.length) return;
     const s = redo[redo.length - 1];
+    const fc = frameCopies.current.get(s);
+    if (fc && anim) {
+      const ids = new Set(fc.layers.map((l) => l.id));
+      let n = 0;
+      while (n < redo.length && redo[redo.length - 1 - n].tool === "dup" && ids.has(redo[redo.length - 1 - n].l ?? -1)) n++;
+      const group = redo.slice(redo.length - n).reverse();
+      const next = [...layers, ...fc.layers];
+      painter.current!.setLayers(next);
+      setLayers(next);
+      const frames = [...anim.frames];
+      frames.splice(Math.min(fc.at, frames.length), 0, fc.frame);
+      setAnim({ ...anim, frames });
+      setPlaying(false);
+      setFrame(fc.frame.id);
+      setActive(group[group.length - 1].l!);
+      setStrokes((list) => [...list, ...group]);
+      setRedo((r) => r.slice(0, -n));
+      return;
+    }
+    showFrameOf(s);
     if (s.tool === "dup" && s.l !== undefined) {
       const def = copies.current.get(s) ?? { id: s.l, name: "Layer copy", blend: "source-over", opacity: 1 };
       setLayers((ls) => {
@@ -993,6 +1163,13 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
       if (k === "=" || k === "+") zoomCentre(1.25);
       if (k === "-") zoomCentre(0.8);
       if (k === "enter" && sel.current) applySel();
+      if (pixel && !seat) {
+        if (k === "," || k === ".") stepFrame(k === "," ? -1 : 1);
+        if (k === "n") newFrame(false);
+        if (k === "d") newFrame(true);
+        if (k === "k") togglePlay();
+        if (k === "o" && anim) setOnion((o) => !o);
+      }
       if (k === "escape") {
         if (sel.current) cancelSel();
         else nav(seat?.back ?? "/", { viewTransition: true });
@@ -1013,8 +1190,10 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   });
 
   // ---------- layers ----------
+  // with frames, the Layers panel holds the chosen frame's layers
+  const inFrame = (l: LayerDef) => !anim || (l.f ?? 0) === frame;
   // a merged layer stays in the list for the recording's sake, out of sight
-  const shown = layers.filter((l) => !l.gone);
+  const shown = layers.filter((l) => !l.gone && inFrame(l));
   const strokesOn = (id: number) => strokes.filter((s) => (s.l ?? 0) === id && !isOp(s)).length;
   const patchLayer = (id: number, patch: Partial<LayerDef>) => setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   const addLayer = () => {
@@ -1024,13 +1203,13 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     const used = new Set(layers.map((l) => l.name));
     let n = shown.length + 1;
     while (used.has(`Layer ${n}`)) n++;
-    setLayers((ls) => [...ls.slice(0, at), { id, name: `Layer ${n}`, blend: "source-over", opacity: 1 }, ...ls.slice(at)]);
+    setLayers((ls) => [...ls.slice(0, at), { id, name: `Layer ${n}`, blend: "source-over", opacity: 1, ...(anim ? { f: frame } : {}) }, ...ls.slice(at)]);
     setActive(id);
   };
   const moveLayer = (id: number, d: number) => {
     const i = layers.findIndex((l) => l.id === id);
     let j = i + d;
-    while (layers[j]?.gone) j += d;
+    while (layers[j] && (layers[j].gone || !inFrame(layers[j]))) j += d;
     if (j < 0 || j >= layers.length) return;
     const next = [...layers];
     [next[i], next[j]] = [next[j], next[i]];
@@ -1049,7 +1228,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     const needed = strokes.some((s) => s.src === id);
     const rest = needed ? layers.map((l) => (l.id === id ? { ...l, gone: true } : l)) : layers.filter((l) => l.id !== id);
     setLayers(rest);
-    const left = rest.filter((l) => !l.gone);
+    const left = rest.filter((l) => !l.gone && inFrame(l));
     if (active === id) setActive(left[left.length - 1].id);
     if (!needed && strokes.some((s) => (s.l ?? 0) === id)) {
       setStrokes((s) => s.filter((x) => (x.l ?? 0) !== id));
@@ -1074,7 +1253,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   };
   const mergeDown = () => {
     const i = layers.findIndex((l) => l.id === activeLayer.id);
-    const below = layers.slice(0, i).reverse().find((l) => !l.gone);
+    const below = layers.slice(0, i).reverse().find((l) => !l.gone && inFrame(l));
     if (!below) return say("There's no layer below to merge into");
     if (activeLayer.hidden) return say("Show the layer before you merge it");
     if (remix && baseLayers.has(activeLayer.id)) return say("This layer holds the piece you are remixing");
@@ -1084,6 +1263,119 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     setActive(below.id);
     say(`Merged into ${below.name}`);
   };
+
+  // ---------- frames ----------
+  const frameList: FrameDef[] = anim ? liveFrames(anim) : [{ id: 0, ms: MS_DEFAULT }];
+  const frameNo = Math.max(0, frameList.findIndex((f) => f.id === frame));
+  const curFrame = frameList[frameNo] ?? frameList[0];
+  const frameDlg = useRef<HTMLDialogElement>(null);
+  const goFrame = (id: number) => {
+    setPlaying(false);
+    applySel();
+    if (id === frame) return;
+    const here = layers.filter((l) => !l.gone && (l.f ?? 0) === id);
+    // the same layer in the other frame, by name, or its top one
+    const same = here.find((l) => l.name === activeLayer.name) ?? here[here.length - 1];
+    setFrame(id);
+    if (same) setActive(same.id);
+  };
+  const stepFrame = (d: number) => {
+    if (frameList.length < 2) return;
+    goFrame(frameList[(frameNo + d + frameList.length) % frameList.length].id);
+  };
+  /** A new frame after this one: empty with the same layers, or a copy, recorded as layer copies. */
+  const newFrame = (copy: boolean) => {
+    if (frameList.length >= MAX_FRAMES) return say(`Up to ${MAX_FRAMES} frames for now`);
+    setPlaying(false);
+    applySel();
+    const a: Anim = anim ?? { frames: [{ id: 0, ms: MS_DEFAULT }] };
+    const id = nextFrameId(a);
+    const src = layers.filter((l) => !l.gone && (l.f ?? 0) === frame);
+    let nid = Math.max(...layers.map((l) => l.id)) + 1;
+    const made: LayerDef[] = src.map((l) => ({ ...l, id: nid++, f: id, ...(copy ? {} : { hidden: undefined }) }));
+    const next = [...layers, ...made];
+    const at = a.frames.findIndex((f) => f.id === frame) + 1;
+    setAnim({ ...a, frames: [...a.frames.slice(0, at), { id, ms: curFrame.ms }, ...a.frames.slice(at)] });
+    // the painter needs the new layers before the copies land on them
+    painter.current!.setLayers(next);
+    setLayers(next);
+    setFrame(id);
+    setActive((made[src.findIndex((l) => l.id === activeLayer.id)] ?? made[made.length - 1]).id);
+    if (copy) made.forEach((m, i) => commit({ tool: "dup", c: "", w: 0, p: [], l: m.id, src: src[i].id }));
+    say(copy ? `Frame ${frameNo + 2} is a copy of frame ${frameNo + 1}` : `Frame ${frameNo + 2} added`);
+  };
+  const askDeleteFrame = () => {
+    if (frameList.length < 2) return say("A sheet needs at least one frame");
+    const ids = new Set(layers.filter((l) => (l.f ?? 0) === frame).map((l) => l.id));
+    if (remix && [...ids].some((id) => baseLayers.has(id))) return say("This frame holds the piece you are remixing");
+    if (!strokes.some((s) => ids.has(s.l ?? 0))) return deleteFrame();
+    frameDlg.current!.showModal();
+  };
+  const deleteFrame = () => {
+    if (!anim) return;
+    setPlaying(false);
+    applySel();
+    const ids = new Set(layers.filter((l) => (l.f ?? 0) === frame).map((l) => l.id));
+    // a frame another one was copied from keeps its strokes, out of the loop, so the copy still replays
+    const needed = strokes.some((s) => s.src !== undefined && ids.has(s.src) && !ids.has(s.l ?? 0));
+    const frames = needed ? anim.frames.map((f) => (f.id === frame ? { ...f, gone: true as const } : f)) : anim.frames.filter((f) => f.id !== frame);
+    const ls = needed ? layers : layers.filter((l) => !ids.has(l.id));
+    if (!needed) {
+      setStrokes((list) => list.filter((x) => !ids.has(x.l ?? 0)));
+      setRedo((r) => r.filter((x) => !ids.has(x.l ?? 0) && !(x.src !== undefined && ids.has(x.src))));
+    }
+    const left = frames.filter((f) => !f.gone);
+    const to = left[Math.min(Math.max(0, frameNo - 1), left.length - 1)].id;
+    const top = ls.filter((l) => !l.gone && (l.f ?? 0) === to);
+    setLayers(ls);
+    setAnim({ ...anim, frames });
+    setFrame(to);
+    setActive(top[top.length - 1].id);
+    say(`Frame ${frameNo + 1} deleted`);
+  };
+  const moveFrame = (d: -1 | 1) =>
+    setAnim((a) => {
+      if (!a) return a;
+      const fs = [...a.frames];
+      const i = fs.findIndex((f) => f.id === frame);
+      let j = i + d;
+      while (fs[j]?.gone) j += d;
+      if (j < 0 || j >= fs.length) return a;
+      [fs[i], fs[j]] = [fs[j], fs[i]];
+      return { ...a, frames: fs };
+    });
+  const setFrameMs = (v: number, all = false) => {
+    if (!anim) return;
+    const m = cleanMs(v);
+    setAnim((a) => a && { ...a, frames: a.frames.map((f) => (all || f.id === frame ? { ...f, ms: m } : f)) });
+  };
+  const togglePlay = () => {
+    if (frameList.length < 2) return;
+    applySel();
+    setPlaying((p) => !p);
+  };
+  // the loop, played on the sheet at its frames' times
+  useEffect(() => {
+    if (!playing || !anim) return;
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const f = frameAt(anim, now - t0);
+      if (f && f.id !== playAt.current) {
+        playAt.current = f.id;
+        setPlayFrame(f.id);
+        redraw();
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      playAt.current = null;
+      setPlayFrame(null);
+      redraw();
+    };
+  }, [playing, anim, redraw]);
 
   // ---------- hand in (pupils) ----------
   const handDlg = useRef<HTMLDialogElement>(null);
@@ -1103,7 +1395,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
       const name = title.trim() || seat!.title;
       setSheetTitle(name);
       await seat!.save({ title: name, strokes, layers, paper, minutes: ms / 60000 });
-      savedSig.current = [strokes, layers, ms, paper, shape, guides, name, promptMode];
+      savedSig.current = [strokes, layers, ms, paper, shape, guides, name, promptMode, anim];
       await seat!.handIn();
       handDlg.current!.close();
       nav(seat!.back, { viewTransition: true });
@@ -1117,6 +1409,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const openPin = () => {
     applySel();
     if (!strokes.length) return say("The sheet is empty. Draw something first.");
+    if (anim && isAnimated({ anim })) return say("Animations go into the gallery in a day or two. Your frames are saved here.");
     setTitle(sheetTitle);
     setEnter(promptMode && timeLeft > 0);
     setSending("");
@@ -1214,7 +1507,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const subtitle = seat ? [seat.due, saving === "busy" ? "Saving…" : saving === "failed" ? "Not saved yet, trying again" : saving === "done" ? "Saved to your class" : ""].filter(Boolean).join(" · ") : remix ? `Remix of “${remix.title}” by @${remix.by}` : promptMode ? `Subject No. ${PROMPT.no} · ${PROMPT.title} · 6 inks, 10:00 on the clock` : `${PAPERS[paper].name} · no clock`;
 
   return (
-    <main className={`studio${seat ? " is-seat" : ""}${kid ? " is-kid" : ""}`} id="main">
+    <main className={`studio${seat ? " is-seat" : ""}${kid ? " is-kid" : ""}${pixel && !seat ? " has-frames" : ""}`} id="main">
       <div className="studio-top">
         <button className="icon-btn" onClick={() => nav(seat?.back ?? "/", { viewTransition: true })} aria-label={seat ? "Back to your class" : "Back to Tilo"}><Icon name="back" /></button>
         <h1 className="studio-title">
@@ -1275,6 +1568,67 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
           <button className="icon-btn view-turn" onClick={flipView} aria-pressed={turn.flip} aria-label="Mirror the view" title="Mirror the view, to check proportions · H"><Icon name="flip" size={18} /></button>
         </div>
       </div>
+
+      {/* frames are for members' own sheets; schools get them later */}
+      {pixel && !seat && (
+        <section className="frame-strip" aria-label="Frames">
+          {frameList.length < 2 ? (
+            <>
+              <h2 className="kicker">Frames</h2>
+              <p className="frame-hint">One frame is a still. Add a second and it moves.</p>
+              <button className="btn btn-line" onClick={() => newFrame(true)} title="Copy this frame · D"><Icon name="copy" size={16} />Copy as frame 2</button>
+              <button className="btn btn-quiet" onClick={() => newFrame(false)} title="An empty frame · N"><Icon name="plus" size={16} />Empty frame</button>
+            </>
+          ) : (
+            <>
+              <button className="icon-btn frame-play" onClick={togglePlay} aria-pressed={playing} aria-label={playing ? "Stop the loop" : "Play the loop"} title={`${playing ? "Stop" : "Play"} the loop · K`}><Icon name={playing ? "pause" : "play"} /></button>
+              <ol className="frames">
+                {frameList.map((f, i) => (
+                  <li key={f.id}>
+                    <button
+                      className="frame"
+                      aria-pressed={f.id === frame}
+                      data-playing={playFrame === f.id ? "" : undefined}
+                      onClick={() => goFrame(f.id)}
+                      aria-label={`Frame ${i + 1}, ${f.ms} ms`}
+                      title={`Frame ${i + 1} · , and . step`}
+                    >
+                      <canvas
+                        ref={(c) => {
+                          if (c) thumbs.current.set(f.id, c);
+                          else thumbs.current.delete(f.id);
+                        }}
+                        aria-hidden="true"
+                      />
+                      <span className="frame-no mono num">{i + 1}</span>
+                      <span className="frame-ms mono num">{f.ms}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+              <div className="frame-ctl">
+                <div className="row-btns" role="group" aria-label={`Frame ${frameNo + 1}`}>
+                  <button className="icon-btn" onClick={() => newFrame(false)} aria-label="Add an empty frame after this one" title="Empty frame · N"><Icon name="plus" size={18} /></button>
+                  <button className="icon-btn" onClick={() => newFrame(true)} aria-label="Copy this frame" title="Copy frame · D"><Icon name="copy" size={18} /></button>
+                  <button className="icon-btn" onClick={() => moveFrame(-1)} disabled={frameNo === 0} aria-label="Move the frame earlier" title="Move earlier"><Icon name="back" size={18} /></button>
+                  <button className="icon-btn" onClick={() => moveFrame(1)} disabled={frameNo === frameList.length - 1} aria-label="Move the frame later" title="Move later"><Icon name="next" size={18} /></button>
+                  <button className="icon-btn" onClick={askDeleteFrame} aria-label="Delete the frame" title="Delete the frame"><Icon name="trash" size={18} /></button>
+                </div>
+                <button className="icon-btn" onClick={() => setOnion((o) => !o)} aria-pressed={onion} aria-label="Onion skin: the frames before and after, faint" title="Onion skin · O"><Icon name="onion" size={18} /></button>
+                <FrameTime ms={curFrame.ms} onSet={(v) => setFrameMs(v)} />
+                <button className="btn btn-quiet frame-all" onClick={() => setFrameMs(curFrame.ms, true)} title="Give every frame this time">All</button>
+                <label className="frame-loop">
+                  <span className="sr-only">Loop</span>
+                  <select value={anim?.bounce ? "bounce" : "round"} onChange={(e) => setAnim((a) => a && { ...a, bounce: e.target.value === "bounce" ? true : undefined })}>
+                    <option value="round">Loop</option>
+                    <option value="bounce">Back and forth</option>
+                  </select>
+                </label>
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       <aside className="studio-panel" aria-label="Sheet settings" data-tab={tab ?? "none"}>
         <div className="panel-tabs" role="group" aria-label="Settings">
@@ -1505,7 +1859,8 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
           <h2 className="kicker">Keys</h2>
           <p className="keys">
             {(Object.keys(TOOLS) as ToolId[]).filter((t) => isPixelTool(t) === pixel).map((t) => <span key={t}><kbd>{TOOLS[t].key.toUpperCase()}</kbd> {TOOLS[t].label.toLowerCase()} </span>)}
-            <span><kbd>[</kbd> <kbd>]</kbd> size </span><span><kbd>⌘Z</kbd> undo </span><span><kbd>Shift</kbd> straight line </span><span><kbd>Space</kbd> drag to move </span><span><kbd>⌘</kbd>+scroll or pinch to zoom </span><span><kbd>0</kbd> fit </span><span><kbd>R</kbd> <kbd>⇧R</kbd> turn </span><span><kbd>H</kbd> mirror view </span><span><kbd>Alt</kbd>+click pick colour </span><span><kbd>Enter</kbd> <kbd>Esc</kbd> put a selection down or back</span>
+            <span><kbd>[</kbd> <kbd>]</kbd> size </span><span><kbd>⌘Z</kbd> undo </span><span><kbd>Shift</kbd> straight line </span><span><kbd>Space</kbd> drag to move </span><span><kbd>⌘</kbd>+scroll or pinch to zoom </span><span><kbd>0</kbd> fit </span><span><kbd>R</kbd> <kbd>⇧R</kbd> turn </span><span><kbd>H</kbd> mirror view </span><span><kbd>Alt</kbd>+click pick colour </span>{pixel ? (!seat && <span><kbd>,</kbd> <kbd>.</kbd> frame before and after </span>) : <span><kbd>Enter</kbd> <kbd>Esc</kbd> put a selection down or back</span>}
+            {pixel && !seat && <><span><kbd>N</kbd> new frame </span><span><kbd>D</kbd> copy frame </span><span><kbd>K</kbd> play </span><span><kbd>O</kbd> onion skin</span></>}
           </p>
         </section>}
         </div>
@@ -1599,9 +1954,20 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
         </div>
       </dialog>
 
+      <dialog ref={frameDlg} aria-labelledby="frame-h">
+        <div className="small-sheet sheet">
+          <h2 id="frame-h">Delete frame {frameNo + 1}?</h2>
+          <p>Everything drawn on it goes, and its strokes leave the recording too, unless another frame was copied from it. Undo won't bring it back.</p>
+          <div className="row">
+            <button className="btn btn-quiet" onClick={() => frameDlg.current!.close()}>Keep it</button>
+            <button className="btn btn-ink" onClick={() => { deleteFrame(); frameDlg.current!.close(); }}>Delete the frame</button>
+          </div>
+        </div>
+      </dialog>
+
       <dialog ref={replayDlg} className="replay-dlg" aria-label="Replay of your sheet" onClick={(e) => e.target === e.currentTarget && replayDlg.current!.close()}>
         <div className="replay-box sheet" style={{ ["--aspect" as string]: dims.w / dims.h }}>
-          <ReplayCanvas key={replayKey} strokes={allStrokes} layers={layers} paper={paper} shape={shape} mode="once" label="Your sheet, replaying" />
+          <ReplayCanvas key={replayKey} strokes={allStrokes} layers={layers} anim={anim} paper={paper} shape={shape} mode="once" label="Your sheet, replaying" />
           <div className="row"><span className="kicker">{plural(drawn, "stroke")} · {fmtMin(ms / 60000)}</span><button className="btn btn-quiet" onClick={() => replayDlg.current!.close()}>Close</button></div>
         </div>
       </dialog>

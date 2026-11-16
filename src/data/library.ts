@@ -1,4 +1,5 @@
 import { decode, encode } from "../engine/codec";
+import type { Anim } from "../engine/frames";
 import type { PaperId } from "../engine/paper";
 import { drawnCount, type LayerDef, type ShapeId, type Stroke } from "../engine/stroke";
 
@@ -28,6 +29,8 @@ export interface SheetMeta {
   subject?: boolean;
   /** the gallery piece it was pinned as */
   pinned?: string;
+  /** a pixel sheet's frames, once it has more than one */
+  anim?: Anim;
   thumb?: Blob;
 }
 export interface Sheet extends SheetMeta {
