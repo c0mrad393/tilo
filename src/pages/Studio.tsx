@@ -8,7 +8,7 @@ import { ACCOUNTS, useAccount } from "../data/account";
 import { pinPiece } from "../data/local";
 import { findPiece, getPiece, isPublished, publish } from "../data/pieces";
 import { PROMPT, publishedSample } from "../data/prompt";
-import { download, fileName, pictureBlob, thumbnail, timelapse, videoType } from "../engine/export";
+import { download, fileName, gifSizes, loopGif, pictureBlob, thumbnail, timelapse, videoType } from "../engine/export";
 import { drawGuides, handleAt, snapDirection } from "../engine/guides";
 import { cleanMs, frameAt, isAnimated, liveFrames, MAX_FRAMES, MS_DEFAULT, MS_MAX, MS_MIN, MS_STEP, nextFrameId, type Anim, type FrameDef } from "../engine/frames";
 import { Painter } from "../engine/painter";
@@ -1464,7 +1464,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     nav("/gallery?sort=new", { viewTransition: true });
   };
 
-  const [busy, setBusy] = useState<null | "png" | "video">(null);
+  const [busy, setBusy] = useState<null | "png" | "gif" | "video">(null);
   const [progress, setProgress] = useState(0);
   const [scale, setScale] = useState(1);
   // a pixel sheet also saves at its true size, one pixel a cell
@@ -1478,8 +1478,10 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     try {
       // a frame's pause first, so the button can show it is working before the heavy part
       await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
-      download(await pictureBlob(all(), layers, clearBg ? null : paper, scale, dims), fileName(sheetTitle, "png"));
-      say("PNG saved");
+      // a sheet with frames saves the frame on the sheet
+      const out = settle(layers, anim);
+      download(await pictureBlob(all(), out.layers, clearBg ? null : paper, scale, dims, out.anim ? frame : undefined), fileName(sheetTitle, "png"));
+      say(out.anim ? `PNG of frame ${frameNo + 1} saved` : "PNG saved");
     } catch {
       say("The picture couldn't be made in this browser");
     }
@@ -1491,7 +1493,8 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     setBusy("video");
     setProgress(0);
     try {
-      const { blob, ext } = await timelapse(all(), layers, paper, ms / 60000, { onProgress: setProgress, signal: ac.signal, sheet: dims });
+      const out = settle(layers, anim);
+      const { blob, ext } = await timelapse(all(), out.layers, paper, ms / 60000, { onProgress: setProgress, signal: ac.signal, sheet: dims, anim: out.anim, grid: dims.grid });
       download(blob, fileName(sheetTitle || "tilo-timelapse", ext));
       say("Timelapse saved");
     } catch (err) {
@@ -1501,6 +1504,22 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
     setBusy(null);
   };
   const video = videoType();
+  const moving = pixel && !!anim && isAnimated({ anim });
+  const gifCells = dims.grid ? gifSizes(dims.grid, dims) : [1];
+  const [gifCell, setGifCell] = useState(1);
+  const saveGIF = async () => {
+    if (!anim || !dims.grid) return;
+    setBusy("gif");
+    try {
+      await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+      const cell = gifCells.includes(gifCell) ? gifCell : 1;
+      download(loopGif(all(), layers, clearBg ? null : paper, anim, dims.grid, dims, cell), fileName(sheetTitle || "tilo-loop", "gif"));
+      say("GIF saved");
+    } catch {
+      say("The GIF couldn't be made in this browser");
+    }
+    setBusy(null);
+  };
 
   const activeLayer = shown.find((l) => l.id === active) ?? shown[shown.length - 1] ?? layers[0];
   const drawn = allStrokes.filter((s) => !isOp(s)).length;
@@ -1908,15 +1927,28 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
             <div className="seg" role="group" aria-label="Picture size" style={{ ["--n" as string]: exportScales.length }}>
               {exportScales.map((v) => <button key={v} aria-pressed={scale === v} onClick={() => setScale(v)}>{Math.round(dims.w * v)} × {Math.round(dims.h * v)}</button>)}
             </div>
-            {pixel && <p>{scale < 1 ? "One pixel a cell, the picture's true size." : "Every cell sharp, as on the sheet."}</p>}
+            {pixel && <p>{scale < 1 ? "One pixel a cell, the picture's true size." : "Every cell sharp, as on the sheet."}{anim && isAnimated({ anim }) ? ` This is frame ${frameNo + 1}.` : ""}</p>}
             <label className="check"><input type="checkbox" checked={clearBg} onChange={(e) => setClearBg(e.target.checked)} /> Leave out the paper (transparent)</label>
             <button className="btn btn-ink" onClick={savePNG} disabled={!!busy}><Icon name="download" />{busy === "png" ? "Making the PNG…" : "Download PNG"}</button>
           </section>
+          {moving && dims.grid && (
+            <section>
+              <h3>Animated GIF</h3>
+              <div className="seg" role="group" aria-label="GIF size" style={{ ["--n" as string]: gifCells.length }}>
+                {gifCells.map((v) => {
+                  const g = gridOf(dims.grid!, dims);
+                  return <button key={v} aria-pressed={(gifCells.includes(gifCell) ? gifCell : 1) === v} onClick={() => setGifCell(v)}>{g.cols * v} × {g.rows * v}</button>;
+                })}
+              </div>
+              <p>The loop{anim?.bounce && liveFrames(anim).length > 2 ? ", forward and back," : ""} with each frame's time, playing for ever. {gifCell > 1 && gifCells.includes(gifCell) ? "Every cell sharp." : "One pixel a cell."} Made here in the browser{clearBg ? ", with no paper" : ""}.</p>
+              <button className="btn btn-line" onClick={saveGIF} disabled={!!busy}><Icon name="download" />{busy === "gif" ? "Making the GIF…" : "Download GIF"}</button>
+            </section>
+          )}
           <section>
             <h3>Timelapse</h3>
             {video ? (
               <>
-                <p>Your recording played back as {video[1] === "mp4" ? "an MP4" : "a WebM"} video, made here in the browser. It plays in real time, so keep this tab open.</p>
+                <p>Your recording played back as {video[1] === "mp4" ? "an MP4" : "a WebM"} video, made here in the browser{moving ? ", then the loop" : ""}. It plays in real time, so keep this tab open.</p>
                 {busy === "video" ? (
                   <div className="progress-row">
                     <progress max={1} value={progress} aria-label="Making the timelapse" />

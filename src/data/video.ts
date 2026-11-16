@@ -1,12 +1,13 @@
 import { letters } from "../components/Logo";
 import { eventOn } from "./event";
+import { isAnimated } from "../engine/frames";
 import { Replayer } from "../engine/replay";
-import { drawnCount, fmtMin, layersOf, sizeOf, type Piece } from "../engine/stroke";
+import { drawnCount, fmtMin, layersOf, SHAPES, sizeOf, type Piece } from "../engine/stroke";
 
 /* A piece's replay as a 9:16 video to post: the sheet drawing itself stroke by stroke, its
    title and who made it under it, and where to watch it. Drawn on a canvas in the browser and
    recorded as it plays (MediaRecorder), so nothing is sent anywhere and it takes as long as it
-   runs, about fifteen seconds. MP4 where the browser can write it (Safari, Chrome), WebM
+   runs, about fifteen seconds; an animation then plays its loop for about four more. MP4 where the browser can write it (Safari, Chrome), WebM
    elsewhere. An AI piece says it was drawn in code, by Claude; only a piece with the
    proof-of-hand badge says "by hand". */
 
@@ -70,7 +71,8 @@ export async function recordReplay(p: VideoPiece, onProgress: (k: number) => voi
   const plate = document.createElement("canvas");
   plate.width = pw;
   plate.height = ph;
-  const rep = new Replayer(plate, p.strokes, p.paper ?? "smooth", sheet.w, layersOf(p).map((l) => ({ ...l })), sheet.h);
+  const rep = new Replayer(plate, p.strokes, p.paper ?? "smooth", sheet.w, layersOf(p).map((l) => ({ ...l })), sheet.h, { anim: p.anim, grid: SHAPES[p.shape ?? "land"]?.grid });
+  const moving = isAnimated(p);
 
   // the wordmark, written once
   const logo = document.createElement("canvas");
@@ -112,7 +114,9 @@ export async function recordReplay(p: VideoPiece, onProgress: (k: number) => voi
   const title = p.title || "Untitled";
   const kicker = p.prompt ? `Subject No. ${p.prompt}` : dusk ? "Release week on Tilo" : "A replay from Tilo";
   const total = drawnCount(p.strokes);
-  const INTRO = 0.7, RUN = Math.min(14, Math.max(8, 6 + total * 0.004)), OUTRO = 3.2, END = INTRO + RUN + OUTRO;
+  // an animation's loop plays on after the last stroke, through the end
+  const LOOP = moving ? Math.max(4, Math.min(8, (rep.loopMs * 2) / 1000)) : 0;
+  const INTRO = 0.7, RUN = Math.min(14, Math.max(8, 6 + total * 0.004)), OUTRO = 3.2, END = INTRO + RUN + LOOP + OUTRO;
 
   const frame = (t: number) => {
     const pos = Math.min(1, Math.max(0, (t - INTRO) / RUN));
@@ -133,7 +137,8 @@ export async function recordReplay(p: VideoPiece, onProgress: (k: number) => voi
     x.fillStyle = PAPER;
     x.fillRect(px, py, pw, ph);
     x.restore();
-    rep.draw(pos);
+    if (moving && t > INTRO + RUN) rep.loop((t - INTRO - RUN) * 1000);
+    else rep.draw(pos);
     x.drawImage(plate, px, py);
     x.strokeStyle = dusk ? "rgba(251,250,245,0.7)" : "rgba(29,27,25,0.55)";
     x.lineWidth = 2;
@@ -178,7 +183,7 @@ export async function recordReplay(p: VideoPiece, onProgress: (k: number) => voi
     x.fillText(madeLine(p), 540, below + 64, 960);
 
     // the end: where to watch it
-    const out = Math.min(1, Math.max(0, (t - INTRO - RUN) / 0.5));
+    const out = Math.min(1, Math.max(0, (t - INTRO - RUN - LOOP) / 0.5));
     x.globalAlpha = 0.55 + 0.45 * out;
     x.fillStyle = dusk ? YELLOW : SOFT;
     x.font = `700 28px ${SANS}`;

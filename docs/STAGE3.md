@@ -243,6 +243,11 @@ Under the sheet on a pixel sheet, a **frame strip**:
    the app is pushed.
 5. GIF export, then the video path.
 
+Built in 0.12 (migration 0017; `src/engine/frames.ts`, `src/engine/gif.ts`, the frame strip
+in `Studio.tsx`, `loopGif` in `server/api/src/screen/worker.ts`). The GIF export offers one
+pixel a cell or the biggest whole multiple up to 1024 across, honours "Leave out the paper",
+and plays forward and back when the loop does.
+
 ### Why drawing sheets wait
 
 Frames work on any sheet in the engine. But a drawing sheet's layer is about 8 MB in the

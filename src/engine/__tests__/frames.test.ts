@@ -128,6 +128,19 @@ describe.skipIf(!skia)("painting frames", () => {
     expect([at(c, 80, 80), at(c, 89, 89), at(c, 79, 80), at(c, 90, 80)]).toEqual([RED, RED, WHITE, WHITE]);
   });
 
+  it("exports the loop as a GIF with each frame's time, cells kept square", async () => {
+    const { loopGif } = await import("../export");
+    const blob = loopGif(STROKES, LAYERS.map((l) => ({ ...l })), "plain", ANIM, 16, { w: 1280, h: 1280 }, 3);
+    const b = new Uint8Array(await blob.arrayBuffer());
+    expect(blob.type).toBe("image/gif");
+    expect(String.fromCharCode(...b.subarray(0, 6))).toBe("GIF89a");
+    expect([b[6] | (b[7] << 8), b[8] | (b[9] << 8)]).toEqual([48, 48]);
+    // three frames, at 100, 200 and 100 ms (in hundredths of a second)
+    const delays: number[] = [];
+    for (let i = 0; i < b.length - 7; i++) if (b[i] === 0x21 && b[i + 1] === 0xf9 && b[i + 2] === 4) delays.push(b[i + 4] | (b[i + 5] << 8));
+    expect(delays).toEqual([10, 20, 10]);
+  });
+
   it("leaves a still's replay as it was", () => {
     const c = skia!.createCanvas(160, 160);
     const rep = new Replayer(c, STROKES.slice(0, 1), "plain", 1280, [LAYERS[0]], 1280, { anim: { frames: [{ id: 0, ms: 100 }] }, grid: 16 });
