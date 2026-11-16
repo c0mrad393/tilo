@@ -1443,7 +1443,7 @@ button.stamp[aria-pressed="true"] {
 .studio {
   height: 100dvh;
   display: grid;
-  grid-template-columns: 104px minmax(0, 1fr) 300px;
+  grid-template-columns: 104px minmax(0, 1fr) clamp(288px, 21vw, 340px);
   grid-template-rows: auto minmax(0, 1fr);
 }
 .studio-top {
@@ -1784,16 +1784,112 @@ button.stamp[aria-pressed="true"] {
 
 .studio-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  gap: 14px;
-  padding: 16px;
+  gap: 10px;
+  padding: 0 12px 12px;
   overflow: auto;
+  overscroll-behavior: contain;
   border-left: 1px solid var(--rule-soft);
 }
 .panel-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 12px 14px;
+}
+/* Draw and Sheet: the panel's two pages on a wide screen, kept in view as it scrolls */
+.panel-sides {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 0 -12px;
+  padding: 8px 12px 6px;
+  background: var(--ground);
+}
+.panel-sides button {
+  min-height: 32px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ground-soft);
+  background: none;
+  border: 1.5px solid var(--rule-soft);
+  cursor: pointer;
+}
+.panel-sides button:hover {
+  color: var(--ground-ink);
+}
+.panel-sides button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--paper);
+  border-color: var(--paper);
+}
+@media (min-width: 861px) {
+  .studio-panel[data-side="draw"] .panel-card:not([data-tab="colour"], [data-tab="brush"], [data-tab="layers"]),
+  .studio-panel[data-side="sheet"] .panel-card:is([data-tab="colour"], [data-tab="brush"], [data-tab="layers"]) {
+    display: none;
+  }
+}
+/* a short screen (a laptop at 768 or 800 high): tighter, so Draw fits without scrolling */
+@media (min-width: 861px) and (max-height: 820px) {
+  .studio-panel {
+    gap: 8px;
+  }
+  .panel-card {
+    gap: 6px;
+    padding: 8px 12px;
+  }
+  .panel-card .hint-keys {
+    display: none;
+  }
+  .panel-sides {
+    padding: 6px 12px 4px;
+  }
+}
+/* a short laptop screen worked with a mouse or trackpad: the panel's buttons can be smaller
+   than finger size, and the tool rail closer together, so Draw fits without scrolling */
+@media (min-width: 861px) and (max-height: 760px) and (pointer: fine) {
+  .panel-card .chip-btn {
+    height: 34px;
+  }
+  .panel-card .mix-btn {
+    min-height: 34px;
+  }
+  .panel-card .card-head .icon-btn,
+  .panel-card .row-btns .icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+  .panel-card .card-head {
+    margin-top: -6px;
+  }
+  .panel-sides {
+    padding: 4px 12px;
+  }
+  .panel-sides button {
+    min-height: 28px;
+  }
+  .studio-panel {
+    padding-bottom: 8px;
+  }
+  .studio-tools {
+    gap: 8px;
+    padding: 8px 0;
+  }
+}
+/* a browser on a 1366 × 768 laptop leaves about 650: the size preview dot goes too */
+@media (min-width: 861px) and (max-height: 700px) {
+  .panel-card > .dot,
+  .panel-card[data-tab="brush"] > .hint {
+    display: none;
+  }
 }
 /* a touch screen has no Alt key to hold */
 @media (hover: none) and (pointer: coarse) {
@@ -1815,6 +1911,21 @@ button.stamp[aria-pressed="true"] {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
+}
+/* a pixel palette is 16 colours or more: eight to a row, on a wide screen with a mouse */
+@media (min-width: 861px) and (pointer: fine) {
+  .pal.is-pixel {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+  .pal.is-pixel .chip-btn {
+    width: auto;
+    height: 30px;
+  }
+  .pal.is-pixel .chip {
+    width: 20px;
+    height: 20px;
+  }
 }
 .check {
   display: flex;
@@ -2126,6 +2237,33 @@ button.stamp[aria-pressed="true"] {
   font-size: 13px;
   color: var(--ink-soft);
 }
+/* the keys fold away; the summary is the card's heading, with a mark that turns */
+.keys-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  cursor: pointer;
+  list-style: none;
+}
+.keys-card summary::-webkit-details-marker {
+  display: none;
+}
+.keys-card summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.15s;
+}
+.keys-card[open] summary::after {
+  transform: translateY(2px) rotate(-135deg);
+}
+.keys-card .keys {
+  margin: 0;
+}
 .keys {
   font-size: 13px;
   line-height: 2.1;
@@ -2315,6 +2453,9 @@ dialog::backdrop {
     padding: 0 0 env(safe-area-inset-bottom, 0px);
     border-left: 0;
     border-top: 1px solid var(--rule-soft);
+  }
+  .panel-sides {
+    display: none;
   }
   .panel-tabs {
     display: flex;

@@ -246,6 +246,22 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
   const [mixing, setMixing] = useState(false);
   // on a narrow screen the settings fold into tabs under the sheet; none open leaves the sheet the room
   const [tab, setTab] = useState<PanelTab | null>(null);
+  // on a wide screen the side panel has two pages: what you draw with, and the sheet's settings
+  const [side, setSide] = useState<"draw" | "sheet">(() => {
+    try {
+      return localStorage.getItem("tilo.panel") === "sheet" ? "sheet" : "draw";
+    } catch {
+      return "draw";
+    }
+  });
+  const pickSide = (v: "draw" | "sheet") => {
+    setSide(v);
+    try {
+      localStorage.setItem("tilo.panel", v);
+    } catch {
+      /* private mode: it just isn't remembered */
+    }
+  };
   const [size, setSize] = useState(kid ? 16 : 8);
   // a pixel brush is 1 to 4 cells across
   const [pxSize, setPxSize] = useState(1);
@@ -1651,7 +1667,11 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
         </section>
       )}
 
-      <aside className="studio-panel" aria-label="Sheet settings" data-tab={tab ?? "none"}>
+      <aside className="studio-panel" aria-label="Sheet settings" data-tab={tab ?? "none"} data-side={side}>
+        <div className="panel-sides" role="group" aria-label="Panel">
+          <button aria-pressed={side === "draw"} onClick={() => pickSide("draw")}>Draw</button>
+          <button aria-pressed={side === "sheet"} onClick={() => pickSide("sheet")}>Sheet</button>
+        </div>
         <div className="panel-tabs" role="group" aria-label="Settings">
           {PANEL_TABS.filter(([k]) => !kid || k !== "layers").map(([k, label]) => (
             <button key={k} className="panel-tab" aria-pressed={tab === k} aria-controls={`panel-${k}`} onClick={() => setTab((t) => (t === k ? null : k))}>
@@ -1680,7 +1700,7 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
               </select>
             </label>
           )}
-          <div className="pal">
+          <div className={pixel ? "pal is-pixel" : "pal"}>
             {palette.map((c, i) => (
               <button key={c} className="chip-btn" aria-pressed={c === color} aria-label={`Colour ${promptMode ? PROMPT.names[i] : c}`} onClick={() => setColor(c)}>
                 <span className="chip" style={{ ["--c" as string]: c }} />
@@ -1876,14 +1896,14 @@ export function Studio({ sheet, seat }: { sheet: Sheet; seat?: Seat }) {
           )}
         </section>
 
-        {!kid && <section className="sheet panel-card opt">
-          <h2 className="kicker">Keys</h2>
+        {!kid && <details className="sheet panel-card opt keys-card">
+          <summary className="kicker">Keys</summary>
           <p className="keys">
             {(Object.keys(TOOLS) as ToolId[]).filter((t) => isPixelTool(t) === pixel).map((t) => <span key={t}><kbd>{TOOLS[t].key.toUpperCase()}</kbd> {TOOLS[t].label.toLowerCase()} </span>)}
             <span><kbd>[</kbd> <kbd>]</kbd> size </span><span><kbd>⌘Z</kbd> undo </span><span><kbd>Shift</kbd> straight line </span><span><kbd>Space</kbd> drag to move </span><span><kbd>⌘</kbd>+scroll or pinch to zoom </span><span><kbd>0</kbd> fit </span><span><kbd>R</kbd> <kbd>⇧R</kbd> turn </span><span><kbd>H</kbd> mirror view </span><span><kbd>Alt</kbd>+click pick colour </span>{pixel ? (!seat && <span><kbd>,</kbd> <kbd>.</kbd> frame before and after </span>) : <span><kbd>Enter</kbd> <kbd>Esc</kbd> put a selection down or back</span>}
             {pixel && !seat && <><span><kbd>N</kbd> new frame </span><span><kbd>D</kbd> copy frame </span><span><kbd>K</kbd> play </span><span><kbd>O</kbd> onion skin</span></>}
           </p>
-        </section>}
+        </details>}
         </div>
       </aside>
 
