@@ -26,7 +26,7 @@ const NIGHT = "#1B1426", PINKS = "#FF4F9A", TEAL = "#22E1D8";
 const SKY = ["#24124A", "#4E2580", "#A2348E", "#F0507A", "#FF8A5C", "#FFC46A"];
 const wallPic = await loadImage(join(HERE, "out", "wall-strip.png"));
 const piece = (id: string) => samples().find((p) => p.id === id)!;
-const strip = plate(piece("sunstrip"), 940), motel = plate(piece("neonmotel"), 940), loading = plate(piece("loadingme"), 560);
+const strip = plate(piece("sunstrip"), 940), gas = plate(piece("lastgas"), 940), loading = plate(piece("loadingme"), 560);
 const inks = SUBJECTS.find((s) => s.event === "release")!.palette;
 
 /** the dusk the whole video sits in: a sky in bands, a striped sun low down, stars */
@@ -194,14 +194,14 @@ function frame(x: SKRSContext2D, t: number) {
     const k = span(t, mid - 0.25, mid + 0.25, inOut);
     x.globalAlpha = a * (1 - k);
     if (k < 1) {
-      strip.rep.draw(span(t, s.start, mid, (q) => q));
-      drawPlate(x, strip, 70, 590);
+      gas.rep.draw(span(t, s.start, mid, (q) => q));
+      drawPlate(x, gas, 70, 590);
       trace(x, 70, 1330, 940, span(t, s.start, mid, (q) => q));
     }
     x.globalAlpha = a * k;
     if (k > 0) {
-      motel.rep.draw(span(t, mid, s.end - 0.3, (q) => q));
-      drawPlate(x, motel, 70, 590);
+      strip.rep.draw(span(t, mid, s.end - 0.3, (q) => q));
+      drawPlate(x, strip, 70, 590);
       trace(x, 70, 1330, 940, span(t, mid, s.end - 0.3, (q) => q));
     }
     x.globalAlpha = 1;
