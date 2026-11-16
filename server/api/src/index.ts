@@ -67,7 +67,7 @@ app.route(
 );
 
 // link previews; Caddy sends crawlers asking for /piece/{id} and /u/{handle} here
-app.route("/og", preview(sql, { publicUrl: site }));
+app.route("/og", preview(sql, { publicUrl: site, filesDir }));
 
 app.route("/pieces", pieces(sql, { member, filesDir, perDay: Number(process.env.PUBLISH_PER_DAY ?? 20), screener: screen, site, purge }));
 

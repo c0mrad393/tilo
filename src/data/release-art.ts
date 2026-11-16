@@ -1,5 +1,5 @@
 import type { Pt, Sketch } from "../engine/sketch";
-import { blob, crossings, ellipse, mix, ramp, sky, soft, speckle } from "./art";
+import { below, blob, crossings, ellipse, mix, ramp, ridge, sky, soft, speckle } from "./art";
 
 /* Release week's sample pieces (data/event.ts): Claude, an AI, drew them in code, in a sunset
    mood, while people wait for GTA VI. They are our own pictures: no character, logo, place or
@@ -337,4 +337,133 @@ export function genLoading(S: Sketch) {
   S.lasso(box(0, H - 30, W, 30), INK);
   S.lasso(box(0, 0, 30, H), INK);
   S.lasso(box(W - 30, 0, 30, H), INK);
+}
+
+/* ---- 4. the last gas before the coast: a lilac dusk, a roadside station, a car pulling out ----
+   The mood of a famous key art (a violet dusk on a road with palms, a station, an old car),
+   none of its things: no people, no names or logos, nothing written anywhere. */
+export function genStation(S: Sketch) {
+  const W = 1600, HZ = 820;
+  // the sky: deep lilac at the top to peach on the horizon, long pink streaks across
+  sky(S, 0, W, 0, HZ + 20, ["#4B3F8F", "#6656A8", "#8C70BE", "#B985C6", "#E59BBE", "#FFB8A8", "#FFD2A6"], 40);
+  for (let k = 0; k < 9; k++) {
+    const y = 130 + k * 62 + S.R() * 30, x0 = -100 + S.R() * 600, len = 500 + S.R() * 900;
+    S.alpha = 0.35 + S.R() * 0.2;
+    S.path(bend([x0, y + 30], [x0 + len * 0.5, y - 10], [x0 + len, y + 20], 14), "marker", k % 2 ? "#FFA6D2" : "#F08CC8", 8 + S.R() * 14, (t) => 0.3 + Math.sin(t * Math.PI) * 0.7);
+  }
+  S.alpha = 1;
+  // a contrail, and the plane at its head
+  S.alpha = 0.55;
+  S.path(bend([90, 610], [260, 470], [420, 330], 12), "marker", "#F4E8FF", 9, (t) => 0.2 + t * 0.8);
+  S.alpha = 1;
+  S.lasso([[420, 330], [452, 318], [458, 322], [430, 336]], "#3A2F6A");
+  S.lasso([[436, 326], [430, 306], [440, 306], [448, 322]], "#3A2F6A");
+  S.lasso([[436, 330], [444, 346], [452, 344], [446, 328]], "#3A2F6A");
+  for (const [gx, gy, g] of [[930, 560, 1], [975, 590, 0.7]]) S.poly([[gx, gy], [gx + 16 * g, gy - 10 * g], [gx + 32 * g, gy], [gx + 48 * g, gy - 10 * g], [gx + 64 * g, gy]], "ink", "#3A2F6A", 4, 0.3);
+
+  // far palms, pale with the haze, and the low scrub on the horizon
+  const haze = "#8A78C0";
+  for (const [x, h, l, s] of [[260, 470, -20, 0.6], [430, 560, 30, 0.7], [1180, 520, 40, 0.65], [1330, 420, -30, 0.55], [1470, 610, 20, 0.75]] as [number, number, number, number][]) palm(S, x, HZ + 10, h, l, s, haze);
+  S.lasso(below(ridge(0, W, HZ + 4, (x) => 10 + Math.sin(x / 90) * 8, 10, 31), HZ + 40), "#7F6DB5");
+
+  // the power line along the road: poles and three wires sagging between them
+  const poles = [1080, 1300, 1520];
+  for (const x of poles) {
+    S.line(x, HZ + 30, x + 4, HZ - 330 + (x - 1080) * 0.25, "brushpen", "#4A3E7E", 12, 0.2);
+    S.line(x - 40, HZ - 300 + (x - 1080) * 0.25, x + 48, HZ - 304 + (x - 1080) * 0.25, "brushpen", "#4A3E7E", 8, 0.2);
+  }
+  for (let wi = 0; wi < 3; wi++)
+    for (let i = -1; i < poles.length; i++) {
+      const xa = i < 0 ? -400 : poles[i], xb = i + 1 < poles.length ? poles[i + 1] : W + 200;
+      const ya = HZ - 300 + (xa - 1080) * 0.25 + wi * 0 - 6, yb = HZ - 300 + (xb - 1080) * 0.25 - 6;
+      const dx = [-34, 4, 40][wi];
+      S.path(bend([xa + dx, ya], [(xa + xb) / 2 + dx, (ya + yb) / 2 + 60], [xb + dx, yb], 14), "ink", "#4A3E7E", 3, () => 0.7);
+    }
+
+  // the shop behind the canopy: a long flat box, warm windows, a striped fascia, nothing written
+  const shopL = 120, shopR = 760, shopTop = 610, base = HZ + 40;
+  S.lasso(box(shopL, shopTop, shopR - shopL, base - shopTop), "#7C82C8");
+  S.lasso(box(shopL - 10, shopTop - 40, shopR - shopL + 20, 50), "#E9E2F4");
+  S.lasso(box(shopL - 10, shopTop - 14, shopR - shopL + 20, 12), "#F2C14E");
+  S.lasso(box(shopL - 10, shopTop + 8, shopR - shopL + 20, 22), "#5E64A8");
+  for (let k = 0; k < 6; k++) {
+    const x = shopL + 30 + k * 104;
+    S.lasso(box(x, shopTop + 60, 84, 120), k === 2 ? "#5E64A8" : "#FFD98A");
+    S.alpha = 0.35;
+    S.lasso(box(x, shopTop + 60, 84, 40), "#FFF3C8");
+    S.alpha = 1;
+    S.line(x + 42, shopTop + 60, x + 42, shopTop + 180, "ink", "#5E64A8", 4, 0.1);
+  }
+  S.lasso(box(shopL + 238, shopTop + 50, 84, 150), "#3E3F80");
+  // the canopy over the pumps, seen from the road: a deep slab on four posts, lit underneath
+  const cL = 420, cR = 1180, cTop = 520, cBot = 600;
+  for (const x of [470, 700, 920, 1130]) S.lasso(box(x - 14, cBot, 28, base - cBot + 30), "#6C6FB8");
+  S.lasso([[cL, cTop], [cR, cTop - 10], [cR, cBot - 6], [cL, cBot]], "#EDE6F6");
+  S.lasso([[cL, cTop + 46], [cR, cTop + 36], [cR, cTop + 52], [cL, cTop + 62]], "#F2C14E");
+  S.lasso([[cL, cBot], [cR, cBot - 6], [cR - 30, cBot + 18], [cL + 30, cBot + 22]], "#9C8FD0");
+  for (const x of [520, 640, 760, 880, 1000, 1110]) {
+    S.lasso(box(x, cBot + 8, 50, 8), "#FFF6D8");
+    S.alpha = 0.18;
+    soft(S, x + 25, cBot + 120, 110, "#FFF0C8", 0.5, 1.2, 10);
+    S.alpha = 1;
+  }
+  // the pumps, plain boxes with a lit face
+  for (const x of [560, 790, 1010]) {
+    S.lasso(box(x, base - 120, 60, 130), "#D9D2EE");
+    S.lasso(box(x + 10, base - 106, 40, 34), "#5E64A8");
+    S.lasso(box(x + 14, base - 102, 32, 12), "#9CF0E0");
+    S.lasso(box(x - 6, base + 6, 72, 10), "#7C82C8");
+  }
+  // the price pylon by the road: a tall post with blank lit panels
+  S.lasso(box(1240, 380, 24, base - 380 + 40), "#6C6FB8");
+  S.lasso(box(1190, 330, 124, 70), "#EDE6F6");
+  S.lasso(box(1190, 360, 124, 10), "#F2C14E");
+  for (let k = 0; k < 3; k++) S.lasso(box(1200, 410 + k * 46, 104, 36), "#3E3F80");
+
+  // the road and the forecourt: lavender asphalt, pink light lying on it
+  sky(S, 0, W, HZ + 40, 1200, ["#9D8CCB", "#8678BC", "#6E62A8", "#5A508F"], 14);
+  S.alpha = 0.3;
+  for (let k = 0; k < 6; k++) S.path([[0, HZ + 120 + k * 50], [W, HZ + 100 + k * 54]], "marker", "#F2A6C6", 20, () => 1);
+  S.alpha = 1;
+  for (let x = -40; x < W; x += 180) S.lasso([[x, 1080], [x + 110, 1078], [x + 106, 1092], [x - 4, 1094]], "#F2E3B8");
+  // a truck parked at the far end of the lot, long and pale in the haze
+  S.lasso(box(30, HZ - 70, 260, 120), "#8E86C8");
+  S.lasso([[290, HZ - 30], [360, HZ - 30], [380, HZ + 10], [380, HZ + 50], [290, HZ + 50]], "#7A72BA");
+  for (const wx of [70, 120, 330]) S.lasso(ellipse(wx, HZ + 54, 22, 22, 16), "#3E3F80");
+
+  // the car, an old fastback from behind, pulling out onto the road, its tail lights burning
+  const cx = 1080, cy = 1000, cw = 380;
+  S.alpha = 0.4;
+  soft(S, cx, cy + 20, 300, "#FF3A5A", 0.45, 0.45, 18);
+  S.alpha = 1;
+  S.lasso(ellipse(cx, cy + 96, cw * 0.62, 26, 30), "#2E2A58");
+  S.lasso([[cx - cw / 2, cy + 80], [cx - cw / 2 - 6, cy - 10], [cx - cw / 2 + 30, cy - 40], [cx + cw / 2 - 30, cy - 40], [cx + cw / 2 + 6, cy - 10], [cx + cw / 2, cy + 80]], "#4C4A86");
+  S.lasso([[cx - cw / 2 + 40, cy - 40], [cx - 110, cy - 130], [cx + 110, cy - 130], [cx + cw / 2 - 40, cy - 40]], "#5B5898");
+  S.lasso([[cx - cw / 2 + 64, cy - 46], [cx - 100, cy - 120], [cx + 100, cy - 120], [cx + cw / 2 - 64, cy - 46]], "#2E2C5C");
+  S.alpha = 0.45;
+  S.lasso([[cx - 90, cy - 116], [cx - 40, cy - 116], [cx - 120, cy - 52], [cx - 160, cy - 50]], "#C7B8F0");
+  S.alpha = 1;
+  S.lasso(box(cx - cw / 2 - 4, cy - 14, cw + 8, 10), "#9C96D6");
+  // the tail panel: three lit bars a side, a blank plate between
+  S.lasso(box(cx - cw / 2 + 10, cy + 4, cw - 20, 44), "#2A1E3E");
+  for (const side of [-1, 1])
+    for (let k = 0; k < 3; k++) {
+      const x = side < 0 ? cx - cw / 2 + 22 + k * 40 : cx + cw / 2 - 56 - k * 40;
+      S.lasso(box(x, cy + 12, 34, 28), "#FF4060");
+      S.alpha = 0.7;
+      S.lasso(box(x + 4, cy + 16, 26, 7), "#FFC8D0");
+      S.alpha = 1;
+    }
+  S.lasso(box(cx - 40, cy + 14, 80, 26), "#E9E2F4");
+  S.lasso(box(cx - cw / 2 - 8, cy + 50, cw + 16, 16), "#B9B4E2");
+  for (const side of [-1, 1]) S.lasso(box(cx + side * (cw / 2 - 40) - 34, cy + 66, 68, 34), "#1E1B3A");
+  // exhaust, drifting
+  S.alpha = 0.3;
+  S.path(bend([cx + 120, cy + 80], [cx + 180, cy + 70], [cx + 260, cy + 40], 8), "marker", "#E9E2F4", 34, (t) => 0.8 - t * 0.6);
+  S.alpha = 1;
+
+  // near palms, darker, framing the right side, and wires catching the last light
+  palm(S, 1430, 1200, 1000, -60, 1.1, "#3A2F6A");
+  palm(S, 1580, 1200, 760, 30, 0.9, "#3A2F6A");
+  palm(S, 40, 1200, 880, 40, 1, "#3A2F6A");
 }

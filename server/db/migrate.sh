@@ -56,15 +56,16 @@ if [ "${SAMPLES:-true}" = "true" ] && [ -z "$(psql -tAc "select 1 from tilo_meta
     -c "insert into tilo_meta.migrations (name) values ('seed:samples-pixel') on conflict do nothing"
 fi
 
-# Release week's samples (src/data/release-art.ts), once, the same way
-if [ "${SAMPLES:-true}" = "true" ] && [ -z "$(psql -tAc "select 1 from tilo_meta.migrations where name = 'seed:samples-release'")" ]; then
+# Release week's samples (src/data/release-art.ts), once, the same way. seed:samples-release-2
+# added "lastgas"; the rows already there are left as they are (on conflict do nothing).
+if [ "${SAMPLES:-true}" = "true" ] && [ -z "$(psql -tAc "select 1 from tilo_meta.migrations where name = 'seed:samples-release-2'")" ]; then
   echo "seed: release samples"
   mkdir -p /srv/files/rec /srv/files/img
   for f in /tilo/seed/samples/release/*.tl; do cp "$f" /srv/files/rec/; done
   for f in /tilo/seed/samples/release/*.webp; do cp "$f" /srv/files/img/; done
   chown 1000:1000 /srv/files/rec/tilo* /srv/files/img/tilo*
   psql -v ON_ERROR_STOP=1 -q -1 -f /tilo/seed/samples/release/pieces.sql \
-    -c "insert into tilo_meta.migrations (name) values ('seed:samples-release') on conflict do nothing"
+    -c "insert into tilo_meta.migrations (name) values ('seed:samples-release'), ('seed:samples-release-2') on conflict do nothing"
 fi
 
 # PostgREST caches the schema; tell it to look again

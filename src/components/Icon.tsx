@@ -38,6 +38,8 @@ const PATHS: Record<string, string> = {
   down: "M6 9l6 6 6-6",
   fit: "M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5",
   download: "M12 4v11 M7 10.5l5 5 5-5 M5 20h14",
+  share: "M12 15V3.5 M7.5 8L12 3.5 16.5 8 M5 12v8h14v-8",
+  film: "M4 5h16v14H4z M8 5v14 M16 5v14 M4 9.5h4 M4 14.5h4 M16 9.5h4 M16 14.5h4",
   sheets: "M7 3h10v14H7z M4 7v14h10 M10 7h4 M10 10h4",
   copy: "M9 9h11v11H9z M5 15H4V4h11v1",
   select: "M4 7V4h3 M10 4h3 M4 10v3 M16 4h1 M4 16v1 M11 11l9 3.5-4 1.5-1.5 4z",

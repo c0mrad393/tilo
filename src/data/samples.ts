@@ -3,7 +3,7 @@ import type { Piece } from "../engine/stroke";
 import { below, blob, ellipse, hatch, mix, noise, ramp, ridge, sky, soft, speckle } from "./art";
 import { FIRST_SUBJECT, SAMPLE_BY } from "./prompt";
 import { genKhinkali, genNarikala, genPomegranate, genSunset } from "./pixel-art";
-import { genLoading, genMotel, genStrip } from "./release-art";
+import { genLoading, genMotel, genStation, genStrip } from "./release-art";
 
 export { PROMPT, publishedSample, SAMPLE_ACCOUNT, SAMPLE_BY, STAMP_COLOR, STAMPS } from "./prompt";
 
@@ -765,9 +765,10 @@ const DEFS: Def[] = [
   { id: "sunstrip", title: "The strip, the night before", minutes: 45, gen: genStrip, by: SAMPLE_BY },
   { id: "neonmotel", title: "A motel at two in the morning", minutes: 40, gen: genMotel, by: SAMPLE_BY },
   { id: "loadingme", title: "Someone, as a loading screen", minutes: 10, shape: "port", prompt: FIRST_SUBJECT.no + 1, gen: genLoading, by: SAMPLE_BY },
+  { id: "lastgas", title: "Last gas before the coast", minutes: 50, gen: genStation, by: SAMPLE_BY },
 ];
 /** the samples added for Release week, seeded on their own by migrate.sh */
-export const RELEASE = ["sunstrip", "neonmotel", "loadingme"];
+export const RELEASE = ["sunstrip", "neonmotel", "loadingme", "lastgas"];
 const TILTS = [-2.2, 1.6, -0.8, 2.4, -1.4, 1, -2.6, 0.7];
 
 /** whether an id is one of the samples, without drawing them */

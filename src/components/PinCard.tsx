@@ -5,6 +5,7 @@ import { drawnCount, fmtMin, isPixelShape, type Piece, type ShapeId, type Stroke
 import { STAMP_COLOR } from "../data/prompt";
 import { usePicture } from "./Moderation";
 import { ReplayCanvas } from "./ReplayCanvas";
+import { ShareButton } from "./Share";
 
 export function Stamp({ name, count, tilt = -2 }: { name: string; count?: number; tilt?: number }) {
   return (
@@ -75,7 +76,9 @@ export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: 
     if (!strokes) loadStrokes(piece.id, piece.status === "live").then(setStrokes, () => {});
   };
   const top = Object.entries(piece.stamps || {}).sort((a, b) => b[1] - a[1]).slice(0, 2);
+  const live = piece.status === "live";
   return (
+    <div className="card-host">
     <Link
       to={`/piece/${piece.id}`}
       viewTransition
@@ -109,5 +112,20 @@ export function PlateCard({ piece, index = 0, no }: { piece: Published; index?: 
         </span>
       )}
     </Link>
+    {live && (
+      <ShareButton
+        className="icon-btn card-share"
+        label=""
+        target={{
+          id: piece.id,
+          title: piece.title,
+          by: piece.by,
+          ai: piece.ai,
+          published: true,
+          load: async () => ({ ...piece, strokes: strokes ?? (await loadStrokes(piece.id, true)) }),
+        }}
+      />
+    )}
+    </div>
   );
 }

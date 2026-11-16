@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { Icon } from "../components/Icon";
+import { ShareButton } from "../components/Share";
 import { ModTools, ReportButton, WHY_FOR_ARTIST } from "../components/Moderation";
 import { Trace } from "../components/Trace";
 import { ACCOUNTS, useAccount } from "../data/account";
@@ -316,6 +317,11 @@ export function PiecePage() {
           <Lineage key={piece.id} piece={piece} closed={closed || out} />
           <div className="piece-actions">
             <button className="btn btn-ink" disabled={closed || out} onClick={() => nav(`/studio?remix=${piece.id}`, { viewTransition: true })}><Icon name="remix" />{piece.ai ? "Remix it by hand" : "Remix in studio"}</button>
+            {(published ? !out : true) && (
+              <ShareButton
+                target={{ id: piece.id, title: piece.title, by: piece.by, ai: piece.ai, published: !!published, load: async () => ({ ...piece, proof: !!published?.proof }) }}
+              />
+            )}
             {yours && <TakeDown piece={published!} />}
             {published && !yours && !out && <ReportButton target={{ piece: published.id }} label="this piece" />}
           </div>
