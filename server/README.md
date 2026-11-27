@@ -190,8 +190,9 @@ refuses a database that already has Tilo in it. Delete the key from the server a
 
 ## The VPS
 
-netcup VPS 500 G12.5 (2 vCPU, 4 GB, 64 GB), Debian 13, `62.83.82.133`, set up on 2026-11-04;
-the stack has run there since 2026-11-05 (rsync, which deploys need, is installed by hand):
+How tiloart.com's server was set up, for anyone hosting Tilo the same way. It was a netcup
+VPS 500 G12.5 (2 vCPU, 4 GB, 64 GB) with Debian 13, from 2026-11-05 until Tilo closed on
+2026-11-27 (rsync, which deploys need, was installed by hand):
 
 - Only the user `tilo` (sudo without a password, in the `docker` group) can log in, with an SSH
   key; root and password logins are off (`/etc/ssh/sshd_config.d/10-tilo.conf`). On the Mac,
