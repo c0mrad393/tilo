@@ -115,7 +115,7 @@ Once a day tilo-api calls `public.prune_sign_ins()`, which deletes Auth's sign-i
 
 ## The edge
 
-On tiloart.com, the Cloudflare Worker "tilo" (`worker/index.ts`, `wrangler.jsonc`) serves
+On tiloart.com, the Cloudflare Worker "tilo" (`worker/index.ts`, `wrangler.app.jsonc`) serves
 the built app itself, so the studio keeps working when the server is down. It sends
 `/auth/v1`, `/rest/v1`, `/api` and `/files`, and crawlers asking for `/piece/*` or `/u/*`,
 to the VPS through a Cloudflare Tunnel: `cloudflared` runs in the stack (the `server`

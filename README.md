@@ -59,8 +59,8 @@ npm test           # the engine's and the feed's tests
 - `src/components`, `src/pages`: the React UI
 - `src/styles`: design tokens, base, materials and app styles
 - `server/`: the server stack, its migrations, the API (`server/api`), backups and ops scripts
-- `worker/`: the Cloudflare Worker that served tiloart.com
-- `closed/`: the page tiloart.com shows now that Tilo is closed
+- `worker/`, `wrangler.app.jsonc`: the Cloudflare Worker that served tiloart.com
+- `closed/`, `wrangler.jsonc`: the page tiloart.com shows now that Tilo is closed
 - `docs/`: the plans, stage by stage ([docs/ROADMAP.md](docs/ROADMAP.md) first)
 - `marketing/`: scripts that render the promo videos from the app itself
 - `prototype/tilo.html`: prototype 0.1, kept for reference

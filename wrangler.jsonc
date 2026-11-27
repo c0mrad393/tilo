@@ -1,18 +1,13 @@
-// The Cloudflare Worker "tilo" that serves tiloart.com. Every push to main builds the app
-// (npm run build) and deploys this. worker/index.ts sends server paths to the VPS.
+// tiloart.com since Tilo closed (27 November 2026): the closing page only, static files with
+// no server behind them, under the Worker's old name. Every address shows the page.
+// The app's own Worker, as it ran until then, is wrangler.app.jsonc:
+// `npm run build && npx wrangler deploy -c wrangler.app.jsonc`.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tilo",
-  "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    // the Worker decides these before any file or the app's index.html is served
-    "run_worker_first": ["/api/*", "/auth/v1/*", "/rest/v1/*", "/files/*", "/piece/*", "/u/*"]
-  },
-  // ORIGIN and EDGE_SECRET are set in the dashboard; a deploy keeps them
-  "keep_vars": true,
-  "observability": { "enabled": true }
+    "directory": "./closed/site",
+    "not_found_handling": "single-page-application"
+  }
 }
